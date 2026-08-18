@@ -32,3 +32,35 @@ running without hand-maintenance per agency.
 
 Early. Corpus selection and pipeline validation in progress. Nothing here is
 production-ready.
+
+## Development
+
+Everything runs in Docker; nothing is installed on the host.
+
+```bash
+docker compose watch   # start both services with live reload
+docker compose down    # stop
+```
+
+- API — http://localhost:8000 (`/health`, `/docs`)
+- Web — http://localhost:3000
+
+`docker compose watch` copies changed files into the running containers rather
+than bind-mounting the working tree, so build artifacts (`.next`,
+`node_modules`, `__pycache__`) stay inside the containers and never land in
+your checkout.
+
+### Adding dependencies
+
+```bash
+make add-py pkg=httpx    # Python
+make add-js pkg=zod      # Node
+docker compose build     # rebuild images with the new dependency
+```
+
+The Makefile exists only for these three: the underlying `docker compose run`
+invocations are long, and the `--user` flag they need on Linux must be omitted
+on macOS. `make lock` regenerates both lockfiles after a manual manifest edit.
+
+`api/uv.lock` and `web/pnpm-lock.yaml` are committed and the images install
+frozen, so builds are reproducible across machines.
