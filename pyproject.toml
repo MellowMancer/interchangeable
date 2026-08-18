@@ -1,0 +1,4 @@
+# uv workspace root. Not a package itself — it owns the members and the lockfile.
+
+[tool.uv.workspace]
+members = ["api", "packages/bdheal"]

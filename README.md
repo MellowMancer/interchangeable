@@ -53,7 +53,8 @@ your checkout.
 ### Adding dependencies
 
 ```bash
-make add-py pkg=httpx    # Python
+make add-py pkg=httpx    # Python, into preward
+make add-py pkg=httpx member=bdheal
 make add-js pkg=zod      # Node
 docker compose build     # rebuild images with the new dependency
 ```
@@ -62,5 +63,5 @@ The Makefile exists only for these three: the underlying `docker compose run`
 invocations are long, and the `--user` flag they need on Linux must be omitted
 on macOS. `make lock` regenerates both lockfiles after a manual manifest edit.
 
-`api/uv.lock` and `web/pnpm-lock.yaml` are committed and the images install
+`uv.lock` and `web/pnpm-lock.yaml` are committed and the images install
 frozen, so builds are reproducible across machines.

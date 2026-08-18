@@ -1,1 +1,1 @@
-"""Pre-RFP capital signal mining for WA municipal agenda packets."""
+"""Tiered, provenance-carrying signal extraction from source documents."""

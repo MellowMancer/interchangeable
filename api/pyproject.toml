@@ -3,9 +3,15 @@ name = "preward"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "bdheal",
     "fastapi>=0.115",
+    "pyyaml>=6.0.3",
+    "typer>=0.27.1",
     "uvicorn[standard]>=0.32",
 ]
+
+[tool.uv.sources]
+bdheal = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -13,3 +19,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/preward"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+
+[project.scripts]
+preward = "preward.cli:app"

@@ -1,15 +1,24 @@
 services:
   api:
-    build: ./api
+    build:
+      context: .
+      dockerfile: api/Dockerfile
     ports:
       - "8000:8000"
     develop:
       watch:
         - action: sync
           path: ./api/src
-          target: /app/src
+          target: /app/api/src
+        - action: sync
+          path: ./packages/bdheal/src
+          target: /app/packages/bdheal/src
         - action: rebuild
           path: ./api/pyproject.toml
+        - action: rebuild
+          path: ./packages/bdheal/pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
 
   web:
     build: ./web
