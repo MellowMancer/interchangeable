@@ -1,0 +1,85 @@
+# bdheal
+
+Self-healing for [Bright Data Scraper Studio](https://docs.brightdata.com/datasets/scraper-studio)
+collectors: **detect → diagnose → heal → verify → promote or roll back**.
+
+It is corpus-agnostic by construction. It knows collector ids, Pydantic schemas, anchor
+URLs and HTML structure — and nothing about any problem domain. If you have a Bright
+Data account and a Pydantic model, it is meant for you.
+
+> **Status: scaffolded, not working.** The public surface below — models, ports and the
+> `Healer` facade — is settled and stable, and the package builds, installs and imports.
+> The behaviour behind it is being filled in feature by feature; calls currently raise
+> `NotImplementedError`. Nothing on this page describes something you can run yet
+> except the install and the checks.
+
+## Install
+
+Not published to an index yet. From a checkout:
+
+```bash
+uv pip install ./packages/bdheal
+```
+
+Runtime dependencies are exactly four: `pydantic`, `selectolax`, `lxml`, `structlog`.
+No web framework, no CLI framework, no HTTP client. The `bdata` CLI it drives is
+invoked through `npx`, so Node is a runtime requirement of the default adapter.
+
+## The usage shape
+
+Both ports are constructor arguments. The package ships no composition root and no
+module-level client: nothing reaches the network unless you hand it something that can.
+
+```python
+from pathlib import Path
+
+from bdheal import CollectorSpec, Healer
+from bdheal.clock import SystemClock
+from bdheal.process import SubprocessRunner
+from bdheal.store import SqliteHealStore, connect
+from bdheal.studio import BdataStudioClient
+
+clock = SystemClock()
+healer = Healer(
+    studio=BdataStudioClient(SubprocessRunner(), clock),
+    store=SqliteHealStore(connect(Path("heal.db"))),
+    clock=clock,
+)
+
+spec = CollectorSpec(
+    collector_id="c_...",
+    name="listings",
+    anchor_urls=["https://example.com/listings"],
+    row_schema=MyRow,
+)
+
+result = healer.run(spec, spec.anchor_urls)
+verdict = healer.detect(spec, result)
+if verdict.broken:
+    event = healer.heal(spec, verdict)
+    report = healer.verify(spec, golden_rows, old_layout_url="https://example.com/old")
+```
+
+Substituting your own `StudioClient` or `HealStore` needs no inheritance — the ports are
+`Protocol`s, satisfied structurally.
+
+## Checks
+
+```bash
+uv run --package bdheal pytest packages/bdheal
+```
+
+Green with no corpus, no database, no application and no network: both ports are stubbed
+at their interfaces. Two markers are gated out of that run because they need the
+network — set the variable to opt in:
+
+| Marker | Variable | What it does |
+|---|---|---|
+| `live` | `BDHEAL_LIVE=1` | calls the real `bdata` CLI, to confirm its surface has not moved |
+| `publish` | `BDHEAL_PUBLISH_CHECK=1` | builds wheel and sdist, installs into an empty venv from the declared ranges alone, and proves `import bdheal` works with this repo off `sys.path` |
+
+The package carries no lockfile of its own, deliberately: a lock pins one resolution for
+one application, and cannot show that a library resolves for anybody else. The `publish`
+check is what backs the claim instead.
+
+See `ARCHITECTURE.md` at the repo root for the layer map and the contribution contract.

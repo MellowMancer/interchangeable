@@ -1,0 +1,51 @@
+[project]
+name = "bdheal"
+description = "Detect, diagnose, heal and verify Bright Data collectors. Corpus-agnostic."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Mello" }]
+keywords = ["scraping", "self-healing", "bright-data", "scraper-studio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dynamic = ["version"]
+dependencies = [
+    "lxml>=5.3",
+    "pydantic>=2.9",
+    "selectolax>=0.3.21",
+    "structlog>=24.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/bdheal/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bdheal"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "live: calls the real bdata CLI over the network; skipped unless BDHEAL_LIVE=1",
+    "publish: builds and installs the package over the network; skipped unless BDHEAL_PUBLISH_CHECK=1",
+]
+
+[project.urls]
+Repository = "https://github.com/MellowMancer/interchangeable"
+Issues = "https://github.com/MellowMancer/interchangeable/issues"
