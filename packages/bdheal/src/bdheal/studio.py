@@ -194,7 +194,6 @@ class BdataStudioClient:
                 created_at=self._clock.now(),
                 prompt=prompt,
                 preview_result=payload.get("preview_result"),
-                promoted=status is HealStatus.DONE,
                 error=payload.get(ERROR_KEY),
             )
         except ValueError as exc:

@@ -23,3 +23,11 @@ class CollectorCreateError(StudioError):
     Bright Data leaves the half-built collector behind and exposes no programmatic
     delete, so the message must name the orphaned id for manual removal in the web UI.
     """
+
+
+class NotPendingError(BdhealError):
+    """`approve` was called on a heal that is not waiting at the gate.
+
+    Every gate call is paid, so approving an already-settled event spends money to decide
+    something already decided. Raised before anything reaches the CLI.
+    """

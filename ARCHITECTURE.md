@@ -248,6 +248,7 @@ change what is here.
 | `skeleton()`, `skeleton_hash()` | `skeleton.py` | Any structural comparison — detect and bench both consume it |
 | `null_rates()`, `capture_baseline()` | `detect.py` | Baseline maths, in one place, used by both detect and the facade |
 | `TEMPLATE_IDS`, `Diagnosis` | `diagnose.py` | Prompt selection. A new failure class adds a row here |
+| `heal()`, `approve()`, `PROMOTED_STATUS` | `heal.py` | The approval gate. A new terminal outcome, or a wider definition of "promoted", changes this file — not the CLI adapter |
 | `BDATA_ARGV`, `DEFAULT_TIMEOUT_S`, `BATCH_TIMEOUT_S` | `studio.py` | Every `bdata` invocation. No feature re-spells the npx prefix |
 | `connect()`, `SqliteHealStore` | `store.py` | Persistence. `schema.sql` is the single DDL source |
 | `SystemClock` | `clock.py` | The only `datetime.now` in the package |

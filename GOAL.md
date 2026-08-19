@@ -208,7 +208,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       longer find.
       parallel-with: 11
 
-- [ ] 8 Heal + approval gate (`heal.py`) — depends on: 7
+- [x] 8 Heal + approval gate (`heal.py`) — depends on: 7
       `bdata scraper heal <collector_id> "<prompt>"` → `awaiting_approval` →
       `preview_result` → `approve` or `--reject`, plus the unattended `--auto-approve`
       path.
@@ -228,6 +228,22 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       (f) a `HealEvent` row is written through `HealStore` on every terminal outcome,
           including rejection and failure.
       parallel-with: 11
+
+> ### Two obligations F8 places on F9/F10/F12 (from F8 verification)
+>
+> **A gate cycle is not one row.** A gated heal emits **two** (`awaiting_approval` then the
+> terminal outcome); auto-approve and a failed call emit one. Anything counting rows per
+> cycle — attempts-to-heal, time-to-heal in F12, F10's loop bookkeeping — must select the
+> **terminal-most** row, not treat row count as cycle count.
+>
+> **A failed gate call raises; it does not return a `failed` event.** `heal.heal` and
+> `heal.approve` write the row and then re-raise `StudioError`, matching the package's
+> convention that errors are raised, never returned. That is asymmetric with F9's
+> value-based signal (`VerifyReport.non_regression_passed=False`), so **F10 must wrap every
+> `heal()`/`approve()` call in `except StudioError` and treat the catch as its own
+> "not promoted" branch** — it cannot branch on `event.status` for this failure mode the
+> way it can for a rejection. The row is already written by then; F10 decides only what to
+> do next, not what to record.
 
 - [ ] 9 Verify + non-regression (`verify.py`) — depends on: 8
       Run the healed collector against golden records, then re-run it against the OLD
