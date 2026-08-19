@@ -43,7 +43,7 @@ LAYER: dict[str, int] = {
     "bench.__init__": DRIVERS,
 }
 
-RUNTIME_DEPENDENCIES = frozenset({"lxml", "pydantic", "selectolax", "structlog"})
+RUNTIME_DEPENDENCIES = frozenset({"lxml", "pydantic", "selectolax"})
 DEV_DEPENDENCIES = frozenset({"pytest", "pytest-cov"})
 ALLOWED_ROOTS = RUNTIME_DEPENDENCIES | set(sys.stdlib_module_names) | {"bdheal"}
 
@@ -103,8 +103,8 @@ def test_dependencies_point_inward() -> None:
             assert LAYER[target] <= LAYER[name], f"{name} reaches outward into {target}"
 
 
-def test_no_dependency_outside_the_declared_four() -> None:
-    """Runtime dependencies are exactly the four declared in the manifest (G2, G4)."""
+def test_no_dependency_outside_the_declared_runtime_set() -> None:
+    """Runtime dependencies are exactly the ones declared in the manifest (G2, G4)."""
     for name, tree in _modules().items():
         for imported in _imports(tree):
             root = imported.split(".")[0]
@@ -112,7 +112,7 @@ def test_no_dependency_outside_the_declared_four() -> None:
 
 
 def test_manifest_declares_exactly_the_runtime_dependencies() -> None:
-    """G4: thin by contract. A fifth runtime dependency is argued for here or not at all."""
+    """G4: thin by contract. A further runtime dependency is argued for here or not at all."""
     assert _declared(_manifest()["project"]["dependencies"]) == RUNTIME_DEPENDENCIES
 
 

@@ -10,10 +10,10 @@ prompts are caller-supplied values, and this file is where they meet a process (
 """
 
 import json
+import re
 from collections.abc import Sequence
 from typing import Any
 
-import structlog
 from pydantic import BaseModel, ValidationError
 
 from bdheal.errors import CollectorCreateError, StudioError, StudioResponseError
@@ -60,8 +60,49 @@ ERROR_CODE_KEY = "error_code"
 UNSPECIFIED_CODE = "unspecified"
 COLLECTOR_ID_KEY = "collector_id"
 EXCERPT_CHARS = 200
+# How much beyond the excerpt is scanned for credentials. Redaction must see past the cut —
+# a key straddling char 200 would otherwise leave its visible prefix behind, and a prefix of
+# a credential is still a credential. But scanning the *whole* payload is unbounded work on
+# a failure path: a batch `scraper run` returns megabytes, and one label pattern alone cost
+# 2.5 s per megabyte, so a 10 MB failure took ~26 s to report. Every pattern anchors on a
+# label and runs greedily rightward, so a credential beginning before the cut still matches
+# inside this window.
+STRADDLE_MARGIN = 4096
 
-log = structlog.get_logger(__name__)
+# This package never reads a credential, but one can arrive *from* the subprocess: `npx`
+# echoes the command line it wrapped when that process fails, and `bdata` relays upstream
+# auth errors verbatim. Both land on stderr, become an exception message, and are written
+# to a heal event's `error` column — a credential at rest, authored by nobody (G6).
+# Redacted to a marker rather than dropped: the operator still has to know what failed.
+REDACTED = "[redacted]"
+
+# Shorter runs than this are collector ids and job ids, which are not secret and are the
+# most useful thing in the message. Real keys and JWTs are far longer.
+MIN_OPAQUE_CHARS = 24
+
+# Applied in order, catch-all last, so a labelled credential keeps its label.
+_CREDENTIAL_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # The whole header value, to end of line — not `\S+`, which matches only the scheme
+    # word and leaves the credential after it. That bug shipped once: it rewrote
+    # `Authorization: Bearer <token>` to `Authorization: [redacted] <token>` and, by
+    # consuming the word `Bearer` first, stopped the pattern below from ever seeing it.
+    # Tokens of 24+ characters were rescued by the catch-all, so the tests passed on a
+    # long JWT while a short session token leaked verbatim into the persisted row.
+    (re.compile(r"(?i)\b((?:proxy-)?authorization)\s*:[^\r\n]*"), rf"\1: {REDACTED}"),
+    # Known and accepted: this is line-greedy, so diagnostic text sharing a line with the
+    # header is redacted along with the credential. Every observed payload puts the status
+    # on its own line, and over-redacting a message beats under-redacting a secret.
+    (re.compile(r"(?i)\bbearer\s+\S+"), f"Bearer {REDACTED}"),
+    (
+        re.compile(r"(?i)([\w-]*(?:key|token|secret|password)[\w-]*)\s*[=:]\s*\S+"),
+        rf"\1={REDACTED}",
+    ),
+    (re.compile(r"(?i)(--[\w-]*(?:key|token|secret|password))\s+\S+"), rf"\1 {REDACTED}"),
+    (
+        re.compile(rf"\b(?=[\w.-]*\d)(?=[\w.-]*[A-Za-z])[\w.-]{{{MIN_OPAQUE_CHARS},}}"),
+        REDACTED,
+    ),
+)
 
 
 class BdataStudioClient:
@@ -194,7 +235,7 @@ class BdataStudioClient:
                 created_at=self._clock.now(),
                 prompt=prompt,
                 preview_result=payload.get("preview_result"),
-                error=payload.get(ERROR_KEY),
+                error=_reported(payload),
             )
         except ValueError as exc:
             raise StudioResponseError(
@@ -235,9 +276,26 @@ def _label(command: tuple[str, ...]) -> str:
     return " ".join(command)
 
 
+def _redact(text: str) -> str:
+    """Command output with every credential-shaped substring replaced by `REDACTED`."""
+    for pattern, replacement in _CREDENTIAL_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 def _excerpt(text: str) -> str:
-    """A bounded, stripped slice of command output, safe to put in a message."""
-    return text.strip()[:EXCERPT_CHARS] or "no output"
+    """A bounded, scrubbed slice of command output, safe to put in a message.
+
+    Scrubbed *before* truncating: a key straddling the cut would otherwise leave its
+    first characters in the message, and a prefix of a credential is still a credential.
+    """
+    return _redact(text.strip()[: EXCERPT_CHARS + STRADDLE_MARGIN])[:EXCERPT_CHARS] or "no output"
+
+
+def _reported(payload: dict[str, Any]) -> str | None:
+    """The envelope's own error message, scrubbed — it is persisted onto the heal event."""
+    reported = payload.get(ERROR_KEY)
+    return _redact(str(reported)) if reported else None
 
 
 def _check(completed: ProcessResult, command: tuple[str, ...]) -> None:
@@ -285,7 +343,7 @@ def _create_failed(payload: dict[str, Any]) -> bool:
 
 def _create_failure(url: str, payload: dict[str, Any], completed: ProcessResult) -> str:
     """Why the create failed and, crucially, which half-built collector it left behind."""
-    reason = payload.get(ERROR_KEY) or _excerpt(completed.stderr)
+    reason = _reported(payload) or _excerpt(completed.stderr)
     collector_id = payload.get(COLLECTOR_ID_KEY)
     leftover = (
         f"collector {collector_id} was left half-built and Bright Data exposes no "

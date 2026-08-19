@@ -7,15 +7,18 @@ through the `HealStore` port only — detect never touches a database or a netwo
 One line governs the whole module: **extraction problems justify a heal; target-side
 problems justify a retry; neither justifies silence.**
 
-So any row carrying an `error_code` — `rate_limit`, but equally blocked, captcha'd,
-timed out — makes the sample incomplete: the volume-based detectors record
-`INCONCLUSIVE`, a retry is requested, and the observed codes are named in the reason
-(resolved Q3, widened after F6 verification found a run half-refused with `blocked`
-coming back silent). Healing cannot fix a refused fetch, so none of that proposes a heal.
+So a row carrying a target-side or ambiguous `error_code` — `rate_limit`, but equally
+blocked, captcha'd, timed out, or a `dead_page` one run cannot attribute — makes the
+sample incomplete: the volume-based detectors record `INCONCLUSIVE`, a retry is
+requested, and the observed codes are named in the reason (resolved Q3, widened after F6
+verification found a run half-refused with `blocked` coming back silent). Healing cannot
+fix a refused fetch, so none of that proposes a heal.
 
-A row that *did* come back and produced no usable data is the other half: the caller's
-schema rejected it, or it was not an object at all. That is an extraction fault and it
-stands as break evidence whatever happened to its siblings.
+A code Bright Data attributes to the scraper itself is the other half, and it is not an
+exception to the rule but the rule's other side: retrying reproduces it exactly, so the
+sample is whole and the row is evidence about the extractor. A row that came back and
+produced no usable data reads the same way — the caller's schema rejected it, or it was
+not an object at all. Either stands as break evidence whatever happened to its siblings.
 """
 
 from dataclasses import dataclass
@@ -38,12 +41,11 @@ from bdheal.ports import HealStore
 from bdheal.skeleton import skeleton_hash as structural_hash
 from bdheal.vocabulary import (
     AMBIGUOUS_CODES,
-    TARGET_REFUSAL_CODES,
+    UNTRUSTWORTHY_SAMPLE_CODES,
+    THROTTLE_CODES,
     SignalKind,
     SignalOutcome,
 )
-
-RATE_LIMIT_CODE = "rate_limit"
 
 # How an incomplete sample is announced. Throttling gets its own word because it is the
 # one target-side failure that clears up on its own; every other code reads the same way
@@ -123,7 +125,7 @@ def _is_refusal(error: RowError) -> bool:
     have. Only a code Bright Data attributes to the scraper itself — or no code at all —
     is evidence about extraction.
     """
-    return error.error_code in TARGET_REFUSAL_CODES or error.error_code in AMBIGUOUS_CODES
+    return error.error_code in UNTRUSTWORTHY_SAMPLE_CODES
 
 
 def null_rates(rows: list[dict], fields: list[str]) -> dict[str, float]:
@@ -255,7 +257,7 @@ def _refusals(target: _TargetSide) -> str:
 
 def _label(target: _TargetSide) -> str:
     """Throttling by name where it applies, an incomplete sample where it does not."""
-    return THROTTLED_LABEL if RATE_LIMIT_CODE in target.codes else INCOMPLETE_LABEL
+    return THROTTLED_LABEL if THROTTLE_CODES.intersection(target.codes) else INCOMPLETE_LABEL
 
 
 def _reason(fired: list[Signal], target: _TargetSide) -> str | None:

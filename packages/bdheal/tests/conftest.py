@@ -81,6 +81,17 @@ def assert_names_no_problem_domain(source: str) -> None:
 FIXED_NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 STUB_COLLECTOR_ID = "c_stub00000000000000"
 
+# Credential-shaped values that are not credentials: an API key and a JWT, shaped like the
+# real ones so a redaction test proves something. They live here because two features
+# assert against them — the prompt that must never read one, and the CLI output that must
+# never persist one — and two constants of the same fake key would drift.
+FAKE_API_KEY = "bd_live_00000000000000000000000000000000"
+FAKE_BEARER_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMDAwMDAwIn0.00Ftj0eZ4CVPmB92K27uhbUJU1p1"
+# Deliberately SHORT — under the catch-all's opaque-run threshold, so only the
+# `Authorization:` pattern can save it. A long JWT passes even when that pattern is
+# broken, which is exactly how a real leak shipped green once.
+FAKE_SHORT_TOKEN = "s3cr3t42"
+
 
 class SampleRow(BaseModel):
     """A caller's row schema, deliberately generic — no test may rely on a problem domain."""
@@ -203,6 +214,10 @@ class InMemoryHealStore:
     def completed_case_ids(self, run_id: str) -> list[str]:
         """The case ids already finished in this run."""
         return [case_id for run, case_id in self.cases if run == run_id]
+
+    def bench_cases(self, run_id: str) -> list[BenchCase]:
+        """Every finished case in this run, ordered as the SQLite adapter orders them."""
+        return [case for (run, _), case in sorted(self.cases.items()) if run == run_id]
 
 
 class RecordingRunner:

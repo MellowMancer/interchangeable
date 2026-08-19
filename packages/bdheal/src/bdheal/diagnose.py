@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from bdheal.models import CollectorSpec, DetectVerdict
-from bdheal.vocabulary import FailureClass, SignalKind
+from bdheal.vocabulary import SIGNAL_PRECEDENCE, FailureClass, SignalKind
 
 @dataclass(frozen=True, slots=True)
 class _Template:
@@ -68,15 +68,15 @@ TEMPLATES: dict[FailureClass, _Template] = {
     ),
 }
 
-# Which fired signal names the failure, in precedence order: a moved tag-and-class tree is
-# why the other three fired, so naming one of the symptoms instead would send the heal
-# looking for a field on a page whose rows it can no longer find.
-_PRECEDENCE: tuple[tuple[SignalKind, FailureClass], ...] = (
-    (SignalKind.SKELETON, FailureClass.STRUCTURE_CHANGED),
-    (SignalKind.SCHEMA, FailureClass.SCHEMA_MISMATCH),
-    (SignalKind.ZERO_ROWS, FailureClass.EMPTY_RESULT),
-    (SignalKind.NULL_RATE, FailureClass.FIELDS_MISSING),
-)
+# What each detector's reading means, given the precedence `vocabulary` ranks them in.
+# Keyed rather than zipped to that order: a positional pairing would let a reorder of the
+# shared tuple repoint every detector at the wrong template without a line changing here.
+_FAILURE_BY_KIND: dict[SignalKind, FailureClass] = {
+    SignalKind.SKELETON: FailureClass.STRUCTURE_CHANGED,
+    SignalKind.SCHEMA: FailureClass.SCHEMA_MISMATCH,
+    SignalKind.ZERO_ROWS: FailureClass.EMPTY_RESULT,
+    SignalKind.NULL_RATE: FailureClass.FIELDS_MISSING,
+}
 
 
 PROMPT_TEMPLATE = (
@@ -99,9 +99,9 @@ class Diagnosis:
 def classify(verdict: DetectVerdict) -> FailureClass:
     """Pick the failure class from the fired signals. Unrecognised falls through to UNKNOWN."""
     fired = verdict.fired_kinds
-    for kind, failure_class in _PRECEDENCE:
+    for kind in SIGNAL_PRECEDENCE:
         if kind in fired:
-            return failure_class
+            return _FAILURE_BY_KIND[kind]
     return FailureClass.UNKNOWN
 
 

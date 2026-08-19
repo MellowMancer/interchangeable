@@ -120,6 +120,7 @@ class HealStore(Protocol):
     def heal_events(self, collector_id: str) -> list[HealEvent]: ...
     def save_bench_case(self, case: BenchCase) -> None: ...
     def completed_case_ids(self, run_id: str) -> list[str]: ...
+    def bench_cases(self, run_id: str) -> list[BenchCase]: ...
 
 class Clock(Protocol):
     def now(self) -> datetime: ...
@@ -150,6 +151,14 @@ Notes that are decisions, not commentary:
 - **Benchmark resume state rides on `HealStore`** rather than a third port, because
   `GOAL.md` fixes the package at two injected ports and a resume reads baselines, events
   and case state together.
+
+
+`bench_cases` exists because `completed_case_ids` returns ids only. A benchmark that
+survives a restart could skip the cases it had finished but could not read them back, so
+the resumed process was unable to publish metrics for the whole run — the rows it wrote
+before the crash were write-only. Added at F12 sign-off (2026-08-19) after verification
+showed the resume proof was reading a test double's private in-memory dict rather than
+persisted rows.
 
 ## 6. Data model
 
@@ -199,9 +208,10 @@ persistence boundary and its values must be nameable from the innermost layer.
 
 ### Incomplete samples (resolved decision Q3, widened by F6(h) on 2026-08-19)
 
-`error_code` is data, never an exception. **Any row carrying an `error_code` at all** —
-not merely `rate_limit`, but `blocked`, `captcha`, `timeout` or anything else the target
-returns — makes the sample incomplete, so `zero_rows` and `null_rate` record
+`error_code` is data, never an exception. **Any row carrying a target-side or ambiguous `error_code`** —
+not merely a throttle code, but `blocked`, `captcha_timeout` and the ambiguous set —
+codes the vendor attributes to the *scraper* (`parse_error`, `bad_input`,
+`wait_element_timeout`) are extraction evidence and do fire the schema signal — makes the sample incomplete, so `zero_rows` and `null_rate` record
 `SignalOutcome.INCONCLUSIVE` and `retry_requested` is set. A schema failure on a row that
 *did* return is still valid break evidence. Such a run therefore never heals on volume
 grounds, may still report a schema break, and always asks for a retry.
@@ -276,12 +286,12 @@ change what is here.
 - **Module docstrings state *why* the module exists**, not what its functions are called.
   Public functions and classes get a one-line docstring. Comments explain non-obvious
   *why* and nothing else.
-- **Named constants, never magic values.** `RATE_LIMIT_CODE`, `BATCH_TIMEOUT_S`,
+- **Named constants, never magic values.** `THROTTLE_CODES`, `BATCH_TIMEOUT_S`,
   `DEFAULT_TIMEOUT_S`, `TEMPLATE_IDS` already exist; add to them.
 - **Errors are explicit and typed.** No bare `except`. No silent swallow. A `bdata`
   failure raises a `StudioError` subclass whose message says what to do about it —
   including naming the orphaned collector a failed `create` leaves behind.
-- **Logging**: `structlog.get_logger(__name__)` in the module that logs. The package
+- **Logging**: structured logging (none in the package today; `structlog` was dropped at Phase 2 as a declared dependency with no call sites) in the module that logs. The package
   **never configures logging** — configuration belongs to the application. No log line,
   exception message, heal prompt or persisted row may contain an API key, token, or raw
   argv (G6). `BRIGHTDATA_API_KEY` reaches `bdata` through the environment and is never
@@ -344,7 +354,7 @@ of the isolation run — they are an operator's tools for confirming the CLI sur
 not moved and that the package still installs standalone.
 
 **`tests/test_architecture.py` is a standing test, owned by nobody's feature.** It
-enforces the layer map, the inward dependency rule, the four-dependency limit (G2 + G4),
+enforces the layer map, the inward dependency rule, the three-dependency limit (G2 + G4),
 and the absence of any `shell` argument (G3). If it fails, the fix is the code or this
 document — not the test.
 

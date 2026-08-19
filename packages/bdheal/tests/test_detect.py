@@ -28,7 +28,7 @@ from conftest import FIXED_NOW, STUB_COLLECTOR_ID, SampleRow, baseline, run_resu
 from bdheal import detect as detect_module
 from bdheal.detect import (
     NULL_RATE_SPIKE,
-    RATE_LIMIT_CODE,
+    THROTTLED_LABEL,
     capture_baseline,
     detect,
     null_rates,
@@ -37,7 +37,7 @@ from bdheal.models import Baseline, CollectorSpec, DetectVerdict, RowError, RunR
 from bdheal.ports import HealStore
 from bdheal.skeleton import skeleton_hash
 from bdheal.studio import _distinct_codes
-from bdheal.vocabulary import SignalKind, SignalOutcome
+from bdheal.vocabulary import COLLECTOR_FAULT_CODES, THROTTLE_CODES, SignalKind, SignalOutcome
 
 DETECT_SOURCE = inspect.getsource(detect_module)
 
@@ -45,6 +45,7 @@ FIELDS = list(SampleRow.model_fields)
 HEALTHY_NULL_RATES = dict.fromkeys(FIELDS, 0.0)
 
 BLOCKED_CODE = "blocked"
+THROTTLED_CODE = "rate_limit"
 
 BASELINE_HTML = '<ul class="rows"><li class="row"><a class="link"></a></li></ul>'
 REBUILT_HTML = '<ul class="rows"><li class="record"><a class="link"></a></li></ul>'
@@ -60,7 +61,7 @@ def _row(index: int, *, published: str | None = "2026-01-01") -> dict[str, str |
 
 def _throttled(index: int) -> RowError:
     """A target-side throttle: no row came back, and the reason is not our schema."""
-    return RowError(index=index, message="too many requests", error_code=RATE_LIMIT_CODE)
+    return RowError(index=index, message="too many requests", error_code=THROTTLED_CODE)
 
 
 def _malformed(index: int) -> RowError:
@@ -121,17 +122,22 @@ def test_a_schema_validation_failure_is_a_break(spec: CollectorSpec, store: Heal
     assert _outcomes(verdict) == {SignalKind.SCHEMA: SignalOutcome.FIRED}
 
 
-def test_a_collector_fault_code_is_break_evidence(spec: CollectorSpec, store: HealStore) -> None:
-    """`parse_error` is the scraper's own code failing, so it justifies a heal.
+@pytest.mark.parametrize("code", sorted(COLLECTOR_FAULT_CODES))
+def test_a_collector_fault_code_is_break_evidence(
+    code: str, spec: CollectorSpec, store: HealStore
+) -> None:
+    """A code Bright Data attributes to the scraper is the scraper failing, so it justifies a heal.
 
-    Observed 19 times in one real payload — the price parser failing on pages that had
-    loaded perfectly well. Bright Data attributes it to the scraper, and a retry would
-    reproduce it exactly.
+    `parse_error` was observed 19 times in one real payload — the price parser failing on
+    pages that had loaded perfectly well. A retry would reproduce it exactly.
+
+    Parametrised over the whole class because the live rule is its *complement*: `detect`
+    asks whether a code is a refusal or ambiguous, so a code moved into either of those
+    sets changes this verdict with nothing in the module to say it had.
     """
     _store_baseline(store, row_count=10)
     errors = [
-        RowError(index=0, message="Parse error: value must be finite number",
-                 error_code="parse_error"),
+        RowError(index=0, message="Parse error: value must be finite number", error_code=code),
     ]
 
     verdict = detect(spec, _result([_row(1)], errors), store)
@@ -269,7 +275,7 @@ def test_a_wholly_throttled_run_is_not_broken(spec: CollectorSpec, store: HealSt
     assert verdict.broken is False
     assert verdict.incomplete is True
     assert verdict.retry_requested is True
-    assert RATE_LIMIT_CODE in (verdict.reason or "")
+    assert THROTTLED_CODE in (verdict.reason or "")
     assert "throttl" in (verdict.reason or "")
     assert SignalOutcome.FIRED not in _outcomes(verdict).values()
     assert _outcomes(verdict) == {
@@ -358,7 +364,7 @@ def test_every_observed_error_code_is_named_in_the_reason(
     reason = verdict.reason or ""
 
     assert BLOCKED_CODE in reason
-    assert RATE_LIMIT_CODE in reason
+    assert THROTTLED_CODE in reason
 
 
 def test_a_target_side_failure_is_never_read_as_an_extraction_fault(
@@ -442,3 +448,37 @@ def test_capture_baseline_takes_the_shape_of_a_healthy_run() -> None:
         null_rates={"title": 0.0, "url": 0.0, "published": 0.5},
         skeleton_hash=skeleton_hash(BASELINE_HTML),
     )
+
+
+@pytest.mark.parametrize("code", sorted(THROTTLE_CODES))
+def test_a_throttled_sample_is_named_as_throttling(
+    code: str, spec: CollectorSpec, store: HealStore
+) -> None:
+    """Throttling is the one refusal that clears up on its own, so the reason says so.
+
+    Bright Data documents two rate-limit codes and a third was observed live, and only
+    the observed one was recognised — so a run the vendor's own documented code throttled
+    read as a plain "incomplete sample" and told the operator nothing about waiting.
+    """
+    _store_baseline(store, row_count=10)
+    errors = [_refused(index, code) for index in range(3)]
+
+    verdict = detect(spec, _result(errors=errors), store)
+
+    assert THROTTLED_LABEL in (verdict.reason or "")
+
+
+def test_the_module_docstring_states_the_rule_the_module_implements() -> None:
+    """The stated rule and the running rule have to be the same rule.
+
+    The docstring claimed that *any* row carrying an `error_code` makes the sample
+    incomplete. `_is_refusal` does not agree: a collector-fault code leaves the sample
+    whole, and a `parse_error` row carries a code and fires the schema signal. A stated
+    rule the code does not follow is worse than no statement, because it is the one the
+    next reader will implement against.
+    """
+    doc = detect_module.__doc__ or ""
+
+    assert "any row carrying an `error_code`" not in doc
+    assert "target-side" in doc
+    assert "ambiguous" in doc

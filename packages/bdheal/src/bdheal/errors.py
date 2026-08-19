@@ -25,6 +25,16 @@ class CollectorCreateError(StudioError):
     """
 
 
+class VerificationIncompleteError(BdhealError):
+    """A verification pass the target refused part of, so no score can be published.
+
+    Raised rather than returned because `VerifyReport` has no third value: reporting
+    `non_regression_passed=False` for a sample that was throttled or blocked would accuse
+    a heal of overfitting on evidence that was never gathered, and reporting `True` would
+    publish a check nobody performed. The caller retries; only the loop can decide that.
+    """
+
+
 class NotPendingError(BdhealError):
     """`approve` was called on a heal that is not waiting at the gate.
 

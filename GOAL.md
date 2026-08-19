@@ -20,9 +20,9 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 - [ ] G3 **argv is a list.** Every `bdata` invocation passes argv as a `list[str]`;
       `shell=True` appears nowhere in `packages/bdheal/`. Collector ids and heal prompts
       are interpolated values, so this is the injection boundary.
-- [ ] G4 **Thin dependencies.** Runtime deps are exactly `pydantic selectolax lxml
-      structlog`; dev deps exactly `pytest pytest-cov`. No `fastapi`, no `typer`,
-      no `httpx`.
+- [ ] G4 **Thin dependencies.** Runtime deps are exactly `pydantic selectolax lxml`
+      (three — `structlog` was dropped at Phase 2 as a declared dependency with no call
+      sites); dev deps exactly `pytest pytest-cov`. No `fastapi`, no `typer`, no `httpx`.
 - [ ] G5 **Buildable at every step.** After each feature, `docker compose build api`
       exits 0 and the isolation test is still green — every feature is demonstrable on
       its own, without any later feature present.
@@ -67,7 +67,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
           works there with `__version__` and `__all__` intact and no repo path on that
           interpreter's `sys.path`.
       Plus G2 and G4 hold: no `preward` string anywhere under `packages/bdheal/`, and
-      the manifest lists exactly `pydantic selectolax lxml structlog` + dev
+      the manifest lists exactly `pydantic selectolax lxml` (three) + dev
       `pytest pytest-cov`.
       parallel-with: none
 
@@ -245,7 +245,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 > way it can for a rejection. The row is already written by then; F10 decides only what to
 > do next, not what to record.
 
-- [ ] 9 Verify + non-regression (`verify.py`) — depends on: 8
+- [x] 9 Verify + non-regression (`verify.py`) — depends on: 8
       Run the healed collector against golden records, then re-run it against the OLD
       layout URL and diff — the overfit check.
       criteria:
@@ -277,7 +277,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 > cycle before healing, which is the cheap direction to be wrong in. `detect` stays
 > stateless and judges one run; the loop is the facade's job.
 
-- [ ] 10 `Healer` facade — depends on: 9
+- [x] 10 `Healer` facade — depends on: 9
       The single public entry point: `run · detect · heal · verify`, with both ports
       injected at construction.
       criteria:
@@ -358,7 +358,66 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 > Verify the page count of the first benchmark collector against the dashboard **before**
 > running the remaining cases.
 
-- [ ] 12 Benchmark runner + metrics (`bench/runner.py`, `bench/metrics.py`) — depends on: 10, 11
+> ### ⚠️ One golden set cannot score two layouts (found building F9)
+>
+> `verify(spec, golden, old_layout_url, ...)` takes **one** golden set and scores both the
+> healed pass and the old-layout pass against it. That is correct for the six *structural*
+> mutation classes — the markup moved, the records did not — but **wrong for `date_format`,
+> `url_pattern` and `link_label`**, whose mutations change the text on the page, so the old
+> layout's true golden differs from the new one's.
+>
+> Left alone, F12 reports a **spurious non-regression failure** for those three classes —
+> a fabricated number in the one metric the project claims nobody else measures.
+>
+> **RESOLVED 2026-08-19: exclude them, and disclose it.** The non-regression rate is
+> computed over the **six structural classes only**. F12's output must state, in the
+> results themselves and not only in a footnote:
+>
+> > `date_format`, `url_pattern` and `link_label` are excluded from the non-regression
+> > rate: their mutation changes the page text, so one golden set cannot score both
+> > layouts. Scoring them would report a heal that broke nothing as a regression.
+>
+> The metric therefore covers **6 of 9** classes, stated as such. This matches how
+> `link_label`'s detection gap is already handled — a disclosed limit beats a fabricated
+> number, and an undisclosed one is the failure the whole provenance discipline exists to
+> prevent.
+>
+> ### F9's obligations on F10 and F12
+>
+> **F10 gains a third branch.** Wrap `verify()` in `except VerificationIncompleteError` and
+> treat it as **retry**, not rollback. Rolling back on it would discard a heal that was
+> never actually tested, and feed F12 a fabricated non-regression failure. The three
+> branches are now: `except StudioError` → not promoted (F8); `VerificationIncompleteError`
+> → retry (F9); a `False` report → roll back.
+>
+> **F12 must exclude incomplete verifications** from the non-regression rate rather than
+> counting them as failures — the same reasoning as F11(e): a gap is a finding, not a
+> failure.
+>
+> **`NON_REGRESSION_FLOOR = 1.0`** is F9's policy call, not the spec's: the old layout must
+> still yield *every* golden field. Any lower floor lets a heal drop one field in ten and
+> still publish as non-regressive.
+
+> ### What F12 inherits from F10 (recorded at F10 sign-off)
+>
+> - **Build each case's spec with `anchor_urls=[fixture_url]`.** A `RunResult` does not
+>   carry the URLs it came from, so the ambiguous-code retry re-runs `spec.anchor_urls`.
+>   If those differ from the case's fixture, the retry silently checks a *different page*.
+> - **`caught_by` is `None` for an escalated case.** No `SignalKind` means "the loop's
+>   retry caught it", and F10 deliberately fabricates no signal — inventing one would tell
+>   the coverage matrix a *detector* caught what the *loop* caught. Do not read that `None`
+>   as a detection gap without qualifying it.
+> - **Attempts-to-heal must count loop passes, not heal calls** — the facade heals exactly
+>   once per cycle. And `VerifyReport.attempts` counts verification passes *inside* one
+>   `Healer.verify()` call (max 2), not something the runner controls.
+> - **Two promotion floors must be stated in the published methodology**, or the numbers are
+>   not reproducible: `NON_REGRESSION_FLOOR = 1.0` (F9 — the old layout must still yield
+>   every golden field) and `field_accuracy > 0` (F10 — a no-op heal extracting nothing
+>   regresses nothing and would otherwise score perfectly on the old layout and promote).
+> - `Healer` satisfies `HealLoop` structurally, and a signature-comparison test actively
+>   guards the two against drift, so `bench/runner.py` can take a `HealLoop` safely.
+
+- [x] 12 Benchmark runner + metrics (`bench/runner.py`, `bench/metrics.py`) — depends on: 10, 11
       Drive mutated fixtures through the full `Healer` loop, record per-case outcomes,
       compute the five metrics, and persist run state so a multi-hour run resumes.
       criteria:
@@ -456,11 +515,33 @@ any feature code was written. Recorded here so the rationale survives.
 
 - **Licence: MIT** (decided 2026-08-19). `LICENSE` at repo root and a bundled copy at
   `packages/bdheal/LICENSE`; the wheel carries `License-Expression: MIT` and
-  `dist-info/licenses/LICENSE`. `bdheal` depends only on lxml (BSD), pydantic (MIT),
-  selectolax (MIT) and structlog (MIT/Apache), so it is unencumbered by the AGPL-3.0
+  `dist-info/licenses/LICENSE`. `bdheal` depends only on lxml (BSD), pydantic (MIT) and selectolax (MIT), so it is unencumbered by the AGPL-3.0
   `pymupdf` constraint that applies to the app.
 
 ---
+
+## Residual items — recorded at SHIP, none blocking
+
+From the Phase 2 reviewer, after the seven findings were closed:
+
+- **`studio.py` — the catch-all redaction net has a known shape.** It misses *unlabelled*
+  tokens that are base64 with `+` or `/` (the character class splits there), tokens of a
+  single character class (both lookaheads require a digit *and* a letter), and anything
+  under `MIN_OPAQUE_CHARS`. All of it is the residue behind four label-based patterns, and
+  both threat channels named in the code — `npx` echoing argv, `bdata` relaying auth
+  errors — are covered by a labelled pattern. The 24-char floor is a deliberate trade-off
+  against redacting collector ids. Widening to `+` risks little; widening to `/` would
+  swallow URL paths.
+
+- **`preview_result` is the one subprocess-authored field persisted unredacted**
+  (`studio.py` → `store.py`, as JSON). It holds sample scraped rows rather than auth
+  material, so likelihood is low — but it is structurally the same shape as the three
+  string sinks just closed, and worth revisiting if the loop ever previews a page behind
+  authentication.
+
+- **`mean_attempts_to_heal` publishes `1.0` by construction** on a live run — one loop
+  pass per case, one heal per pass. Real and tested, but carrying no information until the
+  runner is given a retry budget. Say so when publishing it.
 
 ## Working constraint
 

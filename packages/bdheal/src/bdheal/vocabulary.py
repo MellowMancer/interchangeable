@@ -42,6 +42,26 @@ class HealStatus(StrEnum):
     FAILED = "failed"
 
 
+# The statuses that end a heal cycle. A gated cycle writes two rows and an unattended or
+# failed one writes a single row, so a cycle's outcome is read from its terminal-most row
+# and never from how many rows it left behind. Derived from `HealStatus` rather than
+# listed, because it was listed twice — the facade's promote/rollback decision and the
+# benchmark's `healed` count — and a fifth status would have reached only one of them.
+TERMINAL_STATUSES: frozenset[HealStatus] = frozenset(HealStatus) - {HealStatus.AWAITING_APPROVAL}
+
+# Which fired signal names the failure, in precedence order. A moved tag-and-class tree is
+# *why* the other three fired, so crediting a symptom would send the heal looking for a
+# field on a page whose rows it can no longer find, and would tell the coverage matrix
+# that a detector caught a class it only saw the consequences of. `diagnose` maps it to a
+# failure class and the benchmark credits a detector by it: one order, two readers.
+SIGNAL_PRECEDENCE: tuple[SignalKind, ...] = (
+    SignalKind.SKELETON,
+    SignalKind.SCHEMA,
+    SignalKind.ZERO_ROWS,
+    SignalKind.NULL_RATE,
+)
+
+
 class MutationClass(StrEnum):
     """The nine benchmark perturbations. Structure and text only, never meaning."""
 
@@ -61,18 +81,24 @@ class MutationClass(StrEnum):
 # hand-rolled set got four of five names wrong — `rate_limit` for `global_rate_limit` /
 # `bucket_rate_limit`, `captcha` for `captcha_timeout` — and missed four codes entirely.
 #
-# REFUSAL: the target would not serve us. Retrying is the answer; healing cannot unblock
-# a fetch.
-TARGET_REFUSAL_CODES: frozenset[str] = frozenset(
+# THROTTLE: the one refusal that clears up on its own, which is why it gets its own word
+# in an operator-facing reason. All three codes, not just the observed one: a policy
+# keyed to a single literal calls the vendor's own documented codes something else.
+THROTTLE_CODES: frozenset[str] = frozenset(
     {
-        "blocked",
-        "captcha_timeout",
         "global_rate_limit",
         "bucket_rate_limit",
         "rate_limit",  # observed live in a real payload, though absent from the reference
-        "unspecified",  # an error payload the CLI reported without naming a code
     }
 )
+
+# REFUSAL: the target would not serve us. Retrying is the answer; healing cannot unblock
+# a fetch. Throttling is a refusal too, so the set is composed rather than re-listed.
+TARGET_REFUSAL_CODES: frozenset[str] = THROTTLE_CODES | {
+    "blocked",
+    "captcha_timeout",
+    "unspecified",  # an error payload the CLI reported without naming a code
+}
 
 # COLLECTOR: the scraper's own code failed. Retrying reproduces it exactly; a heal is the
 # only thing that fixes it. `parse_error` was observed 19 times in one real payload —
@@ -90,3 +116,10 @@ COLLECTOR_FAULT_CODES: frozenset[str] = frozenset(
 AMBIGUOUS_CODES: frozenset[str] = frozenset(
     {"dead_page", "crawl_error", "ajax_request_error", "timeout"}
 )
+
+
+# "This sample cannot be trusted": the target refused part of it, or might have. Three
+# readers need it — `detect` to suppress the volume signals, `verify` to refuse to score,
+# and `healer` to refuse to store a baseline from a truncated run. Composed here rather
+# than spelled three ways, so a fifth code class lands in one place.
+UNTRUSTWORTHY_SAMPLE_CODES: frozenset[str] = TARGET_REFUSAL_CODES | AMBIGUOUS_CODES

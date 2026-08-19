@@ -19,6 +19,7 @@ from bdheal.models import (
     RunResult,
     Signal,
     VerifyReport,
+    latest_settled,
 )
 from bdheal.vocabulary import (
     HealStatus,
@@ -246,3 +247,35 @@ def test_a_verdict_round_trips_through_model_dump() -> None:
         reason="schema break with an incomplete sample",
     )
     assert DetectVerdict.model_validate(verdict.model_dump()) == verdict
+
+
+def test_the_latest_settled_event_is_the_terminal_most_row() -> None:
+    """A gate cycle writes two rows, so a cycle's outcome is the last settled one, not the last."""
+    events = [
+        HealEvent(collector_id=STUB_COLLECTOR_ID, status=HealStatus.DONE, created_at=FIXED_NOW),
+        HealEvent(
+            collector_id=STUB_COLLECTOR_ID, status=HealStatus.REJECTED, created_at=FIXED_NOW
+        ),
+        HealEvent(
+            collector_id=STUB_COLLECTOR_ID,
+            status=HealStatus.AWAITING_APPROVAL,
+            created_at=FIXED_NOW,
+        ),
+    ]
+
+    settled = latest_settled(events)
+
+    assert settled is not None
+    assert settled.status is HealStatus.REJECTED
+
+
+def test_a_heal_still_at_the_gate_has_settled_nothing() -> None:
+    """`None` distinguishes "proposed" from "kept" — the facade and the benchmark both need it."""
+    pending = HealEvent(
+        collector_id=STUB_COLLECTOR_ID,
+        status=HealStatus.AWAITING_APPROVAL,
+        created_at=FIXED_NOW,
+    )
+
+    assert latest_settled([pending]) is None
+    assert latest_settled([]) is None

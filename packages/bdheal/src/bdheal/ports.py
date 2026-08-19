@@ -92,6 +92,16 @@ class HealStore(Protocol):
         """The case ids already finished in this run. The runner skips these."""
         ...
 
+    def bench_cases(self, run_id: str) -> list[BenchCase]:
+        """Every finished case in this run, oldest case id first.
+
+        A restart must be able to publish the *run's* numbers, not only the numbers of the
+        cases the surviving process happened to execute. Without this the rows written
+        before a crash are write-only: the benchmark would resume correctly and then be
+        unable to compute the metrics it exists to produce.
+        """
+        ...
+
 
 class Clock(Protocol):
     """Time, injected.

@@ -15,19 +15,18 @@ credential (G6).
 
 
 import pytest
-from conftest import SampleRow
+from conftest import FAKE_API_KEY, SampleRow
 from pydantic import BaseModel
 
-from bdheal.diagnose import TEMPLATES, classify, diagnose
+from bdheal.diagnose import _FAILURE_BY_KIND, TEMPLATES, classify, diagnose
 from bdheal.models import CollectorSpec, DetectVerdict, Signal
-from bdheal.vocabulary import FailureClass, SignalKind, SignalOutcome
+from bdheal.vocabulary import SIGNAL_PRECEDENCE, FailureClass, SignalKind, SignalOutcome
 
 
 # Deliberately carries raw page content and a row count: whatever a detector puts in a
 # detail, none of it may reach a prompt bound for a third party.
 DETAIL = "<li class=\"row\">41 of 60 rows did not validate</li>"
 
-API_KEY = "bd_live_00000000000000000000000000000000"
 CREDENTIAL_WORDS = ("api_key", "apikey", "token", "secret", "bearer", "password")
 
 FIELD_LIST = "- title\n- url\n- published"
@@ -259,9 +258,9 @@ def test_the_prompt_repeats_no_signal_detail(spec: CollectorSpec, kind: SignalKi
 @pytest.mark.parametrize("prompt", ALL_PROMPTS)
 def test_no_prompt_carries_a_credential(monkeypatch: pytest.MonkeyPatch, prompt: str) -> None:
     """G6: the prompt is sent to a third party and persisted. It never reads the environment."""
-    monkeypatch.setenv("BRIGHTDATA_API_KEY", API_KEY)
+    monkeypatch.setenv("BRIGHTDATA_API_KEY", FAKE_API_KEY)
 
-    assert API_KEY not in prompt
+    assert FAKE_API_KEY not in prompt
     for word in CREDENTIAL_WORDS:
         assert word not in prompt.lower()
 
@@ -274,3 +273,12 @@ def test_diagnosing_the_same_verdict_twice_renders_the_same_prompt(
     verdict = _verdict(_signal(kind))
 
     assert diagnose(spec, verdict) == diagnose(spec, verdict)
+
+
+def test_every_ranked_detector_names_a_failure_class() -> None:
+    """The precedence order lives in `vocabulary`; this module only says what each rank means.
+
+    Mapping by key rather than by position is deliberate: zipping two tuples would make a
+    reorder of the shared order silently repoint every detector at the wrong template.
+    """
+    assert set(_FAILURE_BY_KIND) == set(SIGNAL_PRECEDENCE)

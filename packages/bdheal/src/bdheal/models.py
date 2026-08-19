@@ -23,6 +23,7 @@ from pydantic import (
 )
 
 from bdheal.vocabulary import (
+    TERMINAL_STATUSES,
     FailureClass,
     HealStatus,
     MutationClass,
@@ -147,6 +148,19 @@ class HealEvent(_Boundary):
     attempts: NonNegativeInt = 1
     error: str | None = None
     id: int | None = None
+
+
+def latest_settled(events: list[HealEvent]) -> HealEvent | None:
+    """The terminal-most heal row, or `None` while the cycle is still at the gate.
+
+    A gated cycle leaves two rows before verification settles it with a third, so a row
+    count is not a cycle count and the last row is not the outcome. The facade reads this
+    to decide promote or roll back and the benchmark reads it to count a heal as kept —
+    written independently in both, which is how the two could have disagreed about the
+    same cycle.
+    """
+    settled = [event for event in events if event.status in TERMINAL_STATUSES]
+    return settled[-1] if settled else None
 
 
 class VerifyReport(_Boundary):

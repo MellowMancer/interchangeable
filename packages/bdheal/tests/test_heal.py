@@ -16,17 +16,37 @@ import json
 from dataclasses import replace
 
 import pytest
-from conftest import RecordingRunner, SampleRow, StubStudioClient, heal_event
+from conftest import (
+    FAKE_API_KEY,
+    FAKE_BEARER_TOKEN,
+    FAKE_SHORT_TOKEN,
+    RecordingRunner,
+    SampleRow,
+    StubStudioClient,
+    heal_event,
+)
 
 from bdheal.diagnose import Diagnosis
 from bdheal.errors import NotPendingError, StudioError
 from bdheal.heal import approve, heal
 from bdheal.models import CollectorSpec, HealEvent
 from bdheal.ports import Clock, HealStore, ProcessResult
-from bdheal.studio import BdataStudioClient
+from bdheal.studio import REDACTED, BdataStudioClient
 from bdheal.vocabulary import FailureClass, HealStatus
 
 ANCHOR = "https://example.test/list"
+
+# What `npx` prints when the process it wrapped exits non-zero: the command line it ran,
+# credential included. Nothing in this package builds that string — it arrives on stderr.
+KEY_IN_ARGV_STDERR = (
+    f"Command failed: npx -p @brightdata/cli bdata scraper heal --api-key {FAKE_API_KEY}\n"
+    "Error: 401 Unauthorized"
+)
+
+# The same credential wearing the header the HTTP layer sends it in.
+BEARER_HEADER_STDERR = (
+    f"heal request rejected\nAuthorization: Bearer {FAKE_BEARER_TOKEN}\nError: 403 Forbidden"
+)
 
 # The id from a real v0.3.5 collector with a shell payload welded on. It is passed
 # unchanged through the gate, so both the byte-identical check and the injection check
@@ -306,6 +326,66 @@ def test_a_failed_gate_call_records_the_reason_without_the_argv(
     (row,) = store.heal_events(HOSTILE_ID)
     assert "npx" not in row.error
     assert HOSTILE_ID not in row.error
+
+
+def test_a_credential_echoed_by_the_cli_never_reaches_the_persisted_row(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """G6, from the other direction: the leak the package does not author but does persist.
+
+    `npx` prints the command line it ran when the wrapped process fails, so an auth
+    failure arrives on stderr with the key in it. That excerpt becomes the exception
+    message, which the gate writes to `bdheal_heal_events.error` — a credential at rest
+    in the application's database, put there by a package that never read one.
+    """
+    recording_runner.results.append(failed(KEY_IN_ARGV_STDERR))
+
+    with pytest.raises(StudioError):
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    (row,) = store.heal_events(spec.collector_id)
+    assert FAKE_API_KEY not in row.error
+    assert REDACTED in row.error, "redacted, not dropped: the operator still needs the failure"
+    assert "401" in row.error
+
+
+def test_an_authorization_header_echoed_by_the_cli_never_reaches_the_persisted_row(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """The same leak wearing a header: a bearer token is a credential however it is spelled."""
+    recording_runner.results.append(failed(BEARER_HEADER_STDERR))
+
+    with pytest.raises(StudioError):
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    (row,) = store.heal_events(spec.collector_id)
+    assert FAKE_BEARER_TOKEN not in row.error
+    assert REDACTED in row.error
+    assert "403" in row.error
+
+
+def test_a_short_bearer_token_is_redacted_like_a_long_one(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """A credential is a credential at any length, and the short one is the regression.
+
+    The `Authorization:` pattern once matched only the scheme word, rewriting
+    `Authorization: Bearer <token>` to `Authorization: [redacted] <token>` and consuming
+    the word `Bearer` so the bearer pattern never fired. Tokens of 24+ characters were
+    still caught by the opaque-run catch-all — so the suite's long JWT passed while a
+    short session token leaked verbatim into this row. Pinning the short case means the
+    catch-all can never mask that pattern being wrong again.
+    """
+    stderr = f"heal rejected\nAuthorization: Bearer {FAKE_SHORT_TOKEN}\nError: 403 Forbidden"
+    recording_runner.results.append(failed(stderr))
+
+    with pytest.raises(StudioError):
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    (row,) = store.heal_events(spec.collector_id)
+    assert FAKE_SHORT_TOKEN not in row.error
+    assert REDACTED in row.error
+    assert "403" in row.error, "redaction must not take the diagnosis with it"
 
 
 def test_the_store_assigns_the_event_its_id(

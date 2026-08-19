@@ -8,12 +8,19 @@ and the standing check that no call passes `shell` lives in `test_architecture.p
 import json
 
 import pytest
-from conftest import STUB_COLLECTOR_ID, RecordingRunner, SampleRow
+from conftest import (
+    FAKE_API_KEY,
+    FAKE_SHORT_TOKEN,
+    STUB_COLLECTOR_ID,
+    RecordingRunner,
+    SampleRow,
+)
 
 from bdheal.errors import CollectorCreateError, StudioError, StudioResponseError
 from bdheal.models import CollectorSpec
 from bdheal.ports import Clock, ProcessResult
 from bdheal.studio import (
+    REDACTED,
     UNSPECIFIED_CODE,
     APPROVE,
     BATCH_TIMEOUT_S,
@@ -397,6 +404,53 @@ def test_a_heal_envelope_becomes_a_pending_heal_event(
     assert event.promoted is False
     assert event.collector_id == STUB_COLLECTOR_ID
     assert event.prompt == "restore the title field"
+
+
+def test_a_credential_in_the_heal_envelope_never_reaches_the_event(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """The envelope's own `error` string is the second route out of the subprocess.
+
+    It is copied straight onto `HealEvent.error`, which the gate persists, so it is
+    scrubbed on the same terms as stderr — a credential is a credential whether the CLI
+    printed it or serialised it.
+    """
+    recording_runner.results.append(
+        ok(json.dumps({"status": "failed", "error": f"upstream rejected key {FAKE_API_KEY}"}))
+    )
+
+    event = client(recording_runner, clock).heal(spec, "restore the title field")
+
+    assert event.error is not None
+    assert FAKE_API_KEY not in event.error
+    assert REDACTED in event.error
+
+
+def test_a_short_bearer_token_in_the_envelope_is_redacted_too(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """The envelope sink needs its own short-token pin, not just the stderr one.
+
+    Both sinks share `_redact` today, so this passes for the same reason the stderr test
+    does. That is precisely why it is worth having: the leak that shipped was a pattern
+    bug masked by token *length*, and a sink guarded only by a long token proves the
+    catch-all works, not that the header pattern does.
+    """
+    recording_runner.results.append(
+        ok(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "error": f"upstream rejected: Authorization: Bearer {FAKE_SHORT_TOKEN}",
+                }
+            )
+        )
+    )
+
+    event = client(recording_runner, clock).heal(spec, "restore the title field")
+
+    assert FAKE_SHORT_TOKEN not in (event.error or "")
+    assert REDACTED in (event.error or "")
 
 
 def test_an_unrecognised_status_raises_a_typed_error(

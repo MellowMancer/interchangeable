@@ -19,7 +19,6 @@ dependencies = [
     "lxml>=5.3",
     "pydantic>=2.9",
     "selectolax>=0.3.21",
-    "structlog>=24.4",
 ]
 
 [build-system]

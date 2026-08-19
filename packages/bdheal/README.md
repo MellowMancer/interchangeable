@@ -21,7 +21,7 @@ Not published to an index yet. From a checkout:
 uv pip install ./packages/bdheal
 ```
 
-Runtime dependencies are exactly four: `pydantic`, `selectolax`, `lxml`, `structlog`.
+Runtime dependencies are exactly three: `pydantic`, `selectolax`, `lxml`.
 No web framework, no CLI framework, no HTTP client. The `bdata` CLI it drives is
 invoked through `npx`, so Node is a runtime requirement of the default adapter.
 

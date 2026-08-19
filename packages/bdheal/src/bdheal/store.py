@@ -130,6 +130,14 @@ class SqliteHealStore:
         ).fetchall()
         return [row["case_id"] for row in rows]
 
+    def bench_cases(self, run_id: str) -> list[BenchCase]:
+        """Every finished case in this run, so a restarted process can publish its metrics."""
+        rows = self._conn.execute(
+            "SELECT * FROM bdheal_bench_cases WHERE run_id = ? ORDER BY case_id",
+            (run_id,),
+        ).fetchall()
+        return [_to_bench_case(row) for row in rows]
+
 
 def _schema_sql() -> str:
     """The packaged DDL, read from the installed package rather than the source tree."""
@@ -143,6 +151,16 @@ def _join_kinds(kinds: frozenset[SignalKind]) -> str:
     value — a class no detector catches, which the benchmark publishes as a gap.
     """
     return ",".join(sorted(kinds))
+
+
+def _split_kinds(value: str) -> frozenset[SignalKind]:
+    """The inverse of `_join_kinds`.
+
+    `""` is a real stored value — a class its generator declared nothing catches — and
+    `"".split(",")` yields `[""]`, so the empty column is answered before it is split. A
+    set holding one empty string would read back as a declaration nothing can satisfy.
+    """
+    return frozenset(SignalKind(kind) for kind in value.split(",")) if value else frozenset()
 
 
 def _iso(moment: datetime | None) -> str | None:
@@ -191,3 +209,25 @@ def _to_heal_event(row: sqlite3.Row) -> HealEvent:
         attempts=row["attempts"],
         error=row["error"],
     )
+
+
+def _to_bench_case(row: sqlite3.Row) -> BenchCase:
+    """Rebuild a benchmark case from its row; pydantic parses the timestamp and the enums."""
+    return BenchCase(
+        run_id=row["run_id"],
+        case_id=row["case_id"],
+        mutation=row["mutation"],
+        expected_signals=_split_kinds(row["expected_signals"]),
+        caught_by=row["caught_by"],
+        healed=bool(row["healed"]),
+        field_accuracy=row["field_accuracy"],
+        non_regression_passed=_nullable_bool(row["non_regression_passed"]),
+        attempts=row["attempts"],
+        elapsed_s=row["elapsed_s"],
+        completed_at=row["completed_at"],
+    )
+
+
+def _nullable_bool(flag: int | None) -> bool | None:
+    """The inverse of `_nullable_int`: "not decided yet" stays undecided."""
+    return bool(flag) if flag is not None else None
