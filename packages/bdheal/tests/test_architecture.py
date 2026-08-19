@@ -12,6 +12,9 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+from conftest import assert_names_no_problem_domain
+
 PACKAGE = Path(__file__).resolve().parent.parent
 SRC = PACKAGE / "src" / "bdheal"
 MANIFEST = PACKAGE / "pyproject.toml"
@@ -125,3 +128,34 @@ def test_no_call_passes_shell() -> None:
             if isinstance(node, ast.Call):
                 keywords = {keyword.arg for keyword in node.keywords}
                 assert "shell" not in keywords, f"{name} passes a shell argument"
+
+
+def _sources() -> dict[str, str]:
+    """Every shipped module's text, keyed the same way as `_modules()`."""
+    return {_key(path): path.read_text() for path in sorted(SRC.rglob("*.py"))}
+
+
+@pytest.mark.parametrize("name", sorted(_sources()))
+def test_no_module_names_the_problem_domain(name: str) -> None:
+    """Corpus-agnostic by construction, enforced across the whole package.
+
+    This lived in three feature test files with two different predicates, covering three
+    of nineteen modules. One rule, every module, or the bar drifts wherever nobody looked.
+    """
+    assert_names_no_problem_domain(_sources()[name])
+
+
+@pytest.mark.parametrize("name", sorted(_sources()))
+def test_no_module_reads_the_environment(name: str) -> None:
+    """G6: credentials reach `bdata` through the inherited environment, never this code.
+
+    A module that reads the environment could copy a token into a prompt, a log line or a
+    persisted heal event. This was asserted for `diagnose.py` alone; it is true of all of
+    them, and the one that eventually breaks it will not be the one someone tested.
+
+    Matches the *access*, not the word: `"environ"` is a substring of `"environment"`, so
+    a docstring mentioning the inherited environment would fail with a misleading message.
+    """
+    source = _sources()[name]
+    for reader in ("os.environ", "environ[", "environ.get", "getenv("):
+        assert reader not in source, f"{name} reads the environment via {reader}"

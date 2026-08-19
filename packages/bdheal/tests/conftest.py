@@ -6,10 +6,44 @@ feature reuses them; a test that needs different behaviour programmes the stub i
 given instead of writing a near-copy beside it.
 """
 
-# The corpus vocabulary `bdheal` must never contain. Owned by no single feature: every
+import os
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import pytest
+from pydantic import BaseModel
+
+from bdheal.models import (
+    Baseline,
+    BenchCase,
+    CollectorSpec,
+    HealEvent,
+    RowError,
+    RunResult,
+)
+from bdheal.ports import Clock, HealStore, ProcessResult, StudioClient
+from bdheal.studio import _distinct_codes
+from bdheal.vocabulary import (
+    FailureClass,
+    HealStatus,
+    MutationClass,
+    SignalKind,
+)
+
+# marker -> (environment variable that enables it, what it does once enabled)
+NETWORK_GATES: dict[str, tuple[str, str]] = {
+    "live": ("BDHEAL_LIVE", "call the real bdata CLI"),
+    "publish": ("BDHEAL_PUBLISH_CHECK", "build the package and install it from a package index"),
+}
+
+# The problem-domain vocabulary `bdheal` must never contain. Owned by no single feature: every
 # module carrying a "domain-free" criterion asserts against this one list, so the bar
 # cannot drift feature by feature. The application's own name is deliberately absent —
 # that is G2's job, and naming it here would make the invariant's own `rg` check match.
+# `corpus` is deliberately absent: it is not domain vocabulary but the generic word for
+# a body of documents, and the package's own docstring says it is "corpus-agnostic".
+# Listing it would make the rule fight the sentence that states the rule holds.
 DOMAIN_TERMS = (
     "agencies",
     "agency",
@@ -18,7 +52,6 @@ DOMAIN_TERMS = (
     "bainbridge",
     "bothell",
     "capital",
-    "corpus",
     "council",
     "lakehaven",
     "lexicon",
@@ -33,29 +66,18 @@ DOMAIN_TERMS = (
 )
 
 
-import os
-from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
-from typing import Any
+def assert_names_no_problem_domain(source: str) -> None:
+    """Fail if `source` carries any problem-domain word.
 
-import pytest
-from pydantic import BaseModel
+    Substring, not word-boundary: `\\bmeeting\\b` misses `meetings`, and a plural is every
+    bit as much a corpus term as its singular. Three feature files each grew their own
+    version of this check, with two different predicates, before it was consolidated —
+    exactly the drift the shared list was meant to prevent, one layer up.
+    """
+    lowered = source.lower()
+    found = sorted(term for term in DOMAIN_TERMS if term in lowered)
+    assert not found, f"problem-domain vocabulary present: {', '.join(found)}"
 
-from bdheal.models import (
-    Baseline,
-    BenchCase,
-    CollectorSpec,
-    HealEvent,
-    RunResult,
-)
-from bdheal.ports import Clock, HealStore, ProcessResult, StudioClient
-from bdheal.vocabulary import HealStatus
-
-# marker -> (environment variable that enables it, what it does once enabled)
-NETWORK_GATES: dict[str, tuple[str, str]] = {
-    "live": ("BDHEAL_LIVE", "call the real bdata CLI"),
-    "publish": ("BDHEAL_PUBLISH_CHECK", "build the package and install it from a package index"),
-}
 FIXED_NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 STUB_COLLECTOR_ID = "c_stub00000000000000"
 
@@ -206,6 +228,88 @@ class ForbiddenRunner:
     def __call__(self, argv: list[str], timeout_s: int) -> ProcessResult:
         """Always raises: reaching here means a test was about to hit the network."""
         raise AssertionError(f"the suite must not start a process (argv[0]={argv[0]!r})")
+
+
+
+# Boundary-model factories. Every one takes `**overrides`, so a test states only the field
+# its scenario turns on. These were written separately in four feature test files, because
+# shared files were locked while those features were built in parallel — which meant adding
+# one required field to a model was a five-site edit.
+
+
+def baseline(**overrides: object) -> Baseline:
+    """A prior run to compare against."""
+    fields: dict[str, object] = {
+        "collector_id": STUB_COLLECTOR_ID,
+        "captured_at": FIXED_NOW,
+        "row_count": 3,
+        "null_rates": {"title": 0.0, "url": 0.0},
+        "skeleton_hash": None,
+    }
+    return Baseline(**(fields | overrides))
+
+
+def run_result(**overrides: object) -> RunResult:
+    """A run shaped exactly as the studio adapter builds one.
+
+    `error_codes` is *derived* from the adapter's own rule, never restated, so a change to
+    that rule cannot leave these fixtures describing a shape production no longer emits.
+
+    `errors` is coerced first: `RunResult` accepts plain dicts there, and deriving the
+    codes off raw dicts would raise rather than validate.
+    """
+    fields: dict[str, object] = {
+        "collector_id": STUB_COLLECTOR_ID,
+        "fetched_at": FIXED_NOW,
+        "rows": [],
+        "errors": [],
+    }
+    merged = fields | overrides
+    errors = [error if isinstance(error, RowError) else RowError(**error) for error in merged["errors"]]
+    merged["errors"] = errors
+    merged.setdefault("error_codes", _distinct_codes(errors))
+    return RunResult(**merged)
+
+
+def heal_event(**overrides: object) -> HealEvent:
+    """One trip through the heal gate, stopped at the approval step."""
+    fields: dict[str, object] = {
+        "collector_id": STUB_COLLECTOR_ID,
+        "status": HealStatus.AWAITING_APPROVAL,
+        "created_at": FIXED_NOW,
+        "prompt": "the table became a div; re-anchor on the row wrapper",
+        "preview_result": {"rows": [{"title": "a", "url": "https://example.test/a"}]},
+        "promoted": False,
+        "failure_class": FailureClass.STRUCTURE_CHANGED,
+        "template_id": "structure_changed_v1",
+        "attempts": 2,
+        "error": None,
+    }
+    return HealEvent(**(fields | overrides))
+
+
+def bench_case(**overrides: object) -> BenchCase:
+    """One benchmark case's outcome."""
+    fields: dict[str, object] = {
+        "run_id": "run_01",
+        "case_id": "case_01",
+        "mutation": MutationClass.TABLE_TO_DIV,
+        "expected_signals": frozenset({SignalKind.SKELETON}),
+        "caught_by": SignalKind.SKELETON,
+        "healed": True,
+        "field_accuracy": 0.75,
+        "non_regression_passed": True,
+        "attempts": 1,
+        "elapsed_s": 12.5,
+        "completed_at": FIXED_NOW,
+    }
+    return BenchCase(**(fields | overrides))
+
+
+def row_error(index: int, **overrides: object) -> RowError:
+    """One row that did not survive the boundary."""
+    fields: dict[str, object] = {"index": index, "message": "boom"}
+    return RowError(**(fields | overrides))
 
 
 @pytest.fixture

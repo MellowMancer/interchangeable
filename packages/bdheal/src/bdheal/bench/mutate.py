@@ -3,7 +3,7 @@
 Each generator is a pure `str -> str` function and carries, as data, the detect signal it
 is *declared* to trip. The declaration is a claim the benchmark then checks against what
 actually fired; where the two disagree the result is a published coverage gap, not a
-hidden failure. `link_label` is declared `NONE` on purpose — no detector can see it, and
+hidden failure. `link_label` is declared as the empty set on purpose — no detector can see it, and
 saying so is the honest finding.
 
 The declared signal for each class is fixed in ARCHITECTURE.md; F11 populates
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import lxml.html
 from lxml.html import HtmlElement
 
-from bdheal.vocabulary import ExpectedSignal, MutationClass
+from bdheal.vocabulary import MutationClass, SignalKind
 
 CLASS_PREFIX = "x-"
 LINK_TEXT = "Details"
@@ -39,12 +39,9 @@ class Mutation:
     """One perturbation: what it is called, what it does, and what should catch it."""
 
     mutation: MutationClass
-    expected_signal: ExpectedSignal
+    expected_signals: frozenset[SignalKind]
     apply: Callable[[str], str]
 
-    def __post_init__(self) -> None:
-        if not callable(self.apply):
-            raise ValueError("a mutation must carry a callable generator")
 
 
 def _parse(html: str) -> HtmlElement:
@@ -197,13 +194,13 @@ def pagination(html: str) -> str:
 
 
 MUTATIONS: tuple[Mutation, ...] = (
-    Mutation(MutationClass.CLASS_RENAME, ExpectedSignal.SKELETON, class_rename),
-    Mutation(MutationClass.TABLE_TO_DIV, ExpectedSignal.SKELETON, table_to_div),
-    Mutation(MutationClass.COLUMN_REORDER, ExpectedSignal.SKELETON, column_reorder),
-    Mutation(MutationClass.LINK_LABEL, ExpectedSignal.NONE, link_label),
-    Mutation(MutationClass.URL_PATTERN, ExpectedSignal.SCHEMA_OR_NULL_RATE, url_pattern),
-    Mutation(MutationClass.DATE_FORMAT, ExpectedSignal.SCHEMA, date_format),
-    Mutation(MutationClass.FIELD_SPLIT_MERGE, ExpectedSignal.SKELETON, field_split_merge),
-    Mutation(MutationClass.WRAPPER_NESTING, ExpectedSignal.SKELETON, wrapper_nesting),
-    Mutation(MutationClass.PAGINATION, ExpectedSignal.SKELETON, pagination),
+    Mutation(MutationClass.CLASS_RENAME, frozenset({SignalKind.SKELETON}), class_rename),
+    Mutation(MutationClass.TABLE_TO_DIV, frozenset({SignalKind.SKELETON}), table_to_div),
+    Mutation(MutationClass.COLUMN_REORDER, frozenset({SignalKind.SKELETON}), column_reorder),
+    Mutation(MutationClass.LINK_LABEL, frozenset(), link_label),
+    Mutation(MutationClass.URL_PATTERN, frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}), url_pattern),
+    Mutation(MutationClass.DATE_FORMAT, frozenset({SignalKind.SCHEMA}), date_format),
+    Mutation(MutationClass.FIELD_SPLIT_MERGE, frozenset({SignalKind.SKELETON}), field_split_merge),
+    Mutation(MutationClass.WRAPPER_NESTING, frozenset({SignalKind.SKELETON}), wrapper_nesting),
+    Mutation(MutationClass.PAGINATION, frozenset({SignalKind.SKELETON}), pagination),
 )

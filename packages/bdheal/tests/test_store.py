@@ -12,12 +12,12 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from conftest import FIXED_NOW, STUB_COLLECTOR_ID
+from conftest import FIXED_NOW, STUB_COLLECTOR_ID, baseline, bench_case, heal_event
 
 from bdheal import store as store_module
 from bdheal.models import Baseline, BenchCase, HealEvent
 from bdheal.store import SqliteHealStore, connect
-from bdheal.vocabulary import ExpectedSignal, FailureClass, HealStatus, MutationClass, SignalKind
+from bdheal.vocabulary import FailureClass, HealStatus, MutationClass, SignalKind
 
 EXPECTED_TABLES = {"bdheal_baselines", "bdheal_heal_events", "bdheal_bench_cases"}
 SQL_INJECTION_ID = "x'); DROP TABLE heal_events;--"
@@ -42,9 +42,9 @@ def _table_names(conn: sqlite3.Connection) -> set[str]:
 
 
 def _baseline(collector_id: str = STUB_COLLECTOR_ID) -> Baseline:
-    return Baseline(
+    """This module's baseline exemplar. Only the fields its assertions turn on."""
+    return baseline(
         collector_id=collector_id,
-        captured_at=FIXED_NOW,
         row_count=42,
         null_rates={"title": 0.0, "published": 0.25},
         skeleton_hash="9f2b1c",
@@ -52,35 +52,13 @@ def _baseline(collector_id: str = STUB_COLLECTOR_ID) -> Baseline:
 
 
 def _heal_event(collector_id: str = STUB_COLLECTOR_ID, **overrides: object) -> HealEvent:
-    fields: dict[str, object] = {
-        "collector_id": collector_id,
-        "status": HealStatus.AWAITING_APPROVAL,
-        "created_at": FIXED_NOW,
-        "prompt": "the table became a div; re-anchor on the row wrapper",
-        "preview_result": {"rows": [{"title": "a", "url": "https://example.test/a"}]},
-        "promoted": False,
-        "failure_class": FailureClass.STRUCTURE_CHANGED,
-        "template_id": "structure_changed_v1",
-        "attempts": 2,
-        "error": None,
-    }
-    return HealEvent(**(fields | overrides))
+    """A heal event at the approval gate."""
+    return heal_event(collector_id=collector_id, **overrides)
 
 
 def _bench_case(case_id: str = "case_01", run_id: str = RUN_ID) -> BenchCase:
-    return BenchCase(
-        run_id=run_id,
-        case_id=case_id,
-        mutation=MutationClass.TABLE_TO_DIV,
-        expected_signal=ExpectedSignal.SKELETON,
-        caught_by=SignalKind.SKELETON,
-        healed=True,
-        field_accuracy=0.75,
-        non_regression_passed=True,
-        attempts=1,
-        elapsed_s=12.5,
-        completed_at=FIXED_NOW,
-    )
+    """One finished case."""
+    return bench_case(case_id=case_id, run_id=run_id)
 
 
 def test_connect_creates_the_database_and_applies_the_packaged_schema(db_path: Path) -> None:

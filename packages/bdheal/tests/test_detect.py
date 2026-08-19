@@ -21,10 +21,9 @@ noticed.
 
 import ast
 import inspect
-import re
 
 import pytest
-from conftest import DOMAIN_TERMS, FIXED_NOW, STUB_COLLECTOR_ID, SampleRow
+from conftest import FIXED_NOW, STUB_COLLECTOR_ID, SampleRow, baseline, run_result
 
 from bdheal import detect as detect_module
 from bdheal.detect import (
@@ -37,6 +36,7 @@ from bdheal.detect import (
 from bdheal.models import Baseline, CollectorSpec, DetectVerdict, RowError, RunResult
 from bdheal.ports import HealStore
 from bdheal.skeleton import skeleton_hash
+from bdheal.studio import _distinct_codes
 from bdheal.vocabulary import SignalKind, SignalOutcome
 
 DETECT_SOURCE = inspect.getsource(detect_module)
@@ -86,19 +86,8 @@ def _result(
     rows: list[dict] | None = None,
     errors: list[RowError] | None = None,
 ) -> RunResult:
-    """A run result shaped exactly as the studio adapter builds one."""
-    errors = errors or []
-    codes: list[str] = []
-    for error in errors:
-        if error.error_code and error.error_code not in codes:
-            codes.append(error.error_code)
-    return RunResult(
-        collector_id=STUB_COLLECTOR_ID,
-        fetched_at=FIXED_NOW,
-        rows=rows or [],
-        errors=errors,
-        error_codes=codes,
-    )
+    """A run shaped as the studio adapter builds one, `error_codes` and all."""
+    return run_result(rows=rows or [], errors=errors or [])
 
 
 def _store_baseline(
@@ -110,9 +99,7 @@ def _store_baseline(
 ) -> None:
     """Give the collector a prior run to be compared against."""
     store.save_baseline(
-        Baseline(
-            collector_id=STUB_COLLECTOR_ID,
-            captured_at=FIXED_NOW,
+        baseline(
             row_count=row_count,
             null_rates=HEALTHY_NULL_RATES if rates is None else rates,
             skeleton_hash=page_hash,
@@ -132,6 +119,67 @@ def test_a_schema_validation_failure_is_a_break(spec: CollectorSpec, store: Heal
 
     assert verdict.broken is True
     assert _outcomes(verdict) == {SignalKind.SCHEMA: SignalOutcome.FIRED}
+
+
+def test_a_collector_fault_code_is_break_evidence(spec: CollectorSpec, store: HealStore) -> None:
+    """`parse_error` is the scraper's own code failing, so it justifies a heal.
+
+    Observed 19 times in one real payload — the price parser failing on pages that had
+    loaded perfectly well. Bright Data attributes it to the scraper, and a retry would
+    reproduce it exactly.
+    """
+    _store_baseline(store, row_count=10)
+    errors = [
+        RowError(index=0, message="Parse error: value must be finite number",
+                 error_code="parse_error"),
+    ]
+
+    verdict = detect(spec, _result([_row(1)], errors), store)
+
+    assert verdict.broken is True
+    assert verdict.incomplete is False, "the scraper's own fault does not excuse the sample"
+    assert verdict.retry_requested is False, "retrying reproduces a parse error exactly"
+    assert {signal.kind for signal in verdict.fired} == {SignalKind.SCHEMA}
+
+
+def test_an_ambiguous_code_is_reported_rather_than_judged(
+    spec: CollectorSpec, store: HealStore
+) -> None:
+    """`dead_page` may be the target's fault or the collector's, and one run cannot tell.
+
+    Bright Data documents it as a target issue ("the page does not exist"). But 980 of
+    them in one real payload came from the collector resolving relative links against the
+    site root instead of the current page, so every link off page 2 onward 404'd. Detect
+    therefore retries rather than healing, and names the code so the facade can escalate
+    if it survives the retry.
+    """
+    _store_baseline(store, row_count=10)
+    errors = [
+        RowError(index=0, message="The navigation resulted in a dead page (404 status code)",
+                 error_code="dead_page"),
+    ]
+
+    verdict = detect(spec, _result([_row(1)], errors), store)
+
+    assert verdict.incomplete is True
+    assert verdict.retry_requested is True
+    assert verdict.ambiguous_codes == ("dead_page",)
+    assert SignalKind.SCHEMA not in {signal.kind for signal in verdict.fired}
+
+
+def test_an_unknown_code_defaults_to_heal_able(spec: CollectorSpec, store: HealStore) -> None:
+    """A code nobody has seen is treated as the collector's fault, not the target's.
+
+    A wasted heal is caught by verification; a wrong retry is silent and permanent, so the
+    safer default is the one that still produces an answer.
+    """
+    _store_baseline(store, row_count=10)
+    errors = [RowError(index=0, message="something new", error_code="never_seen_before")]
+
+    verdict = detect(spec, _result([_row(1)], errors), store)
+
+    assert verdict.broken is True
+    assert verdict.retry_requested is False
 
 
 def test_a_row_that_is_not_an_object_is_break_evidence(
@@ -367,12 +415,6 @@ def test_detect_reads_history_through_the_store_port_only() -> None:
     }
 
     assert imported == {"HealStore"}
-
-
-@pytest.mark.parametrize("term", DOMAIN_TERMS)
-def test_detect_names_no_problem_domain(term: str) -> None:
-    """Detect compares a run against a baseline. It cannot know what the run was about."""
-    assert not re.search(rf"\b{term}\b", DETECT_SOURCE, flags=re.IGNORECASE)
 
 
 def test_null_rates_of_an_empty_sample_are_zero() -> None:

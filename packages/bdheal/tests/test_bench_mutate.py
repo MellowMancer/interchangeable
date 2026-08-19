@@ -15,18 +15,16 @@ byte-identical siblings cannot move a structural hash, so a uniform-cell fixture
 fail `column_reorder` for a correct implementation.
 """
 
-from pathlib import Path
 
-import lxml.html
 import pytest
 
-from conftest import DOMAIN_TERMS
+from conftest import assert_names_no_problem_domain
 from lxml import etree
 
 from bdheal.bench import mutate
 from bdheal.bench.mutate import MUTATIONS, Mutation
 from bdheal.skeleton import skeleton_hash
-from bdheal.vocabulary import ExpectedSignal, MutationClass
+from bdheal.vocabulary import MutationClass, SignalKind
 
 FIXTURE = (
     '<div class="listing">'
@@ -42,18 +40,18 @@ FIXTURE = (
 
 # ARCHITECTURE.md §12, restated as an assertion rather than trusted.
 DECLARED_SIGNAL = {
-    MutationClass.CLASS_RENAME: ExpectedSignal.SKELETON,
-    MutationClass.TABLE_TO_DIV: ExpectedSignal.SKELETON,
-    MutationClass.COLUMN_REORDER: ExpectedSignal.SKELETON,
-    MutationClass.FIELD_SPLIT_MERGE: ExpectedSignal.SKELETON,
-    MutationClass.WRAPPER_NESTING: ExpectedSignal.SKELETON,
-    MutationClass.PAGINATION: ExpectedSignal.SKELETON,
-    MutationClass.DATE_FORMAT: ExpectedSignal.SCHEMA,
-    MutationClass.URL_PATTERN: ExpectedSignal.SCHEMA_OR_NULL_RATE,
-    MutationClass.LINK_LABEL: ExpectedSignal.NONE,
+    MutationClass.CLASS_RENAME: frozenset({SignalKind.SKELETON}),
+    MutationClass.TABLE_TO_DIV: frozenset({SignalKind.SKELETON}),
+    MutationClass.COLUMN_REORDER: frozenset({SignalKind.SKELETON}),
+    MutationClass.FIELD_SPLIT_MERGE: frozenset({SignalKind.SKELETON}),
+    MutationClass.WRAPPER_NESTING: frozenset({SignalKind.SKELETON}),
+    MutationClass.PAGINATION: frozenset({SignalKind.SKELETON}),
+    MutationClass.DATE_FORMAT: frozenset({SignalKind.SCHEMA}),
+    MutationClass.URL_PATTERN: frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}),
+    MutationClass.LINK_LABEL: frozenset(),
 }
 STRUCTURAL = frozenset(
-    name for name, signal in DECLARED_SIGNAL.items() if signal is ExpectedSignal.SKELETON
+    name for name, signal in DECLARED_SIGNAL.items() if signal == frozenset({SignalKind.SKELETON})
 )
 
 GOLDEN = {
@@ -165,12 +163,15 @@ GOLDEN = {
     ),
 }
 
-# Words from this project's problem domain. A generator that needs one is not corpus-free.
 
 
 def _round_trip(html: str) -> str:
-    """`html` serialised by the same parser the generators use, so a no-op is visible."""
-    return lxml.html.tostring(lxml.html.fromstring(html), encoding="unicode")
+    """`html` through the generators' own parse/serialise, so a no-op is visible.
+
+    Calling `mutate`'s helpers rather than restating them: if `_serialise` ever gains an
+    argument, this baseline must move with it or the assertion stops meaning what it says.
+    """
+    return mutate._serialise(mutate._parse(html))
 
 
 def _mutation(name: MutationClass) -> Mutation:
@@ -225,15 +226,16 @@ def test_repeating_a_generator_returns_the_same_bytes(name: MutationClass) -> No
 
 @pytest.mark.parametrize("name", list(MutationClass))
 def test_every_generator_declares_a_permitted_detector(name: MutationClass) -> None:
-    """Q2: the declaration is data on the generator, and it is one of the four values."""
-    declared = _mutation(name).expected_signal
-    assert isinstance(declared, ExpectedSignal)
+    """Q2: the declaration is data on the generator, and every member is a real detector."""
+    declared = _mutation(name).expected_signals
+    assert isinstance(declared, frozenset)
+    assert all(isinstance(kind, SignalKind) for kind in declared)
     assert declared == DECLARED_SIGNAL[name]
 
 
 def test_link_label_declares_that_nothing_catches_it() -> None:
     """The published coverage gap, asserted so it cannot be quietly re-declared."""
-    assert _mutation(MutationClass.LINK_LABEL).expected_signal is ExpectedSignal.NONE
+    assert _mutation(MutationClass.LINK_LABEL).expected_signals == frozenset()
 
 
 @pytest.mark.parametrize("name", sorted(STRUCTURAL))
@@ -248,14 +250,10 @@ def test_text_and_attribute_classes_leave_the_skeleton_hash_alone(name: Mutation
     assert skeleton_hash(_mutation(name).apply(FIXTURE)) == skeleton_hash(FIXTURE)
 
 
-def test_no_generator_names_the_problem_domain() -> None:
-    """A corpus word in a generator would make the benchmark unpublishable elsewhere."""
-    source = Path(mutate.__file__).read_text().lower()
-    for term in DOMAIN_TERMS:
-        assert term not in source, term
-
-
 def test_the_fixture_under_test_is_generic() -> None:
-    """The generators are exercised on a made-up listing, never on a corpus page."""
-    for term in DOMAIN_TERMS:
-        assert term not in FIXTURE.lower(), term
+    """The generators are exercised on a made-up listing, never on a corpus page.
+
+    Module sources are covered package-wide in `test_architecture.py`; this is the
+    fixture, which that scan does not reach.
+    """
+    assert_names_no_problem_domain(FIXTURE)

@@ -23,7 +23,6 @@ from pydantic import (
 )
 
 from bdheal.vocabulary import (
-    ExpectedSignal,
     FailureClass,
     HealStatus,
     MutationClass,
@@ -95,6 +94,18 @@ class Signal(_Boundary):
     detail: str
 
 
+def fired_signals(signals: list[Signal]) -> list[Signal]:
+    """The signals that are evidence. Only `FIRED` counts; an abstention never does.
+
+    The package's central rule, in one place. `detect` needs it before a verdict exists
+    (to set `broken`), and `diagnose` needs it after — so it lives here rather than in
+    either. It was written independently in both, which meant a third `SignalOutcome`
+    member had to be remembered twice, and a miss means detect says broken while diagnose
+    classifies `UNKNOWN` and sends the generic prompt.
+    """
+    return [signal for signal in signals if signal.outcome is SignalOutcome.FIRED]
+
+
 class DetectVerdict(_Boundary):
     """Whether the collector is broken, and everything that led to the answer.
 
@@ -108,7 +119,18 @@ class DetectVerdict(_Boundary):
     signals: list[Signal] = []
     incomplete: bool = False
     retry_requested: bool = False
+    ambiguous_codes: tuple[str, ...] = ()
     reason: str | None = None
+
+    @property
+    def fired(self) -> list[Signal]:
+        """The signals that are evidence — see `fired_signals`."""
+        return fired_signals(self.signals)
+
+    @property
+    def fired_kinds(self) -> set[SignalKind]:
+        """The kinds of the fired signals, for classification."""
+        return {signal.kind for signal in self.fired}
 
 
 class HealEvent(_Boundary):
@@ -153,14 +175,24 @@ class Baseline(_Boundary):
 class BenchCase(_Boundary):
     """One benchmark case's outcome, persisted per case so a multi-hour run resumes.
 
-    `caught_by` is what actually fired, against `expected_signal` which the generator
+    `caught_by` is what actually fired, against `expected_signals` which the generator
     declared. The two disagreeing is the coverage matrix's whole subject.
+
+    A **set** of kinds, not an enumerated combination: a class catchable by two detectors
+    is `{SCHEMA, NULL_RATE}`, and one nothing catches is the empty set — an honest gap.
+    Enumerating combinations (`schema_or_null_rate`, `none`) meant a fifth detector would
+    multiply the vocabulary and force `coverage` to decode names by hand; membership is
+    just `caught_by in expected_signals`.
+
+    **Required, with no default.** The empty set is a deliberate declaration that nothing
+    catches this class, so a forgotten field would persist as a coverage claim rather than
+    fail as a construction error.
     """
 
     run_id: NonBlankStr
     case_id: NonBlankStr
     mutation: MutationClass
-    expected_signal: ExpectedSignal
+    expected_signals: frozenset[SignalKind]
     caught_by: SignalKind | None = None
     healed: bool = False
     field_accuracy: Ratio | None = None

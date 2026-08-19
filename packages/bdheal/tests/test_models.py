@@ -21,7 +21,6 @@ from bdheal.models import (
     VerifyReport,
 )
 from bdheal.vocabulary import (
-    ExpectedSignal,
     HealStatus,
     MutationClass,
     SignalKind,
@@ -68,7 +67,7 @@ BENCH_CASE_FIELDS = {
     "run_id": "bench-1",
     "case_id": "case-1",
     "mutation": MutationClass.CLASS_RENAME,
-    "expected_signal": ExpectedSignal.SKELETON,
+    "expected_signals": frozenset({SignalKind.SKELETON}),
 }
 
 # Every model keyed by a caller-supplied collector id.

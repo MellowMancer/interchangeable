@@ -167,11 +167,11 @@ Entities in `models.py` (F2 adds the validators; the fields are already contract
 | `RowError` | `index`, `message`, `error_code`, `field_errors` | Target-side *and* schema-side failure, one shape |
 | `RunResult` | `collector_id`, `fetched_at`, `rows`, `errors`, `error_codes` | `error_codes` is a list, never `None` |
 | `Signal` | `kind`, `outcome`, `detail` | One detector's reading |
-| `DetectVerdict` | `broken`, `signals`, `throttled`, `retry_requested`, `reason` | |
+| `DetectVerdict` | `broken`, `signals`, `incomplete`, `retry_requested`, `reason` | `incomplete` covers every target-side refusal, not only throttling |
 | `HealEvent` | `collector_id`, `status`, `created_at`, `prompt`, `preview_result`, `promoted`, `failure_class`, `template_id`, `attempts`, `error`, `id` | |
 | `VerifyReport` | `field_accuracy`, `non_regression_passed`, `attempts`, `elapsed_s` | |
 | `Baseline` | `collector_id`, `captured_at`, `row_count`, `null_rates`, `skeleton_hash` | Crosses `HealStore`, so it is Pydantic |
-| `BenchCase` | run/case ids, `mutation`, `expected_signal`, `caught_by`, outcome fields | Crosses `HealStore` |
+| `BenchCase` | run/case ids, `mutation`, `expected_signals`, `caught_by`, outcome fields | Crosses `HealStore` |
 
 `RunResult.rows` is `list[dict[str, Any]]`: validated, normalised row *data*, not
 `row_schema` instances. F2 requires `RunResult` to round-trip through `model_dump()`,
@@ -194,16 +194,27 @@ schema-validation detect signal exists to catch. Models are **not** frozen —
 Closed vocabularies live in `vocabulary.py`: `SignalKind` (`schema · zero_rows ·
 skeleton · null_rate`), `SignalOutcome` (`fired · inconclusive`), `FailureClass`,
 `HealStatus` (`awaiting_approval · done · rejected · failed`), `MutationClass`,
-`ExpectedSignal`. Benchmark vocabulary lives there too, because `BenchCase` crosses the
+`MutationClass`. Benchmark vocabulary lives there too, because `BenchCase` crosses the
 persistence boundary and its values must be nameable from the innermost layer.
 
-### Throttling (resolved decision Q3)
+### Incomplete samples (resolved decision Q3, widened by F6(h) on 2026-08-19)
 
-`error_code` is data, never an exception. Any row carrying `rate_limit` makes the sample
-incomplete, so `zero_rows` and `null_rate` record `SignalOutcome.INCONCLUSIVE` and
-`retry_requested` is set. A schema failure on a row that *did* return is still valid
-break evidence. A partially throttled run therefore never heals on volume grounds, may
-still report a schema break, and always asks for a retry.
+`error_code` is data, never an exception. **Any row carrying an `error_code` at all** —
+not merely `rate_limit`, but `blocked`, `captcha`, `timeout` or anything else the target
+returns — makes the sample incomplete, so `zero_rows` and `null_rate` record
+`SignalOutcome.INCONCLUSIVE` and `retry_requested` is set. A schema failure on a row that
+*did* return is still valid break evidence. Such a run therefore never heals on volume
+grounds, may still report a schema break, and always asks for a retry.
+
+The narrow `rate_limit`-only reading was a **live false negative**, found in F6
+verification: five of ten rows returning `error_code="blocked"` produced `broken=False`,
+`signals={}` and no retry — total silence on a half-broken run. Do not reintroduce it.
+
+The governing principle, which F7 onward also follows: **extraction problems justify a
+heal; target-side problems justify a retry; neither justifies silence.** The
+discriminator is one line — an error carrying an `error_code` is target-side; an error
+carrying none is an extraction fault (which is also why a row that is not an object at
+all fires the schema signal).
 
 ## 7. Persisted schema (`src/bdheal/schema.sql`)
 
@@ -232,7 +243,7 @@ change what is here.
 |---|---|---|
 | `CollectorSpec`, `RunResult`, `RowError`, `DetectVerdict`, `Signal`, `HealEvent`, `VerifyReport`, `Baseline`, `BenchCase` | `models.py` | Every boundary type. Adding a boundary type means editing this file |
 | `NonBlankStr`, `Ratio` | `models.py` | Field constraints shared across models: a caller-supplied name, and a `0.0..1.0` fraction. A new field of either kind annotates with these rather than re-spelling `Field(ge=…)` |
-| `SignalKind`, `SignalOutcome`, `FailureClass`, `HealStatus`, `MutationClass`, `ExpectedSignal` | `vocabulary.py` | Any closed set of values. No bare string literals for states |
+| `SignalKind`, `SignalOutcome`, `FailureClass`, `HealStatus`, `MutationClass` | `vocabulary.py` | Any closed set of values. No bare string literals for states |
 | `BdhealError`, `StudioError`, `StudioResponseError`, `CollectorCreateError` | `errors.py` | Every raise. New error types subclass `BdhealError` |
 | `skeleton()`, `skeleton_hash()` | `skeleton.py` | Any structural comparison — detect and bench both consume it |
 | `null_rates()`, `capture_baseline()` | `detect.py` | Baseline maths, in one place, used by both detect and the facade |
@@ -342,7 +353,7 @@ F11 populates `MUTATIONS` with exactly these declarations. F12 reports what actu
 caught each class and publishes the disagreements as coverage gaps — a gap is a finding,
 not a failure.
 
-| Mutation class | Declared detector | Moves the skeleton hash? |
+| Mutation class | Declared detectors (`frozenset[SignalKind]`) | Moves the skeleton hash? |
 |---|---|---|
 | `class_rename` | `skeleton` | yes |
 | `table_to_div` | `skeleton` | yes |
@@ -351,11 +362,18 @@ not a failure.
 | `wrapper_nesting` | `skeleton` | yes |
 | `pagination` | `skeleton` | yes |
 | `date_format` | `schema` | no |
-| `url_pattern` | `schema_or_null_rate` | no |
-| `link_label` | `none` | no — expected to evade all four detectors |
+| `url_pattern` | `{schema, null_rate}` | no |
+| `link_label` | `{}` (empty) | no — expected to evade all four detectors |
 
 The three non-structural classes leaving the skeleton hash untouched is `skeleton.py`
 behaving correctly, not a defect: its contract is text-insensitivity.
+
+The declaration is a **set of `SignalKind`**, not an enumerated combination. A class two
+detectors can see is `{schema, null_rate}`; one nothing catches is the **empty set**, an
+honest published gap. `coverage` is then membership — `caught_by in expected_signals` —
+rather than decoding names like `schema_or_null_rate` by hand, and a fifth detector adds
+one enum member instead of multiplying combinations. Persisted as a sorted comma-joined
+`TEXT` column, so `""` is a real, meaningful value.
 
 ## The argv flag guard — what it does and does not catch
 

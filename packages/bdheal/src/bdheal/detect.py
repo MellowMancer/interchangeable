@@ -22,13 +22,26 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from bdheal.models import Baseline, CollectorSpec, DetectVerdict, RowError, RunResult, Signal
+from bdheal.models import (
+    Baseline,
+    CollectorSpec,
+    DetectVerdict,
+    RowError,
+    RunResult,
+    Signal,
+    fired_signals,
+)
 from bdheal.ports import HealStore
 
 # Aliased because `capture_baseline` takes a `skeleton_hash` value and the two would
 # otherwise share a name.
 from bdheal.skeleton import skeleton_hash as structural_hash
-from bdheal.vocabulary import SignalKind, SignalOutcome
+from bdheal.vocabulary import (
+    AMBIGUOUS_CODES,
+    TARGET_REFUSAL_CODES,
+    SignalKind,
+    SignalOutcome,
+)
 
 RATE_LIMIT_CODE = "rate_limit"
 
@@ -78,27 +91,39 @@ def detect(
         _null_rate_signal(result, baseline, fields, target),
     )
     signals = [signal for signal in candidates if signal is not None]
-    fired = [signal for signal in signals if signal.outcome is SignalOutcome.FIRED]
+    fired = fired_signals(signals)
     return DetectVerdict(
         broken=bool(fired),
         signals=signals,
         incomplete=bool(target.count),
         retry_requested=bool(target.count),
+        ambiguous_codes=tuple(code for code in target.codes if code in AMBIGUOUS_CODES),
         reason=_reason(fired, target),
     )
 
 
 def _target_side(result: RunResult) -> _TargetSide:
-    """What the target refused, by count and by code. Any code counts, not only throttling.
+    """What the target refused, by count and by code.
 
-    The count comes from the rows, because that is what makes the sample incomplete; the
-    names come from `RunResult.error_codes`, which the boundary already de-duplicates in
-    first-seen order — re-deriving them here would be a second copy of that rule.
+    Only codes in `TARGET_REFUSAL_CODES` count. A code alone is not enough: real payloads
+    carry `dead_page` and `parse_error`, which are the collector's own faults — a retry
+    reproduces them exactly, and a heal is what fixes them.
     """
+    refusals = [error for error in result.errors if _is_refusal(error)]
     return _TargetSide(
-        count=sum(1 for error in result.errors if error.error_code),
-        codes=tuple(result.error_codes),
+        count=len(refusals),
+        codes=tuple(dict.fromkeys(error.error_code for error in refusals if error.error_code)),
     )
+
+
+def _is_refusal(error: RowError) -> bool:
+    """Whether this row leaves the sample incomplete rather than indicting the extractor.
+
+    Refusals and ambiguous codes both do: the target would not serve us, or might not
+    have. Only a code Bright Data attributes to the scraper itself — or no code at all —
+    is evidence about extraction.
+    """
+    return error.error_code in TARGET_REFUSAL_CODES or error.error_code in AMBIGUOUS_CODES
 
 
 def null_rates(rows: list[dict], fields: list[str]) -> dict[str, float]:
@@ -129,12 +154,12 @@ def capture_baseline(
 def _schema_signal(errors: list[RowError], row_count: int) -> Signal | None:
     """Rows that came back and yielded nothing usable — an extraction fault, so a heal fits.
 
-    The discriminator is the absence of an `error_code`, not the presence of field errors:
-    a row that was not an object at all carries neither, and a collector that returned
-    objects and now returns strings is as broken as one failing validation. A row the
-    target refused never reaches the extractor, so it is not evidence about it.
+    Everything the target did **not** refuse is evidence about the extractor: a validation
+    failure, a row that was not an object at all, and a collector-side code such as
+    `dead_page` or `parse_error`. Only a genuine refusal is excluded — that row never
+    reached the extractor, so it says nothing about it.
     """
-    failed = [error for error in errors if error.error_code is None]
+    failed = [error for error in errors if not _is_refusal(error)]
     if not failed:
         return None
     return Signal(

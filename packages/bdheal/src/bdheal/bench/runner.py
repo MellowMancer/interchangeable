@@ -11,7 +11,7 @@ from typing import Any
 
 from bdheal.models import BenchCase, CollectorSpec
 from bdheal.ports import Clock, HealLoop, HealStore
-from bdheal.vocabulary import ExpectedSignal, MutationClass
+from bdheal.vocabulary import MutationClass, SignalKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +20,7 @@ class BenchCaseSpec:
 
     case_id: str
     mutation: MutationClass
-    expected_signal: ExpectedSignal
+    expected_signals: frozenset[SignalKind]
     spec: CollectorSpec
     fixture_url: str
     old_layout_url: str

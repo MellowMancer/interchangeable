@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from bdheal.models import BenchCase
-from bdheal.vocabulary import ExpectedSignal, MutationClass, SignalKind
+from bdheal.vocabulary import MutationClass, SignalKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +27,7 @@ class CoverageRow:
     """What was declared to catch a mutation class against what actually did."""
 
     mutation: MutationClass
-    expected_signal: ExpectedSignal
+    expected_signals: frozenset[SignalKind]
     caught_by: SignalKind | None
     is_gap: bool
 

@@ -49,10 +49,15 @@ URL_SEPARATOR = ","
 HTML_FORMAT: tuple[str, ...] = ("--format", "html")
 
 # Verbatim from a v0.3.5 run whose realtime page limit was exceeded.
-ESCALATION_MARKER = "switching to batch mode"
 CREATE_FAILED_STATUS = "ai_trigger_failed"
 ERROR_KEY = "error"
 ERROR_CODE_KEY = "error_code"
+# A target error the CLI reported without naming a code. It is still target-side — the row
+# came back as an error payload, not as data the extractor mis-read — and detect's whole
+# discriminator is "an error carrying a code is target-side, one carrying none is an
+# extraction fault". Leaving it None would make a failed page load fire the schema signal
+# and buy a paid heal cycle for something healing cannot fix.
+UNSPECIFIED_CODE = "unspecified"
 COLLECTOR_ID_KEY = "collector_id"
 EXCERPT_CHARS = 200
 
@@ -87,7 +92,15 @@ class BdataStudioClient:
         """
         argv = _argv(CREATE, url, description, *self._flags(self._timeout_s))
         completed = self._call(argv, self._timeout_s)
-        payload = _object(completed, CREATE)
+        try:
+            payload = _object(completed, CREATE)
+        except StudioResponseError as exc:
+            # A hard failure that printed no JSON still leaves a collector behind, and the
+            # caller is catching `CollectorCreateError` precisely to be told about it. The
+            # unparseable output becomes the reason rather than a different exception type.
+            if completed.returncode != 0:
+                raise CollectorCreateError(_create_failure(url, {}, completed)) from exc
+            raise
         if completed.returncode != 0 or _create_failed(payload):
             raise CollectorCreateError(_create_failure(url, payload, completed))
         collector_id = payload.get(COLLECTOR_ID_KEY)
@@ -96,7 +109,7 @@ class BdataStudioClient:
         return str(collector_id)
 
     def run(self, spec: CollectorSpec, urls: Sequence[str]) -> RunResult:
-        """Run the collector, escalating to batch mode and polling when the sync path says so."""
+        """Run the collector and return its rows. The CLI escalates to batch on its own."""
         completed = self._attempt(spec.collector_id, urls)
         _check(completed, RUN)
         return self._collate(spec, _array(completed, RUN))
@@ -126,21 +139,19 @@ class BdataStudioClient:
         return completed.stdout
 
     def _attempt(self, collector_id: str, urls: Sequence[str]) -> ProcessResult:
-        """Realtime when a single URL permits it, batch otherwise and on escalation.
+        """One call. The CLI escalates realtime to batch by itself and polls it to done.
 
-        `--sync` drives `/dca/crawl`, which takes exactly one URL, so the CLI rejects it
-        alongside `--urls`. Several URLs therefore skip realtime rather than fail it.
+        Verified live against v0.3.5: a run that exceeds the realtime page limit prints
+        `switching to batch mode`, submits a batch job and polls it (`attempt 1/3600`) in
+        the *same* invocation, returning the rows. Watching for that marker and issuing a
+        second run therefore abandons a job already running and already paid for, and
+        submits a duplicate — two minutes-long, rate-limited jobs for one answer.
+
+        `--sync` does not prevent it either; the escalation above happened with the flag
+        set. So there is one shape, for one URL or many, at the batch deadline, because
+        any call may escalate.
         """
-        if len(urls) == 1:
-            completed = self._call(
-                self._run_argv(collector_id, urls, sync=True), self._timeout_s
-            )
-            if not _escalated(completed):
-                return completed
-            log.info("realtime_escalated_to_batch", collector_id=collector_id)
-        return self._call(
-            self._run_argv(collector_id, urls, sync=False), self._batch_timeout_s
-        )
+        return self._call(self._run_argv(collector_id, urls), self._batch_timeout_s)
 
     def _call(self, argv: list[str], timeout_s: int) -> ProcessResult:
         """Run one command, giving the process a little longer than the CLI's own deadline."""
@@ -150,13 +161,9 @@ class BdataStudioClient:
         """The flags every JSON-returning subcommand carries."""
         return [JSON_FLAG, TIMEOUT_FLAG, str(timeout_s)]
 
-    def _run_argv(self, collector_id: str, urls: Sequence[str], *, sync: bool) -> list[str]:
-        """argv for one run, in either the realtime or the batch shape."""
-        timeout_s = self._timeout_s if sync else self._batch_timeout_s
-        argv = _argv(RUN, collector_id, *_url_args(urls), *self._flags(timeout_s))
-        if sync:
-            argv.append("--sync")
-        return argv
+    def _run_argv(self, collector_id: str, urls: Sequence[str]) -> list[str]:
+        """argv for one run. The CLI picks realtime or batch itself; we set the deadline."""
+        return _argv(RUN, collector_id, *_url_args(urls), *self._flags(self._batch_timeout_s))
 
     def _collate(self, spec: CollectorSpec, payload: list[Any]) -> RunResult:
         """Split the rows Bright Data returned into validated data and per-row failures."""
@@ -298,7 +305,7 @@ def _row(index: int, item: Any, row_schema: type[BaseModel]) -> dict[str, Any] |
         return RowError(
             index=index,
             message=str(item[ERROR_KEY]),
-            error_code=item.get(ERROR_CODE_KEY),
+            error_code=item.get(ERROR_CODE_KEY) or UNSPECIFIED_CODE,
         )
     try:
         return row_schema.model_validate(item).model_dump()
@@ -316,14 +323,11 @@ def _field_errors(exc: ValidationError) -> dict[str, str]:
 
 
 def _distinct_codes(errors: list[RowError]) -> list[str]:
-    """The target-side error codes seen, first-seen order, each named once."""
-    codes: list[str] = []
-    for error in errors:
-        if error.error_code and error.error_code not in codes:
-            codes.append(error.error_code)
-    return codes
+    """The target-side error codes seen, first-seen order, each named once.
+
+    `dict.fromkeys` is the stdlib's ordered de-duplication; spelling it as a loop invites
+    the rule to be restated elsewhere, which is exactly what happened once already.
+    """
+    return list(dict.fromkeys(error.error_code for error in errors if error.error_code))
 
 
-def _escalated(completed: ProcessResult) -> bool:
-    """Whether the realtime path announced it is handing the job to batch mode."""
-    return ESCALATION_MARKER in completed.stdout or ESCALATION_MARKER in completed.stderr

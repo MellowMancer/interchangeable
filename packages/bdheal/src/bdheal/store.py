@@ -12,6 +12,7 @@ from importlib import resources
 from pathlib import Path
 
 from bdheal.models import Baseline, BenchCase, HealEvent
+from bdheal.vocabulary import SignalKind
 
 SCHEMA_FILE = "schema.sql"
 
@@ -95,11 +96,11 @@ class SqliteHealStore:
         """Insert or replace one benchmark case outcome. Idempotent, so a resume is safe."""
         self._conn.execute(
             "INSERT INTO bdheal_bench_cases "
-            "(run_id, case_id, mutation, expected_signal, caught_by, healed, field_accuracy, "
+            "(run_id, case_id, mutation, expected_signals, caught_by, healed, field_accuracy, "
             " non_regression_passed, attempts, elapsed_s, completed_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(run_id, case_id) DO UPDATE SET "
-            "mutation = excluded.mutation, expected_signal = excluded.expected_signal, "
+            "mutation = excluded.mutation, expected_signals = excluded.expected_signals, "
             "caught_by = excluded.caught_by, healed = excluded.healed, "
             "field_accuracy = excluded.field_accuracy, "
             "non_regression_passed = excluded.non_regression_passed, "
@@ -109,7 +110,7 @@ class SqliteHealStore:
                 case.run_id,
                 case.case_id,
                 case.mutation,
-                case.expected_signal,
+                _join_kinds(case.expected_signals),
                 case.caught_by,
                 int(case.healed),
                 case.field_accuracy,
@@ -133,6 +134,15 @@ class SqliteHealStore:
 def _schema_sql() -> str:
     """The packaged DDL, read from the installed package rather than the source tree."""
     return resources.files("bdheal").joinpath(SCHEMA_FILE).read_text()
+
+
+def _join_kinds(kinds: frozenset[SignalKind]) -> str:
+    """A declared detector set as one sorted, comma-joined column value.
+
+    Sorted so the stored text is stable for a given set, and the empty string is a real
+    value — a class no detector catches, which the benchmark publishes as a gap.
+    """
+    return ",".join(sorted(kinds))
 
 
 def _iso(moment: datetime | None) -> str | None:

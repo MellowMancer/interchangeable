@@ -56,14 +56,37 @@ class MutationClass(StrEnum):
     PAGINATION = "pagination"
 
 
-class ExpectedSignal(StrEnum):
-    """The detector a mutation class is declared to trip.
+# Row-level `error_code` classes, taken from Bright Data's published reference
+# (docs.brightdata.com/datasets/scraper-studio/error-codes), not guessed. An earlier
+# hand-rolled set got four of five names wrong — `rate_limit` for `global_rate_limit` /
+# `bucket_rate_limit`, `captcha` for `captcha_timeout` — and missed four codes entirely.
+#
+# REFUSAL: the target would not serve us. Retrying is the answer; healing cannot unblock
+# a fetch.
+TARGET_REFUSAL_CODES: frozenset[str] = frozenset(
+    {
+        "blocked",
+        "captcha_timeout",
+        "global_rate_limit",
+        "bucket_rate_limit",
+        "rate_limit",  # observed live in a real payload, though absent from the reference
+        "unspecified",  # an error payload the CLI reported without naming a code
+    }
+)
 
-    `NONE` is a legitimate declaration: a class no detector can see is published as a
-    coverage gap, not hidden as a benchmark failure.
-    """
+# COLLECTOR: the scraper's own code failed. Retrying reproduces it exactly; a heal is the
+# only thing that fixes it. `parse_error` was observed 19 times in one real payload —
+# the price parser failing on pages that had loaded perfectly well.
+COLLECTOR_FAULT_CODES: frozenset[str] = frozenset(
+    {"bad_input", "parse_error", "wait_element_timeout"}
+)
 
-    SKELETON = "skeleton"
-    SCHEMA = "schema"
-    SCHEMA_OR_NULL_RATE = "schema_or_null_rate"
-    NONE = "none"
+# AMBIGUOUS: Bright Data marks these "either/both — debug required", and a real payload
+# proved why. 980 `dead_page` rows came from the collector resolving relative links
+# against the site root instead of the current page, so every link off page 2 onward
+# 404'd — the collector's fault, under a code the vendor documents as the target's.
+# Whether it is one or the other depends on something `detect` cannot see, so the policy
+# is: report it, retry once, and treat it as extraction evidence only if it survives.
+AMBIGUOUS_CODES: frozenset[str] = frozenset(
+    {"dead_page", "crawl_error", "ajax_request_error", "timeout"}
+)

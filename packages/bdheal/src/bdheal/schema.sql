@@ -32,11 +32,18 @@ CREATE TABLE IF NOT EXISTS bdheal_heal_events (
 );
 
 -- Benchmark case outcomes, written as each case finishes so a multi-hour run resumes.
+--
+-- The DROP is a one-time pre-release correction, not a pattern. `expected_signal` (one
+-- value) became `expected_signals` (a set) before any writer existed: `run_benchmark` is
+-- still unimplemented, so this table has never held a row, and `CREATE TABLE IF NOT
+-- EXISTS` alone would leave an older file with the old column and fail every insert.
+-- Once F12 ships and real runs exist, a column change needs an ALTER, never this.
+DROP TABLE IF EXISTS bdheal_bench_cases;
 CREATE TABLE IF NOT EXISTS bdheal_bench_cases (
     run_id                TEXT NOT NULL,
     case_id               TEXT NOT NULL,
     mutation              TEXT NOT NULL,
-    expected_signal       TEXT NOT NULL,    -- skeleton | schema | schema_or_null_rate | none
+    expected_signals      TEXT NOT NULL,    -- comma-joined SignalKind set; "" is a declared gap
     caught_by             TEXT,             -- NULL is a coverage gap, not a failure
     healed                INTEGER NOT NULL DEFAULT 0,
     field_accuracy        REAL,

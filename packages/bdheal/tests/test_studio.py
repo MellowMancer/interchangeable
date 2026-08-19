@@ -14,6 +14,7 @@ from bdheal.errors import CollectorCreateError, StudioError, StudioResponseError
 from bdheal.models import CollectorSpec
 from bdheal.ports import Clock, ProcessResult
 from bdheal.studio import (
+    UNSPECIFIED_CODE,
     APPROVE,
     BATCH_TIMEOUT_S,
     BDATA_ARGV,
@@ -94,10 +95,17 @@ TWO_ROWS_ONE_THROTTLED = json.dumps(
         },
     ]
 )
-ESCALATION_STDOUT = (
+# Verified live against v0.3.5: progress and the escalation notice go to **stderr**, and
+# stdout carries the JSON payload alone. The CLI escalates and polls the batch job to
+# completion inside the *same* invocation, so an escalated run is one call, not two.
+ESCALATION_STDERR = (
+    "Triggering scrape...\n"
+    "Polling (attempt 1/600)\n"
     "Realtime page limit exceeded - switching to batch mode...\n"
     "Submitting batch job...\n"
     "Batch job: j_msys99kf83xt17v8m\n"
+    "Collecting (batch)...\n"
+    "Polling batch (attempt 1/3600)\n"
 )
 BLOCKED_CREATE_STDOUT = json.dumps(
     {
@@ -110,9 +118,9 @@ BLOCKED_CREATE_STDOUT = json.dumps(
 )
 
 
-def ok(stdout: str) -> ProcessResult:
-    """A successful command with `stdout` on its standard output."""
-    return ProcessResult(returncode=0, stdout=stdout, stderr="")
+def ok(stdout: str, stderr: str = "") -> ProcessResult:
+    """A successful command: JSON on stdout, progress chatter on stderr."""
+    return ProcessResult(returncode=0, stdout=stdout, stderr=stderr)
 
 
 def client(runner: RecordingRunner, clock: Clock) -> BdataStudioClient:
@@ -121,14 +129,17 @@ def client(runner: RecordingRunner, clock: Clock) -> BdataStudioClient:
 
 
 def every_argv(runner: RecordingRunner, clock: Clock, spec: CollectorSpec) -> list[list[str]]:
-    """Every argv the adapter can build: all five subcommands and both run shapes."""
+    """Every argv the adapter can build: all five subcommands, single-URL and batch.
+
+    A run is one call whatever the CLI does internally, so an escalating run adds no
+    argv shape — it is the same command with chatter on stderr.
+    """
     runner.results.extend(
         [
             ok(json.dumps({"collector_id": ORPHANED_ID, "status": "ready"})),
             ok("[]"),
             ok("[]"),
-            ok(ESCALATION_STDOUT),
-            ok("[]"),
+            ok("[]", stderr=ESCALATION_STDERR),
             ok(json.dumps({"status": "done"})),
             ok(json.dumps({"status": "rejected"})),
             ok("<html></html>"),
@@ -179,6 +190,26 @@ def test_per_row_errors_are_data_not_exceptions(
     assert result.error_codes == ["rate_limit"]
     assert result.collector_id == spec.collector_id
     assert result.fetched_at == clock.now()
+
+
+def test_a_target_error_without_a_code_is_still_target_side(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """A row that came back as an error payload is target-side even if unnamed.
+
+    Detect's discriminator is "a code means target-side, no code means the extractor
+    mis-read the page". A `{"error": ...}` payload with no `error_code` left unlabelled
+    would fire the schema signal and buy a paid heal for a failed page load — the mirror
+    of the false negative criterion (h) exists to prevent.
+    """
+    payload = json.dumps([{"input": {"url": "u"}, "error": "Crawler error: Navigation failed"}])
+    recording_runner.results.append(ok(payload))
+
+    result = client(recording_runner, clock).run(spec, spec.anchor_urls)
+
+    assert result.error_codes == [UNSPECIFIED_CODE]
+    assert result.errors[0].error_code == UNSPECIFIED_CODE
+    assert result.errors[0].field_errors == {}
 
 
 def test_a_schema_failure_is_a_row_error_with_field_detail(
@@ -254,21 +285,25 @@ def test_a_url_containing_a_comma_is_refused(
     assert recording_runner.argvs == []
 
 
-def test_realtime_escalates_to_batch_with_a_timeout_above_the_cli_default(
+def test_an_escalating_run_is_one_call_at_the_batch_deadline(
     recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
 ) -> None:
-    """Batch polling runs to 3600 attempts, so the 600 s default would kill a healthy job."""
-    recording_runner.results.extend([ok(ESCALATION_STDOUT), ok(TWO_ROWS_ONE_THROTTLED)])
+    """The CLI escalates and polls to done itself; a second run would duplicate the job.
+
+    Verified live: `--sync` did not prevent escalation, and the escalating invocation
+    submitted the batch job *and* polled it. Watching stderr for the marker and issuing
+    another run abandons a job already running and already paid for, then pays again —
+    two minutes-long, rate-limited jobs for one answer.
+    """
+    recording_runner.results.append(ok(TWO_ROWS_ONE_THROTTLED, stderr=ESCALATION_STDERR))
 
     result = client(recording_runner, clock).run(spec, spec.anchor_urls)
 
-    sync_argv, batch_argv = recording_runner.argvs
-    assert "--sync" in sync_argv
-    assert sync_argv[sync_argv.index("--timeout") + 1] == str(DEFAULT_TIMEOUT_S)
-    assert "--sync" not in batch_argv
-    assert batch_argv[batch_argv.index("--timeout") + 1] == str(BATCH_TIMEOUT_S)
+    (argv,) = recording_runner.argvs
+    assert "--sync" not in argv
+    assert argv[argv.index("--timeout") + 1] == str(BATCH_TIMEOUT_S)
     assert BATCH_TIMEOUT_S > CLI_DEFAULT_TIMEOUT_S
-    assert recording_runner.timeouts[1] > recording_runner.timeouts[0]
+    assert recording_runner.timeouts[0] > BATCH_TIMEOUT_S
     assert len(result.rows) == 2
 
 
@@ -296,6 +331,23 @@ def test_create_returns_the_new_collector_id(
     )
 
     assert client(recording_runner, clock).create("https://example.test", "rows") == ORPHANED_ID
+
+
+def test_a_create_that_dies_without_json_still_names_the_orphan(
+    recording_runner: RecordingRunner, clock: Clock
+) -> None:
+    """A hard create failure leaves a collector behind whatever it printed.
+
+    The caller catches `CollectorCreateError` precisely to be told about the orphan that
+    Bright Data cannot delete programmatically. Reporting `StudioResponseError` because
+    the output happened not to be JSON hides it behind the wrong exception type.
+    """
+    recording_runner.results.append(
+        ProcessResult(returncode=1, stdout="", stderr="proxy returned 502 Bad Gateway")
+    )
+
+    with pytest.raises(CollectorCreateError, match="502 Bad Gateway"):
+        client(recording_runner, clock).create("https://example.test", "rows")
 
 
 def test_non_json_stdout_raises_a_typed_error(

@@ -182,7 +182,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 > to compare against means no detector ran — and the verdict is not silent. Worth a
 > regression test when someone next touches `detect.py`.
 
-- [ ] 7 Diagnose — failure class → prompt template (`diagnose.py`) — depends on: 6
+- [x] 7 Diagnose — failure class → prompt template (`diagnose.py`) — depends on: 6
       Classify a `DetectVerdict` into a failure class, select the prompt template, and
       render the heal prompt.
       criteria: a table-driven test asserts each failure class maps to its expected
@@ -191,6 +191,21 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       template rather than raising; a verdict with `broken=False` produces no prompt at
       all; the rendered prompt contains only the caller's field names from
       `CollectorSpec.row_schema` and no credential (G6).
+      **`incomplete` is not consulted** (clarified 2026-08-19, after an incorrect
+      orchestrator instruction was caught during F7): `FIRED` is the only input to
+      classification. `detect` already suppresses the volume detectors to `INCONCLUSIVE`
+      whenever any row is target-side, so a signal that survives to `FIRED` inside an
+      incomplete sample is extraction evidence by construction — `schema` (a row came
+      back and did not validate) or `skeleton` (the page tree moved). Neither is fixable
+      by retrying. Suppressing on `incomplete` alone would delete a real schema break
+      whenever one sibling row was blocked, reintroducing the F6(h) false negative one
+      module downstream. So: a verdict that is `incomplete` but **not** `broken` produces
+      no prompt; a verdict that is **both** produces the prompt for the fired extraction
+      signal.
+      **Signal precedence** (F7's call, pinned by test): `skeleton > schema > zero_rows >
+      null_rate`. A moved tag-and-class tree is *why* the others fired, so naming a
+      symptom would send the heal hunting for a field on a page whose rows it can no
+      longer find.
       parallel-with: 11
 
 - [ ] 8 Heal + approval gate (`heal.py`) — depends on: 7
@@ -228,6 +243,23 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       (d) `VerifyReport` carries `attempts` and a non-zero `elapsed_s` from an injected
           clock, so the value is deterministic in tests.
       parallel-with: 11
+
+> ### Ambiguous error codes — the escalation belongs to F10 (decided 2026-08-19)
+>
+> Bright Data classes `dead_page`, `crawl_error`, `ajax_request_error` and `timeout` as
+> "either/both — debug required", and a real payload proved why: **980 `dead_page` rows
+> came from the collector resolving relative links against the site root instead of the
+> current page**, so every link off page 2 onward 404'd. The vendor documents that code as
+> the target's fault; in that payload it was entirely the collector's.
+>
+> A single run cannot tell the two apart, so `detect` **reports rather than judges**: an
+> ambiguous code makes the sample `incomplete`, sets `retry_requested`, fires no schema
+> signal, and lands in `DetectVerdict.ambiguous_codes`.
+>
+> **F10 owns the other half.** Retry once; if the *same* ambiguous codes come back, they
+> are no longer plausibly transient and become extraction evidence — heal. Costs one retry
+> cycle before healing, which is the cheap direction to be wrong in. `detect` stays
+> stateless and judges one run; the loop is the facade's job.
 
 - [ ] 10 `Healer` facade — depends on: 9
       The single public entry point: `run · detect · heal · verify`, with both ports
@@ -286,6 +318,29 @@ These are gates, not aspirations. Any feature that breaks one is not done.
 > mutation look structurally changed to one parser and unchanged to the other, which
 > would corrupt the coverage matrix. If a case ever reports an unexpected detector, check
 > parser disagreement before suspecting the detector.
+
+> ### ⚠️ Benchmark collectors MUST be scoped to a single page (learned the hard way)
+>
+> A naive `scraper create` against a listing URL produces a **site crawler, not a page
+> extractor**. A probe collector built from "extract every book on the page" for
+> `books.toscrape.com` walked the whole catalogue: **1.05K pages of fulfillment and 999
+> failed crawls per run, for 1 record.**
+>
+> `plan.md` budgets F12 at "20–30 cases, 3–7 hours" on the assumption that a case is one
+> page. If each case crawls a thousand pages, and the heal loop runs each collector
+> several times (baseline · break · heal · verify · non-regression), the benchmark is tens
+> of thousands of page-fulfillments — unaffordable and unfinishable.
+>
+> Two requirements follow:
+> 1. The `create` description must state the scope explicitly — extract from **this page
+>    only**, follow no links, no pagination.
+> 2. Fixtures must be **single self-contained pages with no outbound links to follow**.
+>    This is a stronger argument for self-hosted fixtures than the original one (Scraper
+>    Studio cannot reach `localhost`): a page with nowhere to crawl to cannot run away
+>    with the budget.
+>
+> Verify the page count of the first benchmark collector against the dashboard **before**
+> running the remaining cases.
 
 - [ ] 12 Benchmark runner + metrics (`bench/runner.py`, `bench/metrics.py`) — depends on: 10, 11
       Drive mutated fixtures through the full `Healer` loop, record per-case outcomes,
