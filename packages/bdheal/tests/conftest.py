@@ -6,6 +6,33 @@ feature reuses them; a test that needs different behaviour programmes the stub i
 given instead of writing a near-copy beside it.
 """
 
+# The corpus vocabulary `bdheal` must never contain. Owned by no single feature: every
+# module carrying a "domain-free" criterion asserts against this one list, so the bar
+# cannot drift feature by feature. The application's own name is deliberately absent —
+# that is G2's job, and naming it here would make the invariant's own `rg` check match.
+DOMAIN_TERMS = (
+    "agencies",
+    "agency",
+    "agenda",
+    "award",
+    "bainbridge",
+    "bothell",
+    "capital",
+    "corpus",
+    "council",
+    "lakehaven",
+    "lexicon",
+    "meeting",
+    "municipal",
+    "packet",
+    "procurement",
+    "rfp",
+    "solicitation",
+    "tier",
+    "wastewater",
+)
+
+
 import os
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta

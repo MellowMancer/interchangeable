@@ -225,7 +225,7 @@ def test_a_verdict_defaults_to_no_signals_and_no_throttling() -> None:
     """A healthy verdict carries an empty signal list, not `None`, and requests no retry."""
     verdict = DetectVerdict(broken=False)
     assert verdict.signals == []
-    assert verdict.throttled is False
+    assert verdict.incomplete is False
     assert verdict.retry_requested is False
     assert verdict.reason is None
 
@@ -242,7 +242,7 @@ def test_a_verdict_round_trips_through_model_dump() -> None:
                 detail="sample truncated by throttling",
             ),
         ],
-        throttled=True,
+        incomplete=True,
         retry_requested=True,
         reason="schema break with an incomplete sample",
     )

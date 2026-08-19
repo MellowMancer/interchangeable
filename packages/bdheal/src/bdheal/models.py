@@ -98,13 +98,15 @@ class Signal(_Boundary):
 class DetectVerdict(_Boundary):
     """Whether the collector is broken, and everything that led to the answer.
 
-    `throttled` and `retry_requested` keep "we got rate-limited" from ever being read as
-    "the site broke" — healing against a truncated sample is the expensive failure mode.
+    `incomplete` and `retry_requested` keep "the target refused part of the sample" from
+    ever being read as "the site broke" — healing against a truncated sample is the
+    expensive failure mode. `incomplete` covers every target-side refusal, not only
+    rate-limiting: blocked, captcha and timeout leave the sample just as untrustworthy.
     """
 
     broken: bool
     signals: list[Signal] = []
-    throttled: bool = False
+    incomplete: bool = False
     retry_requested: bool = False
     reason: str | None = None
 

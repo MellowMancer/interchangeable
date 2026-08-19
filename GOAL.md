@@ -133,7 +133,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
           constant, asserted against a literal in the test.
       parallel-with: 3, 4
 
-- [ ] 6 Detect — four domain-free signals (`detect.py`) — depends on: 3, 4, 5
+- [x] 6 Detect — four domain-free signals (`detect.py`) — depends on: 3, 4, 5
       Pydantic validation failure · silent zero rows where the prior run returned >0 ·
       skeleton hash delta vs baseline · field null-rate spike vs baseline.
       criteria:
@@ -159,7 +159,28 @@ These are gates, not aspirations. Any feature that breaks one is not done.
           volume grounds, may still report a schema break, and always requests a retry.
           Test the worked case: 10 inputs → 3 `rate_limit`, 7 rows, 2 failing validation
           ⇒ schema signal fires, volume signals `inconclusive`, retry requested.
+      (h) **no silent target-side failure** (decided 2026-08-19, found in F6 verification):
+          **any** row-level `error_code`, not only `rate_limit`, means the sample is
+          incomplete — suppress the volume signals as `inconclusive`, set
+          `retry_requested`, and name the observed codes in `reason`. A blocked, captcha'd
+          or timed-out fetch is not an extraction fault, so it must **not** propose a heal,
+          but it must never be silent. Test the demonstrated false negative: 10 expected
+          rows, 5 returning `error_code="blocked"` ⇒ not broken, but throttled/incomplete
+          reported and a retry requested — never `signals == {}`;
+      (i) **a row that is not an object is break evidence**: a `RowError` carrying neither
+          `field_errors` nor `error_code` (what `studio._row` yields for a non-dict item)
+          fires the **schema** signal. A collector that returned objects and now returns
+          strings is a broken extractor.
+      Guiding principle: **extraction problems justify a heal; target-side problems justify
+      a retry; neither justifies silence.**
+      `NULL_RATE_SPIKE = 0.5` (absolute rise above baseline) is confirmed as the threshold.
       parallel-with: 11
+
+> **Untested combination (found in F6 re-verification, not a defect):** a target-side
+> `error_code` with **no stored baseline** yields `signals == []` while `incomplete`,
+> `retry_requested` and `reason` all still speak. Consistent with criterion (c) — nothing
+> to compare against means no detector ran — and the verdict is not silent. Worth a
+> regression test when someone next touches `detect.py`.
 
 - [ ] 7 Diagnose — failure class → prompt template (`diagnose.py`) — depends on: 6
       Classify a `DetectVerdict` into a failure class, select the prompt template, and
@@ -226,7 +247,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
           `from bdheal import Healer` works from a clean venv.
       parallel-with: 11
 
-- [ ] 11 Mutation generators (`bench/mutate.py`) — depends on: 5
+- [x] 11 Mutation generators (`bench/mutate.py`) — depends on: 5
       Nine domain-free HTML perturbations: class rename · `<table>`→`<div>` · column
       reorder · link label · URL pattern change · date format · field split/merge ·
       wrapper nesting · pagination.
@@ -258,6 +279,13 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       (g) no generator contains domain vocabulary; each is exercised on a generic
           fixture, not a corpus page.
       parallel-with: 6, 7, 8, 9, 10
+
+> **Two parsers are in play** (found during F11 verification): `skeleton.py` hashes with
+> `selectolax`, `bench/mutate.py` generates with `lxml`. All nine classes agree today,
+> verified independently. But a divergence in malformed-HTML tolerance could make a
+> mutation look structurally changed to one parser and unchanged to the other, which
+> would corrupt the coverage matrix. If a case ever reports an unexpected detector, check
+> parser disagreement before suspecting the detector.
 
 - [ ] 12 Benchmark runner + metrics (`bench/runner.py`, `bench/metrics.py`) — depends on: 10, 11
       Drive mutated fixtures through the full `Healer` loop, record per-case outcomes,
