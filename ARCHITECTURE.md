@@ -357,6 +357,25 @@ not a failure.
 The three non-structural classes leaving the skeleton hash untouched is `skeleton.py`
 behaving correctly, not a defect: its contract is text-insensitivity.
 
+## The argv flag guard — what it does and does not catch
+
+`tests/test_studio.py` records, offline, the valid flag set per `bdata` subcommand
+(`ALLOWED_FLAGS`) and the mutually-exclusive pairs (`EXCLUSIVE_FLAGS`), and asserts the
+adapter never emits a flag a subcommand lacks nor an exclusive pair together. It exists
+because the injected `CommandRunner` makes the suite blind to whether the real CLI would
+accept what we send: three argv defects passed a green 91-test suite before it was added.
+
+**Scope limit, verified by mutation test (2026-08-19):** the guard catches *wrong* and
+*conflicting* flags. It cannot catch a **missing required** flag — deleting
+`--format html` from `fetch_html` leaves the guard green, because absence is not a
+violation. Only a dedicated value assertion catches that, and one exists
+(`test_fetch_html_asks_for_html_and_gets_the_page_source`).
+
+So: **every required flag needs its own point assertion.** Do not treat the guard as
+covering required-flag regressions. This matters most where the CLI has a silent default
+that is wrong for us — `bdata scrape` defaults to `--format markdown`, which would have
+produced a meaningless skeleton hash with no error anywhere.
+
 ## 13. Underspecified in `GOAL.md`, decided here
 
 Recorded so the next reader does not have to re-derive them.

@@ -5,7 +5,9 @@ walked up from `__file__`, so the store works the same from a wheel as from a ch
 Every statement binds its parameters: collector ids are caller-supplied strings.
 """
 
+import json
 import sqlite3
+from datetime import datetime
 from importlib import resources
 from pathlib import Path
 
@@ -16,7 +18,12 @@ SCHEMA_FILE = "schema.sql"
 
 def connect(db_path: Path) -> sqlite3.Connection:
     """Open a connection with foreign keys enforced and the packaged schema applied."""
-    raise NotImplementedError
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.executescript(_schema_sql())
+    return conn
 
 
 class SqliteHealStore:
@@ -27,29 +34,150 @@ class SqliteHealStore:
 
     def save_baseline(self, baseline: Baseline) -> None:
         """Insert or replace the known-good shape for one collector."""
-        raise NotImplementedError
+        self._conn.execute(
+            "INSERT INTO bdheal_baselines "
+            "(collector_id, captured_at, row_count, null_rates_json, skeleton_hash) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(collector_id) DO UPDATE SET "
+            "captured_at = excluded.captured_at, row_count = excluded.row_count, "
+            "null_rates_json = excluded.null_rates_json, "
+            "skeleton_hash = excluded.skeleton_hash",
+            (
+                baseline.collector_id,
+                baseline.captured_at.isoformat(),
+                baseline.row_count,
+                json.dumps(baseline.null_rates),
+                baseline.skeleton_hash,
+            ),
+        )
+        self._conn.commit()
 
     def baseline(self, collector_id: str) -> Baseline | None:
         """The stored baseline, or `None` on a collector's first-ever run."""
-        raise NotImplementedError
+        row = self._conn.execute(
+            "SELECT * FROM bdheal_baselines WHERE collector_id = ?", (collector_id,)
+        ).fetchone()
+        return _to_baseline(row) if row else None
 
     def save_heal_event(self, event: HealEvent) -> HealEvent:
         """Append a heal event, returning it with its assigned id."""
-        raise NotImplementedError
+        cur = self._conn.execute(
+            "INSERT INTO bdheal_heal_events "
+            "(collector_id, created_at, status, failure_class, template_id, prompt, "
+            " preview_result_json, promoted, attempts, error) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+            (
+                event.collector_id,
+                event.created_at.isoformat(),
+                event.status,
+                event.failure_class,
+                event.template_id,
+                event.prompt,
+                _dump_json(event.preview_result),
+                int(event.promoted),
+                event.attempts,
+                event.error,
+            ),
+        )
+        event_id = cur.fetchone()["id"]
+        self._conn.commit()
+        return event.model_copy(update={"id": event_id})
 
     def heal_events(self, collector_id: str) -> list[HealEvent]:
         """Every heal event for a collector, oldest first."""
-        raise NotImplementedError
+        rows = self._conn.execute(
+            "SELECT * FROM bdheal_heal_events WHERE collector_id = ? ORDER BY created_at, id",
+            (collector_id,),
+        ).fetchall()
+        return [_to_heal_event(row) for row in rows]
 
     def save_bench_case(self, case: BenchCase) -> None:
         """Insert or replace one benchmark case outcome. Idempotent, so a resume is safe."""
-        raise NotImplementedError
+        self._conn.execute(
+            "INSERT INTO bdheal_bench_cases "
+            "(run_id, case_id, mutation, expected_signal, caught_by, healed, field_accuracy, "
+            " non_regression_passed, attempts, elapsed_s, completed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(run_id, case_id) DO UPDATE SET "
+            "mutation = excluded.mutation, expected_signal = excluded.expected_signal, "
+            "caught_by = excluded.caught_by, healed = excluded.healed, "
+            "field_accuracy = excluded.field_accuracy, "
+            "non_regression_passed = excluded.non_regression_passed, "
+            "attempts = excluded.attempts, elapsed_s = excluded.elapsed_s, "
+            "completed_at = excluded.completed_at",
+            (
+                case.run_id,
+                case.case_id,
+                case.mutation,
+                case.expected_signal,
+                case.caught_by,
+                int(case.healed),
+                case.field_accuracy,
+                _nullable_int(case.non_regression_passed),
+                case.attempts,
+                case.elapsed_s,
+                _iso(case.completed_at),
+            ),
+        )
+        self._conn.commit()
 
     def completed_case_ids(self, run_id: str) -> list[str]:
         """The case ids already finished in this run. The runner skips these."""
-        raise NotImplementedError
+        rows = self._conn.execute(
+            "SELECT case_id FROM bdheal_bench_cases WHERE run_id = ? ORDER BY case_id",
+            (run_id,),
+        ).fetchall()
+        return [row["case_id"] for row in rows]
 
 
 def _schema_sql() -> str:
     """The packaged DDL, read from the installed package rather than the source tree."""
     return resources.files("bdheal").joinpath(SCHEMA_FILE).read_text()
+
+
+def _iso(moment: datetime | None) -> str | None:
+    """A timestamp as SQLite stores it: ISO 8601 text, or NULL."""
+    return moment.isoformat() if moment else None
+
+
+def _dump_json(payload: dict | None) -> str | None:
+    """A JSON column's value, keeping absence distinct from an empty object."""
+    return json.dumps(payload) if payload is not None else None
+
+
+def _load_json(payload: str | None) -> dict | None:
+    """The inverse of `_dump_json`."""
+    return json.loads(payload) if payload is not None else None
+
+
+def _nullable_int(flag: bool | None) -> int | None:
+    """A tri-state boolean column: true, false, or "not decided yet"."""
+    return int(flag) if flag is not None else None
+
+
+def _to_baseline(row: sqlite3.Row) -> Baseline:
+    """Rebuild a baseline from its row; pydantic parses the ISO timestamp."""
+    return Baseline(
+        collector_id=row["collector_id"],
+        captured_at=row["captured_at"],
+        row_count=row["row_count"],
+        null_rates=json.loads(row["null_rates_json"]),
+        skeleton_hash=row["skeleton_hash"],
+    )
+
+
+def _to_heal_event(row: sqlite3.Row) -> HealEvent:
+    """Rebuild a heal event from its row, gate state and audit fields intact."""
+    return HealEvent(
+        id=row["id"],
+        collector_id=row["collector_id"],
+        created_at=row["created_at"],
+        status=row["status"],
+        failure_class=row["failure_class"],
+        template_id=row["template_id"],
+        prompt=row["prompt"],
+        preview_result=_load_json(row["preview_result_json"]),
+        promoted=bool(row["promoted"]),
+        attempts=row["attempts"],
+        error=row["error"],
+    )

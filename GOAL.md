@@ -86,7 +86,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       `RunResult` round-trips through `model_dump()` / re-validation unchanged.
       parallel-with: none
 
-- [ ] 3 `StudioClient` port + `BdataStudioClient` adapter (`studio.py`) — depends on: 2
+- [x] 3 `StudioClient` port + `BdataStudioClient` adapter (`studio.py`) — depends on: 2
       The only code in the package that shells out to `bdata`. Abstract port + one
       concrete adapter; the subprocess runner is injected so tests never spawn `npx`.
       criteria:
@@ -106,7 +106,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       (e) malformed/non-JSON stdout raises a typed error, not `JSONDecodeError`.
       parallel-with: 4, 5
 
-- [ ] 4 `HealStore` port + SQLite adapter (`store.py`) — depends on: 2
+- [x] 4 `HealStore` port + SQLite adapter (`store.py`) — depends on: 2
       Persistence for per-collector baselines and heal events, behind a port the app
       may re-implement. Schema ships inside the package.
       criteria:
@@ -121,7 +121,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       (d) no test in this feature requires a file outside `tmp_path`.
       parallel-with: 3, 5
 
-- [ ] 5 Skeleton hashing (`skeleton.py`) — depends on: 2
+- [x] 5 Skeleton hashing (`skeleton.py`) — depends on: 2
       Strip text, keep the tag+class tree, hash it (`selectolax`). Pure function.
       criteria: exact-match golden tests, deterministic across processes —
       (a) changing only visible text yields an **identical** hash;
@@ -249,6 +249,12 @@ These are gates, not aspirations. Any feature that breaks one is not done.
           field split/merge, wrapper nesting, pagination — each change the F5 skeleton
           hash. The other three are text/attribute changes and by F5's contract must
           **not** move it;
+          ⚠️ **`column_reorder` must reorder siblings that differ in tag or class**
+          (found during F5). Swapping two byte-identical siblings cannot move a
+          structural hash — the structure genuinely did not change — so a uniform-cell
+          fixture would fail this criterion for a correct implementation. Build the
+          fixture with distinguishable columns (e.g. `<li class="name">` vs
+          `<li class="date">`);
       (g) no generator contains domain vocabulary; each is exercised on a generic
           fixture, not a corpus page.
       parallel-with: 6, 7, 8, 9, 10
