@@ -495,3 +495,20 @@ def test_no_mutually_exclusive_flags_are_ever_emitted_together(
     for argv in every_argv(recording_runner, clock, spec):
         for left, right in EXCLUSIVE_FLAGS:
             assert not (left in argv and right in argv), f"{left} was sent with {right}"
+
+
+def test_heal_always_asks_the_cli_to_save_the_new_template(
+    clock: Clock, spec: CollectorSpec
+) -> None:
+    """Absence is not a flag violation, so the argv guard cannot catch this one.
+
+    Without `--auto-save` the CLI previews the fix, accepts an approval and reports done
+    while the collector keeps running its old template. The heal succeeds and changes
+    nothing, which is the one outcome this package exists to prevent. Verified against
+    the live CLI on 2026-08-20.
+    """
+    runner = RecordingRunner([ok(json.dumps({"status": "awaiting_approval"}))])
+
+    client(runner, clock).heal(spec, "restore the title field")
+
+    assert "--auto-save" in runner.argvs[-1]

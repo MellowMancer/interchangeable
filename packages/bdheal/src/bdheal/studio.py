@@ -156,8 +156,14 @@ class BdataStudioClient:
         return self._collate(spec, _array(completed, RUN))
 
     def heal(self, spec: CollectorSpec, prompt: str, *, auto_approve: bool = False) -> HealEvent:
-        """Heal in place. `--url` is a next-step hint only and is not sent on this call."""
-        argv = _argv(HEAL, spec.collector_id, prompt, *self._flags(self._timeout_s))
+        """Heal in place. `--url` is a next-step hint only and is not sent on this call.
+
+        `--auto-save` is not optional. Without it the CLI previews the fix, accepts an
+        approval and reports `done` while leaving the collector on its old template — a
+        heal that silently does nothing. Verified against the live CLI on 2026-08-20:
+        only with the flag does the run include a `save_new_template` step.
+        """
+        argv = _argv(HEAL, spec.collector_id, prompt, "--auto-save", *self._flags(self._timeout_s))
         if auto_approve:
             argv.append("--auto-approve")
         completed = self._call(argv, self._timeout_s)

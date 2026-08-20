@@ -365,9 +365,17 @@ blind to whether the real CLI would accept what we send: three argv defects pass
 **Scope limit, verified by mutation test:** it catches *wrong* and *conflicting* flags. It
 **cannot catch a missing required flag** — deleting `--format html` from `fetch_html` leaves
 it green, because absence is not a violation. **Every required flag needs its own point
-assertion.** This matters most where the CLI has a silent default that is wrong for us:
-`bdata scrape` defaults to `--format markdown`, which would produce a meaningless skeleton
-hash with no error anywhere.
+assertion.** This matters most where the CLI has a silent default that is wrong for us.
+
+Two such flags exist, and the second was found in production on 2026-08-20, having shipped
+undetected behind a green suite:
+
+- `bdata scrape` defaults to `--format markdown`, which parses to a meaningless skeleton
+  hash with no error anywhere.
+- **`scraper heal` does not persist without `--auto-save`.** It previews the fix, accepts
+  an approval and reports `done` while the collector keeps running its old template. Every
+  heal appeared to succeed and changed nothing — the exact outcome this package exists to
+  prevent. The guard listed the flag as permitted and never asserted it was sent.
 
 ## 14. Benchmark
 
