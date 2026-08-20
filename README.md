@@ -75,7 +75,9 @@ be read as a stale label rather than a real disagreement.
 ## Status
 
 Working end to end for the ramipril corpus: collection, section splitting, concept
-classification, comparison, an HTTP API and an MCP server. The UI is not built yet.
+classification, comparison, an HTTP API, an MCP server and the three UI screens. The
+self-healing engine is built and tested but has not yet been driven through a full cycle
+on this corpus, so collector health reads as unobserved rather than healthy.
 Nothing here is production-ready, and nothing it outputs is medical advice.
 
 ## Development

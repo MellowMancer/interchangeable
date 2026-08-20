@@ -111,4 +111,45 @@ def test_an_uncollected_substance_matrix_is_a_404(client: TestClient) -> None:
 def test_collectors_are_listed_with_their_role(client: TestClient) -> None:
     body = client.get("/collectors").json()
 
-    assert body == [{"id": "c_abc", "kind": "product", "source": "Example"}]
+    assert body == [
+        {
+            "id": "c_abc",
+            "kind": "product",
+            "source": "Example",
+            "baseline_captured_at": None,
+            "baseline_row_count": None,
+            "heals": [],
+        }
+    ]
+
+
+def test_a_collector_that_has_never_run_reports_no_baseline_rather_than_health(
+    client: TestClient,
+) -> None:
+    """`None` is 'not yet observed'. Rendering it as healthy would invent an observation."""
+    assert client.get("/collectors").json()[0]["baseline_captured_at"] is None
+
+
+def test_a_collectors_heal_history_is_reported_newest_first(client: TestClient) -> None:
+    from datetime import UTC, datetime
+
+    from bdheal.models import HealEvent
+    from bdheal.store import SqliteHealStore
+    from bdheal.store import connect as heal_connect
+    from ixq.settings import database_path
+
+    store = SqliteHealStore(heal_connect(database_path()))
+    for day, status in ((1, "awaiting_approval"), (2, "done")):
+        store.save_heal_event(
+            HealEvent(
+                collector_id="c_abc",
+                status=status,
+                created_at=datetime(2026, 8, day, tzinfo=UTC),
+                promoted=status == "done",
+            )
+        )
+
+    heals = client.get("/collectors").json()[0]["heals"]
+
+    assert [h["status"] for h in heals] == ["done", "awaiting_approval"]
+    assert heals[0]["promoted"] is True

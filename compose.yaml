@@ -5,6 +5,12 @@ services:
       dockerfile: api/Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      IXQ_DATA_DIR: /app/data
+    volumes:
+      # The database is local state, not an image artifact — `data` stays in
+      # .dockerignore so it is never baked in, and is supplied at runtime instead.
+      - ./data:/app/data
     develop:
       watch:
         - action: sync
@@ -25,6 +31,9 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Server Components fetch from inside the container, where localhost is the web
+      # service itself; the browser cannot resolve `api`. The two need different URLs.
+      API_URL: http://api:8000
       NEXT_PUBLIC_API_URL: http://localhost:8000
     develop:
       watch:

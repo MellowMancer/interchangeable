@@ -11,6 +11,9 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from bdheal.store import SqliteHealStore
+from bdheal.store import connect as heal_connect
+
 from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import Placement
@@ -34,6 +37,15 @@ def repository() -> Iterator[Repository]:
     conn = connect(database_path())
     try:
         yield SqliteRepository(conn)
+    finally:
+        conn.close()
+
+
+def heal_store() -> Iterator[SqliteHealStore]:
+    """The `bdheal` store per request, thread-confined for the same reason as `repository`."""
+    conn = heal_connect(database_path())
+    try:
+        yield SqliteHealStore(conn)
     finally:
         conn.close()
 
@@ -182,11 +194,57 @@ def _quotes(result, repo: Repository) -> dict[tuple[str, str], Evidence]:
     return found
 
 
-@app.get("/collectors")
-def collectors() -> list[dict[str, str]]:
-    """What is configured to collect, and from where."""
+class Heal(BaseModel):
+    """One trip through the Bright Data heal gate, as the reliability screen shows it."""
+
+    status: str
+    created_at: str
+    promoted: bool
+    failure_class: str | None = None
+    attempts: int
+    error: str | None = None
+
+
+class CollectorHealth(BaseModel):
+    """A collector's configuration and what `bdheal` remembers about it.
+
+    `baseline_captured_at` is `None` before a collector's first run — that is "not yet
+    observed", not "healthy". The screen must not render the two the same way.
+    """
+
+    id: str
+    kind: str
+    source: str
+    baseline_captured_at: str | None = None
+    baseline_row_count: int | None = None
+    heals: list[Heal] = []
+
+
+@app.get("/collectors", response_model=list[CollectorHealth])
+def collectors(store: SqliteHealStore = Depends(heal_store)) -> list[CollectorHealth]:
+    """What is configured to collect, and how each one has been holding up."""
     sources = {s.id: s.name for s in load_sources(_config_dir() / "sources.yaml")}
-    return [
-        {"id": c.id, "kind": c.kind.value, "source": sources.get(c.source_id, c.source_id)}
-        for c in load_collectors(_config_dir() / "collectors.yaml")
-    ]
+    health = []
+    for collector in load_collectors(_config_dir() / "collectors.yaml"):
+        baseline = store.baseline(collector.id)
+        health.append(
+            CollectorHealth(
+                id=collector.id,
+                kind=collector.kind.value,
+                source=sources.get(collector.source_id, collector.source_id),
+                baseline_captured_at=baseline.captured_at.isoformat() if baseline else None,
+                baseline_row_count=baseline.row_count if baseline else None,
+                heals=[
+                    Heal(
+                        status=event.status.value,
+                        created_at=event.created_at.isoformat(),
+                        promoted=event.promoted,
+                        failure_class=event.failure_class.value if event.failure_class else None,
+                        attempts=event.attempts,
+                        error=event.error,
+                    )
+                    for event in reversed(store.heal_events(collector.id))
+                ],
+            )
+        )
+    return health
