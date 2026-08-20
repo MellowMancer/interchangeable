@@ -1,0 +1,17 @@
+{
+  "title": "Component Register",
+  "records": [
+    {"ref": "RF-001", "name": "Cobalt Spindle Bracket", "category": "Brackets", "updated": "2026-01-14", "href": "/register/rf-001"},
+    {"ref": "RF-002", "name": "Tessellated Damper Ring", "category": "Dampers", "updated": "2026-01-22", "href": "/register/rf-002"},
+    {"ref": "RF-003", "name": "Verdigris Coupling Sleeve", "category": "Couplings", "updated": "2026-02-03", "href": "/register/rf-003"},
+    {"ref": "RF-004", "name": "Halcyon Torsion Bar", "category": "Bars", "updated": "2026-02-11", "href": "/register/rf-004"},
+    {"ref": "RF-005", "name": "Quillon Bearing Cage", "category": "Bearings", "updated": "2026-02-27", "href": "/register/rf-005"},
+    {"ref": "RF-006", "name": "Ardent Flange Collar", "category": "Flanges", "updated": "2026-03-08", "href": "/register/rf-006"},
+    {"ref": "RF-007", "name": "Petrichor Seal Gasket", "category": "Seals", "updated": "2026-03-19", "href": "/register/rf-007"},
+    {"ref": "RF-008", "name": "Marbled Idler Pulley", "category": "Pulleys", "updated": "2026-04-02", "href": "/register/rf-008"},
+    {"ref": "RF-009", "name": "Selvage Tension Clip", "category": "Clips", "updated": "2026-04-15", "href": "/register/rf-009"},
+    {"ref": "RF-010", "name": "Ferrous Guide Rail", "category": "Rails", "updated": "2026-04-30", "href": "/register/rf-010"},
+    {"ref": "RF-011", "name": "Lambent Shim Plate", "category": "Shims", "updated": "2026-05-12", "href": "/register/rf-011"},
+    {"ref": "RF-012", "name": "Umbral Retaining Washer", "category": "Washers", "updated": "2026-05-25", "href": "/register/rf-012"}
+  ]
+}
