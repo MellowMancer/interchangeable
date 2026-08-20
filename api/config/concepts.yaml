@@ -23,12 +23,15 @@ concepts:
   porphyria:          [porphyria]
   qt_prolongation:    [qt-interval, qt interval, qtc, torsade, long qt, arrhythmi]
   heart_block:        [heart block, atrioventricular, av block, bradycard, tachycard,
-                       fibrillation, sick sinus]
+                       fibrillation, sick sinus, sinoatrial, sinu-atrial]
   serotonin:          [serotonin, ssri, triptan]
   thyroid:            [thyroid, thyrotoxic, myxoedema, myxedema]
   electrolyte:        [kalaem, kalem, natraem, natrem, calcaem, calcem, magnesaem,
                        sodium level, potassium]
   endocrine:          [addison, adrenal, cushing, phaeochromocytoma, pheochromocytoma]
+  diabetes_type:      [type 1 diabetes, type i diabetes, insulin-dependent]
+  vascular:           [peripheral arterial, raynaud, occlusive disease, ischaem, ischem,
+                       claudication]
   enzyme_deficiency:  [g6pd, glucose-6-phosphate, deficiency]
   ocular:             [ophthalmic, ocular, glaucoma, intraocular]
 
@@ -44,7 +47,7 @@ concepts:
 
   # --- exposures and interactions ---
   alcohol:            [alcohol]
-  concomitant_drug:   [concomitant, co-administration, combination with, treated with,
+  concomitant_drug:   [concomitant, co-administration, combination with, treated with, treatment with,
                        antiviral, contraindicated with, use with]
   contrast_agent:     [contrast agent, iodinated, radiocontrast]
   immunisation:       [immunisation, immunization, live virus, vaccin]
