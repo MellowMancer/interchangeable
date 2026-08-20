@@ -10,9 +10,9 @@ problems justify a retry; neither justifies silence.**
 So a row carrying a target-side or ambiguous `error_code` — `rate_limit`, but equally
 blocked, captcha'd, timed out, or a `dead_page` one run cannot attribute — makes the
 sample incomplete: the volume-based detectors record `INCONCLUSIVE`, a retry is
-requested, and the observed codes are named in the reason (resolved Q3, widened after F6
-verification found a run half-refused with `blocked` coming back silent). Healing cannot
-fix a refused fetch, so none of that proposes a heal.
+requested, and the observed codes are named in the reason. The policy widened after a
+run half-refused with `blocked` came back silent. Healing cannot fix a refused fetch, so
+none of that proposes a heal.
 
 A code Bright Data attributes to the scraper itself is the other half, and it is not an
 exception to the rule but the rule's other side: retrying reproduces it exactly, so the

@@ -5,8 +5,8 @@ carry problem-domain words measures the corpus rather than the loop, so the fixt
 deliberately about "items" and nothing else, and one test reads the module source back to
 prove no domain vocabulary crept in.
 
-Two halves that look contradictory and are not (resolved decision Q2): the six structural
-classes must move the F5 skeleton hash, and the three text or attribute classes must
+Two halves that look contradictory and are not (the coverage-matrix decision): the six structural
+classes must move the skeleton hash, and the three text or attribute classes must
 leave it exactly where it was. `link_label` declaring `NONE` is the honest statement that
 no detector sees it — a published gap, not a defect to hide by widening the hash.
 
@@ -38,7 +38,7 @@ FIXTURE = (
     "</div>"
 )
 
-# ARCHITECTURE.md §12, restated as an assertion rather than trusted.
+# The declared-detector table, restated as an assertion rather than trusted.
 DECLARED_SIGNAL = {
     MutationClass.CLASS_RENAME: frozenset({SignalKind.SKELETON}),
     MutationClass.TABLE_TO_DIV: frozenset({SignalKind.SKELETON}),
@@ -226,7 +226,7 @@ def test_repeating_a_generator_returns_the_same_bytes(name: MutationClass) -> No
 
 @pytest.mark.parametrize("name", list(MutationClass))
 def test_every_generator_declares_a_permitted_detector(name: MutationClass) -> None:
-    """Q2: the declaration is data on the generator, and every member is a real detector."""
+    """Coverage matrix: the declaration is data on the generator, and every member is a real detector."""
     declared = _mutation(name).expected_signals
     assert isinstance(declared, frozenset)
     assert all(isinstance(kind, SignalKind) for kind in declared)
@@ -246,7 +246,7 @@ def test_structural_classes_move_the_skeleton_hash(name: MutationClass) -> None:
 
 @pytest.mark.parametrize("name", sorted(set(MutationClass) - STRUCTURAL))
 def test_text_and_attribute_classes_leave_the_skeleton_hash_alone(name: MutationClass) -> None:
-    """F5 is text-insensitive by contract; these three are other detectors' work."""
+    """The skeleton hash is text-insensitive by contract; these three are other detectors' work."""
     assert skeleton_hash(_mutation(name).apply(FIXTURE)) == skeleton_hash(FIXTURE)
 
 

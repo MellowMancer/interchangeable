@@ -227,7 +227,7 @@ def test_the_gate_decides_promotion_not_the_adapter(
 def test_the_heal_argv_carries_no_url_and_the_approve_argv_does(
     recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
 ) -> None:
-    """`--url` is a next-step hint on heal but the anchor on approve (docs/BRIGHT_DATA.md)."""
+    """`--url` is a next-step hint on heal but the anchor on approve (verified against the CLI surface)."""
     recording_runner.results.extend([ok(PENDING_ENVELOPE), ok(DONE_ENVELOPE)])
     studio = adapter(recording_runner, clock)
 

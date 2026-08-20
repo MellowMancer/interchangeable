@@ -6,7 +6,7 @@ drives a real `Healer` over the stubbed ports, so the scripted loop cannot quiet
 from the facade it stands in for.
 
 The scripted loop writes the gate's two rows *and* the settlement row, the way the facade
-does, so the runner is read against a real gate cycle rather than one tidy row (F8).
+does, so the runner is read against a real gate cycle rather than one tidy row.
 """
 
 import inspect
@@ -273,7 +273,7 @@ def test_the_baseline_is_taken_from_the_old_layout_before_the_mutation_is_judged
 
 
 def test_each_case_is_anchored_on_its_own_fixture(bench_clock: FixedClock) -> None:
-    """F10: a `RunResult` carries no URLs, so a retry re-runs the spec's anchors.
+    """the facade: a `RunResult` carries no URLs, so a retry re-runs the spec's anchors.
 
     A spec anchored anywhere but this case's fixture would send the loop's own retry to a
     different page and score it as if it were this one.
@@ -318,7 +318,7 @@ def test_a_case_no_detector_saw_is_a_gap_and_not_a_heal_failure(bench_clock: Fix
 def test_an_escalated_case_is_credited_to_no_signal_but_is_not_a_gap(
     bench_clock: FixedClock,
 ) -> None:
-    """F10: no `SignalKind` means the loop's retry caught it, which is not a blind detector."""
+    """the facade: no `SignalKind` means the loop's retry caught it, which is not a blind detector."""
     store = InMemoryHealStore()
     cases = [case_spec(1)]
     loop = loop_for(cases, store, bench_clock, Script(fired=()))
@@ -346,7 +346,7 @@ def test_the_credited_signal_is_the_cause_and_not_the_symptom(bench_clock: Fixed
 def test_a_heal_is_read_from_the_terminal_row_and_never_from_a_row_count(
     bench_clock: FixedClock,
 ) -> None:
-    """F8: a gated heal leaves two rows before verification settles it with a third."""
+    """the approval gate: a gated heal leaves two rows before verification settles it with a third."""
     store = InMemoryHealStore()
     cases = [case_spec(1)]
     loop = loop_for(cases, store, bench_clock, Script(non_regression_passed=False))
@@ -362,7 +362,7 @@ def test_a_heal_is_read_from_the_terminal_row_and_never_from_a_row_count(
 def test_a_verification_the_target_refused_records_no_case_and_reaches_the_caller(
     bench_clock: FixedClock,
 ) -> None:
-    """F9: the check never ran, so there is no case to publish and none is invented."""
+    """verification: the check never ran, so there is no case to publish and none is invented."""
     store = InMemoryHealStore()
     cases = [case_spec(1)]
     loop = loop_for(cases, store, bench_clock, Script(refused=True))
@@ -502,7 +502,7 @@ def test_a_declared_gap_reads_back_as_an_empty_set_and_not_a_set_holding_nothing
 def test_the_runner_drives_a_real_loop_over_injected_ports(bench_clock: FixedClock) -> None:
     """(c) The whole benchmark, green, with both ports stubbed and nothing on the network.
 
-    The mutated page comes from F11's own generator, so the coverage matrix reports what
+    The mutated page comes from the mutation generator itself, so the coverage matrix reports what
     the two parsers actually agree on rather than what the declaration hoped for.
     """
     studio = StubStudioClient(bench_clock)

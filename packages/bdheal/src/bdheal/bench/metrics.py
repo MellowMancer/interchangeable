@@ -45,7 +45,7 @@ NON_REGRESSION_CLASSES: frozenset[MutationClass] = (
 PUBLISHED_NON_REGRESSION_FLOOR = 1.0
 PUBLISHED_FIELD_ACCURACY_FLOOR = 0.0
 
-# Wording fixed in `GOAL.md`. It travels on every `Metrics` value because a limit disclosed
+# The wording is fixed here and pinned by `tests/test_bench_metrics.py`. It travels on every `Metrics` value because a limit disclosed
 # only in documentation is not disclosed to whoever reads the number.
 # Both the names and the count come from the set. Spelling the names as prose while
 # computing the count lets a tenth class update the number and leave the list naming the
@@ -156,7 +156,7 @@ def _of_class(cases: Sequence[BenchCase], mutation: MutationClass) -> list[Bench
 def _row(mutation: MutationClass, cases: list[BenchCase]) -> CoverageRow:
     """One class's declaration set against everything that actually fired for it.
 
-    A case with no signal but a loop pass behind it was escalated rather than missed (F10):
+    A case with no signal but a loop pass behind it was escalated rather than missed:
     the loop's retry caught what no detector could name, and reporting that as a detection
     gap would credit the detectors with a blind spot they do not have.
     """

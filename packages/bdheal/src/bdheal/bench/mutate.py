@@ -6,8 +6,8 @@ actually fired; where the two disagree the result is a published coverage gap, n
 hidden failure. `link_label` is declared as the empty set on purpose — no detector can see it, and
 saying so is the honest finding.
 
-The declared signal for each class is fixed in ARCHITECTURE.md; F11 populates
-`MUTATIONS` to match it.
+The declared signal for each class is fixed by the architecture contract; `MUTATIONS`
+below is populated to match it.
 """
 
 import re

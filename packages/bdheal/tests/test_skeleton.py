@@ -1,10 +1,10 @@
 """The structural fingerprint, pinned to literal goldens.
 
-Two halves, and the second is the load-bearing one. First: structure moves the digest —
+Two halves. First: structure moves the digest —
 a renamed class, a swapped tag, reordered siblings. Second: nothing else does. Text,
 attribute values, whitespace, comments and attribute order all leave it exactly where it
 was, because three of the nine benchmark mutation classes are text or attribute edits
-that this detector is *supposed* to miss (resolved decision Q2). Widening the hash to
+that this detector is *supposed* to miss. Widening the hash to
 catch them would break `bench/mutate.py`'s declared expectations, not improve detection.
 
 The golden digest is a literal so that a change in parser, platform or Python version
@@ -61,7 +61,7 @@ NOISY_VARIANTS = {
     "attribute_order": '<div id="main" class="listing" data-x="1"><p class="row" id="r1">Alpha</p></div>',
 }
 
-# The three non-structural mutation classes of ARCHITECTURE.md §12, which must not move it.
+# The three non-structural mutation classes
 LINKED_ROW_HTML = '<li class="row"><a class="link" href="/records/1">Read more</a><span class="date">2026-01-01</span></li>'
 NON_STRUCTURAL_VARIANTS = {
     "link_label": LINKED_ROW_HTML.replace("Read more", "View record"),
@@ -109,7 +109,7 @@ def test_whitespace_comments_and_attribute_order_leave_the_hash_unchanged() -> N
 
 
 def test_non_structural_mutations_leave_the_hash_unchanged() -> None:
-    """Q2: link label, URL pattern and date format are other detectors' work, not this one's."""
+    """Coverage matrix: link label, URL pattern and date format are other detectors' work"""
     baseline = skeleton_hash(LINKED_ROW_HTML)
     for name, variant in NON_STRUCTURAL_VARIANTS.items():
         assert skeleton_hash(variant) == baseline, name

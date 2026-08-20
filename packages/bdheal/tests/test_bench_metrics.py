@@ -6,9 +6,8 @@ something nobody measured.
 
 Three obligations recorded upstream are tested here rather than trusted:
 the non-regression rate covers six of the nine mutation classes and says so *in the
-result* (F9); a class no detector caught is a gap and never a heal failure (F11(e), Q2);
-and both promotion floors travel with the numbers, or the numbers are not reproducible
-(F9, F10).
+result*; a class no detector caught is a gap and never a heal failure;
+and both promotion floors travel with the numbers, or the numbers are not reproducible.
 """
 
 import pytest
@@ -28,7 +27,7 @@ from bdheal.models import BenchCase
 from bdheal.verify import NON_REGRESSION_FLOOR
 from bdheal.vocabulary import MutationClass, SignalKind
 
-# The disclosure `GOAL.md` fixes word for word, plus the coverage it resolves to. Quoted
+# The published disclosure, word for word, plus the coverage it resolves to. Quoted
 # here rather than imported so a silent edit to the published wording fails a test.
 EXPECTED_NOTE = (
     "date_format, link_label and url_pattern are excluded from the non-regression rate: "
@@ -125,7 +124,7 @@ def test_field_accuracy_is_the_mean_over_every_scored_case() -> None:
 
 
 def test_non_regression_rate_covers_the_six_structural_classes_only() -> None:
-    """(a) and F9: three of four structural cases held the old layout — 0.75, not 0.6."""
+    """(a): three of four structural cases held the old layout — 0.75, not 0.6."""
     assert metrics(scored_cases()).non_regression_rate == 0.75
 
 
@@ -135,24 +134,24 @@ def test_mean_time_to_heal_is_measured_over_the_cases_that_healed() -> None:
 
 
 def test_mean_attempts_to_heal_is_measured_over_the_cases_that_healed() -> None:
-    """(a) Loop passes per kept heal (F10), not heal calls and not verification passes."""
+    """(a) Loop passes per kept heal, not heal calls and not verification passes."""
     assert metrics(scored_cases()).mean_attempts_to_heal == 1.75
 
 
 def test_the_excluded_classes_are_named_in_the_result_itself() -> None:
-    """F9: a disclosure that lives only in a docstring is not published."""
+    """verification: a disclosure that lives only in a docstring is not published."""
     assert metrics(scored_cases()).non_regression_note == EXPECTED_NOTE
 
 
 def test_the_excluded_classes_are_the_three_whose_mutation_changes_the_text() -> None:
-    """F9: one golden set cannot score both layouts for these, so they are not scored at all."""
+    """verification: one golden set cannot score both layouts for these, so they are not scored at all."""
     assert EXCLUDED_FROM_NON_REGRESSION == frozenset(
         {MutationClass.DATE_FORMAT, MutationClass.URL_PATTERN, MutationClass.LINK_LABEL}
     )
 
 
 def test_both_promotion_floors_travel_with_the_numbers() -> None:
-    """F9 and F10: without the floors the metrics are not reproducible."""
+    """Verification and the facade: without the floors the metrics are not reproducible."""
     assert metrics(scored_cases()).methodology == METHODOLOGY
     assert any("1.0" in line for line in METHODOLOGY)
     assert any("0.0" in line for line in METHODOLOGY)
@@ -217,7 +216,7 @@ def test_a_class_caught_by_a_signal_it_did_not_declare_is_reported_as_a_disagree
 
 
 def test_an_escalated_case_is_not_reported_as_a_detection_gap() -> None:
-    """F10: no `SignalKind` means the loop's retry caught it, not that nothing saw it."""
+    """the facade: no `SignalKind` means the loop's retry caught it, not that nothing saw it."""
     cases = [bench_case(mutation=MutationClass.COLUMN_REORDER, caught_by=None, attempts=1)]
 
     row = next(r for r in coverage(cases) if r.mutation is MutationClass.COLUMN_REORDER)

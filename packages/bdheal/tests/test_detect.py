@@ -6,7 +6,7 @@ break — and healing against a truncated sample is the expensive failure mode: 
 credits and can promote a collector fitted to data that was never there. So a wholly
 throttled run must read as `broken=False`, and a partially throttled one must abstain on
 volume while still reporting a malformed row, because malformed is malformed regardless
-of what happened to its siblings (resolved decision Q3).
+of what happened to its siblings (the incomplete-sample policy).
 
 The rule those tests are really pinning is one line: **extraction problems justify a
 heal; target-side problems justify a retry; neither justifies silence.** Criterion (h)

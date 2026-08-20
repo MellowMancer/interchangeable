@@ -1,12 +1,12 @@
 """The facade: the one object a caller wires, and where every branch decided upstream falls due.
 
-Four branches were settled by the features that found them, so each gets its own test
-rather than a happy path with flags on it. A gate call that failed is not promoted (F8) —
+Four branches, each settled by the verification that found it, so each gets its own test
+rather than a happy path with flags on it. A gate call that failed is not promoted —
 the row is written before the error is re-raised, so the catch is the branch. A
-verification the target refused is retried, never rolled back (F9) — rolling it back would
+verification the target refused is retried, never rolled back — rolling it back would
 discard a heal that was never tested and publish a non-regression failure nobody measured.
 A report that came back false is rolled back. And ambiguous error codes are retried once
-and become extraction evidence only if the same ones come back (F6).
+and become extraction evidence only if the same ones come back.
 
 The loop tests run against a real SQLite file under `tmp_path` rather than the in-memory
 store, because the facade is the first thing that writes a whole cycle's rows and reads
@@ -333,7 +333,7 @@ def test_every_exported_name_is_reachable_from_the_top_level() -> None:
 def test_a_gate_call_that_failed_is_not_promoted(
     recording_runner: RecordingRunner, filed_store: HealStore, clock: Clock, spec: CollectorSpec
 ) -> None:
-    """Branch 1 (F8): the gate records its failure and re-raises, so the catch is the branch."""
+    """Branch 1: the gate records its failure and re-raises, so the catch is the branch."""
     recording_runner.results.append(
         ProcessResult(returncode=2, stdout="", stderr="collector not found")
     )
@@ -349,7 +349,7 @@ def test_a_gate_call_that_failed_is_not_promoted(
 def test_a_gate_cycle_is_read_from_its_terminal_row_not_from_a_row_count(
     healer: Healer, studio: StubStudioClient, filed_store: HealStore, spec: CollectorSpec
 ) -> None:
-    """A gated heal writes two rows (F8). The outcome is the last word, never the tally."""
+    """A gated heal writes two rows. The outcome is the last word, never the tally."""
     event = healer.heal(spec, BROKEN_VERDICT)
 
     rows = filed_store.heal_events(spec.collector_id)
@@ -375,7 +375,7 @@ def test_the_settlement_row_carries_the_heal_it_settles(
 def test_a_verification_the_target_refused_is_retried_rather_than_rolled_back(
     healer: Healer, studio: StubStudioClient, filed_store: HealStore, spec: CollectorSpec
 ) -> None:
-    """Branch 2 (F9): the heal was never tested, so a refusal buys a retry, not a rollback."""
+    """Branch 2: the heal was never tested, so a refusal buys a retry, not a rollback."""
     heal_a_break(healer, studio, spec)
     studio.run_results = [refused_run("blocked"), healthy_run(), healthy_run(), healthy_run()]
 
@@ -403,7 +403,7 @@ def test_a_verification_the_target_keeps_refusing_reaches_the_caller_unscored(
 def test_an_ambiguous_code_that_clears_on_a_retry_is_not_a_break(
     healer: Healer, studio: StubStudioClient, spec: CollectorSpec
 ) -> None:
-    """Branch 4 (F6): one run cannot tell a refused fetch from a collector asking wrongly."""
+    """Branch 4: one run cannot tell a refused fetch from a collector asking wrongly."""
     establish_baseline(healer, studio, spec)
     studio.calls.clear()
     studio.run_results = [refused_run("dead_page"), healthy_run()]

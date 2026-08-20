@@ -1,7 +1,7 @@
 """The architecture's own test: the dependency rule enforced, not merely written down.
 
 Adding a module fails this suite until the layer map below says where it belongs. That
-is deliberate — the map in ARCHITECTURE.md is a contract, and a contract nobody checks
+is deliberate — the layer map is a contract, and a contract nobody checks
 drifts. The import allowlist doubles as the standing check for G2 and G4: a dependency
 on the application, or a fifth runtime dependency, cannot arrive unnoticed.
 """
