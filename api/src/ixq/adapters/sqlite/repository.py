@@ -16,6 +16,7 @@ from ixq.domain import (
     Source,
     Substance,
 )
+from ixq.pipeline.ports import SubstanceCounts
 
 _SCHEMA = "schema.sql"
 SCHEMA_VERSION = 3
@@ -86,6 +87,59 @@ class SqliteRepository:
             self._conn.rollback()
             raise
         self._conn.commit()
+
+    def counts_by_substance(self) -> dict[str, SubstanceCounts]:
+        """The roster's three numbers per substance, counted in SQL.
+
+        `MIN(section_code)` reproduces `PRECEDENCE` only because the placement codes sort
+        lexicographically in the same order they rank — 4.3 < 4.4 < 4.5 < 4.6. That
+        coupling is load-bearing and invisible, so a test asserts it directly; a placement
+        code that breaks the ordering would change these counts silently.
+
+        A concept diverges when its products do not all place it the same way, which is
+        two things: more than one distinct placement among the products that have it, or
+        at least one product missing it entirely (that product's cell reads ABSENT).
+        """
+        rows = self._conn.execute(
+            """
+            WITH current AS (
+              SELECT d.sha256, d.product_external_id, p.substance_id
+              FROM documents d
+              JOIN products p
+                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
+            ),
+            placed AS (
+              SELECT c.substance_id, c.product_external_id, o.concept,
+                     MIN(o.section_code) AS code
+              FROM occurrences o
+              JOIN current c ON c.sha256 = o.document_sha256
+              GROUP BY c.substance_id, c.product_external_id, o.concept
+            ),
+            totals AS (
+              SELECT substance_id, COUNT(DISTINCT product_external_id) AS products
+              FROM current GROUP BY substance_id
+            ),
+            per_concept AS (
+              SELECT substance_id, concept,
+                     COUNT(DISTINCT code) AS variants,
+                     COUNT(DISTINCT product_external_id) AS seen
+              FROM placed GROUP BY substance_id, concept
+            )
+            SELECT t.substance_id,
+                   t.products,
+                   COUNT(pc.concept) AS concepts,
+                   COALESCE(SUM(pc.variants > 1 OR pc.seen < t.products), 0) AS divergent
+            FROM totals t
+            LEFT JOIN per_concept pc ON pc.substance_id = t.substance_id
+            GROUP BY t.substance_id, t.products
+            """
+        ).fetchall()
+        return {
+            r["substance_id"]: SubstanceCounts(
+                products=r["products"], concepts=r["concepts"], divergent=r["divergent"]
+            )
+            for r in rows
+        }
 
     def save_source(self, source: Source) -> None:
         self._conn.execute(

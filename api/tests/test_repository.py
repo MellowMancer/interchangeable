@@ -213,3 +213,50 @@ def test_a_document_for_a_product_that_does_not_exist_is_refused(
                     source_url="https://example.test/x",
                 )
             )
+
+
+def test_counted_in_sql_agrees_with_building_the_comparison(
+    repository: Repository,
+) -> None:
+    """The whole justification for counting in storage: the answer must not change.
+
+    `/substances` used to build a full `compare()` per substance to read three integers
+    off it. If these two ever disagree the roster is quietly lying about a substance
+    nobody opened.
+    """
+    from conftest import divergent_corpus
+    from ixq.pipeline.diverge import compare
+
+    divergent_corpus(repository)
+
+    counted = repository.counts_by_substance()[SUBSTANCE_ID]
+    built = compare(SUBSTANCE_ID, repository)
+
+    assert counted.products == len(built.products)
+    assert counted.concepts == len(built.rows)
+    assert counted.divergent == len(built.divergent)
+
+
+def test_a_substance_with_nothing_collected_is_absent_not_zero(
+    repository: Repository,
+) -> None:
+    """The caller holds the roster; storage only reports what it has."""
+    repository.save_source(Source(id=SOURCE_ID, name="S", base_url="https://example.test"))
+    repository.save_substance(Substance(id=SUBSTANCE_ID, name="Ex"))
+
+    assert repository.counts_by_substance() == {}
+
+
+def test_placement_codes_sort_in_precedence_order() -> None:
+    """`counts_by_substance` uses MIN(section_code) to collapse to the strongest placement.
+
+    That is only correct while the codes sort lexicographically in the same order
+    `PRECEDENCE` ranks them. The coupling is invisible in both places, and a placement code
+    that broke it — a `4.10`, or a non-numeric code — would change the roster's counts with
+    every test still green.
+    """
+    from ixq.pipeline.diverge import PRECEDENCE
+
+    ranked = [placement.value for placement in PRECEDENCE]
+
+    assert ranked == sorted(ranked), f"MIN() would no longer pick the strongest: {ranked}"

@@ -17,12 +17,34 @@ from ixq.domain import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class SubstanceCounts:
+    """How much of one substance is collected, and how much of it disagrees.
+
+    A separate question from `compare`, asked by the roster screen. Answering it by
+    building the full comparison meant reading every section's text and every quote for
+    every substance to produce three integers, then discarding all of it.
+    """
+
+    products: int
+    concepts: int
+    divergent: int
+
+
 class Repository(Protocol):
     """The pipeline's persistence boundary.
 
     One port rather than one-per-aggregate: there is a single backing store and a
     single reason to change. Nothing above this line may know that SQL exists.
     """
+
+    def counts_by_substance(self) -> dict[str, SubstanceCounts]:
+        """Per substance, the three numbers the roster shows. Counted in storage.
+
+        Substances with nothing collected are absent rather than zero-valued: the caller
+        holds the roster and knows which ids it asked about.
+        """
+        ...
 
     def save_source(self, source: Source) -> None:
         """Insert or update a source."""

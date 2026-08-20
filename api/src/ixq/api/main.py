@@ -18,7 +18,7 @@ from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import Document, Occurrence, Placement, variant
 from ixq.pipeline.diverge import compare
-from ixq.pipeline.ports import Repository
+from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import config_dir, database_path, heal_database_path
 
 app = FastAPI(title="Interchangeable?")
@@ -133,20 +133,24 @@ def health() -> dict[str, str]:
 
 @app.get("/substances", response_model=list[SubstanceSummary])
 def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]:
-    """The roster, with how much of it has actually been collected."""
-    summaries = []
-    for substance in load_substances(config_dir() / "substances.yaml"):
-        result = compare(substance.id, repo)
-        summaries.append(
-            SubstanceSummary(
-                id=substance.id,
-                name=substance.name,
-                products=len(result.products),
-                concepts=len(result.rows),
-                divergent=len(result.divergent),
-            )
+    """The roster, with how much of it has actually been collected.
+
+    Counted in storage rather than by building each comparison. Every screen reads this,
+    so the previous shape — one full `compare()` per substance, reading all the section
+    text and quotes to return three integers — was paid on every navigation.
+    """
+    counted = repo.counts_by_substance()
+    empty = SubstanceCounts(products=0, concepts=0, divergent=0)
+    return [
+        SubstanceSummary(
+            id=substance.id,
+            name=substance.name,
+            products=(counts := counted.get(substance.id, empty)).products,
+            concepts=counts.concepts,
+            divergent=counts.divergent,
         )
-    return summaries
+        for substance in load_substances(config_dir() / "substances.yaml")
+    ]
 
 
 @app.get("/substances/{substance_id}", response_model=Matrix)
