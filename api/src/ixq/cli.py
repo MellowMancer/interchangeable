@@ -54,6 +54,30 @@ def init() -> None:
 
 
 @app.command()
+def check() -> None:
+    """Judge every configured collector against its anchor, and repair one that has moved.
+
+    The same check `run` performs, without collecting anything. It exists because that is
+    the only thing that captures a baseline, and pairing it with a full collection meant
+    the reliability screen could not be populated without paying to re-fetch the corpus.
+
+    Costs one anchor fetch per collector, and writes to `bdheal.db` — never the label
+    database, so a schema change on one cannot disturb the other.
+    """
+    config = config_dir()
+    sources = {s.id: s for s in load_sources(config / "sources.yaml")}
+    collectors = load_collectors(config / "collectors.yaml")
+
+    for source_id in sources:
+        mine = [c for c in collectors if c.source_id == source_id]
+        if not mine:
+            continue
+        by_kind = {c.kind: c.id for c in mine}
+        typer.echo(f"{source_id}: checking {len(mine)} collectors")
+        _check(label_source(database_path(), by_kind, mine), mine, heal=True)
+
+
+@app.command()
 def run(
     substance: str = typer.Option("", help="Only this substance id. Default: every one."),
     products: int = typer.Option(0, help="Cap products per substance. 0 means no cap."),
@@ -132,6 +156,10 @@ def _check(
             typer.echo(f"  {collector.id}: BROKEN — {check.reason}")
         elif check.reason:
             typer.echo(f"  {collector.id}: not checked — {check.reason}")
+        else:
+            # Said out loud: a silent healthy pass is indistinguishable from a command
+            # that did nothing, and this is the one that captures the baseline.
+            typer.echo(f"  {collector.id}: healthy — baseline captured")
 
 
 def _one_label(product, source, by_kind, labels, concepts, repository) -> None:

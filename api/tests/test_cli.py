@@ -169,3 +169,59 @@ def test_run_refuses_a_substance_that_is_not_in_the_roster(
     result = runner.invoke(app, ["run", "--substance", "nonesuch"])
 
     assert result.exit_code != 0
+
+
+def test_check_judges_collectors_without_collecting_anything(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Capturing a baseline is the only thing that populates the reliability screen.
+
+    It used to be reachable only through `run`, so seeing the screen fill up meant paying
+    to re-fetch the whole corpus. Nothing here should touch the label database.
+    """
+    import sqlite3
+
+    from ixq import cli
+
+    checked: list[str] = []
+
+    class Recording(FakeLabels):
+        def ensure_healthy(self, collector_id):
+            checked.append(collector_id)
+            return CollectorCheck(collector_id=collector_id, broken=False)
+
+    monkeypatch.setenv("IXQ_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("IXQ_CONFIG_DIR", str(_config(tmp_path)))
+    monkeypatch.setattr(cli, "label_source", lambda *a, **k: Recording())
+
+    assert runner.invoke(app, ["init"]).exit_code == 0
+    result = runner.invoke(app, ["check"])
+
+    assert result.exit_code == 0, result.output
+    assert checked == ["c_search", "c_product"] or checked == ["c_product", "c_search"]
+
+    conn = sqlite3.connect(tmp_path / DB_NAME)
+    assert conn.execute("SELECT count(*) FROM products").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM documents").fetchone()[0] == 0
+
+
+def test_a_collector_that_cannot_be_checked_does_not_lose_the_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """One refused target must not take the others down with it."""
+    from ixq import cli
+
+    class Exploding(FakeLabels):
+        def ensure_healthy(self, collector_id):
+            raise RuntimeError("target refused the anchor")
+
+    monkeypatch.setenv("IXQ_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("IXQ_CONFIG_DIR", str(_config(tmp_path)))
+    monkeypatch.setattr(cli, "label_source", lambda *a, **k: Exploding())
+
+    assert runner.invoke(app, ["init"]).exit_code == 0
+    result = runner.invoke(app, ["check"])
+
+    assert result.exit_code == 0, result.output
+    assert "health check failed" in result.output
+    assert "target refused the anchor" in result.output

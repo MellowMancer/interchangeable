@@ -36,8 +36,9 @@ export default async function CollectorsPage() {
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               {collector.baseline_captured_at ? (
                 <>
-                  Baseline captured {collector.baseline_captured_at} over{" "}
-                  {collector.baseline_row_count} rows.
+                  Baseline captured {observed(collector.baseline_captured_at)} over{" "}
+                  {collector.baseline_row_count}{" "}
+                  {collector.baseline_row_count === 1 ? "row" : "rows"}.
                 </>
               ) : (
                 <span className="text-slate-500">
@@ -53,6 +54,17 @@ export default async function CollectorsPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * A timestamp a person can read. The API sends ISO because that is unambiguous to a
+ * machine; microseconds and a UTC offset are noise on a status screen.
+ */
+function observed(iso: string) {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime())
+    ? iso
+    : at.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function HealHistory({ heals }: { heals: Heal[] }) {
@@ -75,7 +87,7 @@ function HealHistory({ heals }: { heals: Heal[] }) {
           >
             {heal.status}
           </span>
-          <time className="text-slate-500">{heal.created_at}</time>
+          <time className="text-slate-500">{observed(heal.created_at)}</time>
           {heal.failure_class && (
             <span className="text-slate-600 dark:text-slate-400">
               diagnosed {heal.failure_class.replace(/_/g, " ")}
