@@ -1,79 +1,94 @@
-"""M1 exit criterion: a Signal round-trips through the Repository port intact."""
+"""Exit criterion: an Occurrence round-trips through the Repository port intact."""
 
-from datetime import date
-
-from preward.domain import ExtractionMethod, Record, Signal, Tier
+from preward.domain import Document, Product, Section, Substance, found_in
 from preward.pipeline.ports import Repository
+from conftest import DOC_SHA, PRODUCT_EXTERNAL_ID, SECTION, SOURCE_ID, SUBSTANCE_ID
 
 
-def test_record_save_assigns_id(seeded_record: Record) -> None:
-    assert seeded_record.id is not None
-    assert seeded_record.designation == "REC-2024-01"
+def test_product_save_assigns_id(seeded_product: Product) -> None:
+    assert seeded_product.id is not None
 
 
-def test_signal_round_trips_with_provenance_intact(
-    repository: Repository, seeded_record: Record
-) -> None:
-    quote = "awarded to Example Contractors in the amount of $15,200,000"
-    saved = repository.save_signal(
-        Signal(
-            record_id=seeded_record.id,
-            document_sha256="a" * 64,
-            page_no=12,
-            tier=Tier.EXECUTION,
-            confidence=0.92,
-            quote=quote,
-            char_start=1040,
-            char_end=1040 + len(quote),
-            amount_cents=1_520_000_000,
-            event_date=date(2025, 1, 6),
-            fired_cues=("awarded", "org_and_money_same_sentence"),
-            extraction_method=ExtractionMethod.NATIVE,
+def test_product_save_is_idempotent(repository: Repository, seeded_product: Product) -> None:
+    """Re-collecting the same product must update it, not duplicate it."""
+    again = repository.save_product(
+        Product(
+            source_id=SOURCE_ID,
+            external_id=PRODUCT_EXTERNAL_ID,
+            substance_id=SUBSTANCE_ID,
+            name="Example 10mg Tablets (renamed)",
+            ma_holder="Example Holder Ltd",
         )
     )
 
-    assert saved.id is not None
-
-    (loaded,) = repository.signals_for_record(seeded_record.id)
-
-    assert loaded.quote == quote
-    assert loaded.char_start == 1040
-    assert loaded.char_end == 1040 + len(quote)
-    assert loaded.tier is Tier.EXECUTION
-    assert loaded.amount_cents == 1_520_000_000
-    assert loaded.event_date == date(2025, 1, 6)
-    assert loaded.fired_cues == ("awarded", "org_and_money_same_sentence")
-    assert loaded.extraction_method is ExtractionMethod.NATIVE
-
-
-def test_signals_for_record_returns_the_ladder_chronologically(
-    repository: Repository, seeded_record: Record
-) -> None:
-    for event_date, tier, cue in [
-        (date(2025, 1, 6), Tier.EXECUTION, "awarded"),
-        (date(2023, 6, 1), Tier.EXPLORATION, "feasibility study"),
-        (date(2024, 5, 14), Tier.COMMITMENT, "budgeted line item"),
-    ]:
-        repository.save_signal(
-            Signal(
-                record_id=seeded_record.id,
-                document_sha256="a" * 64,
-                page_no=1,
-                tier=tier,
-                confidence=0.8,
-                quote=f"quote for {cue}",
-                char_start=0,
-                char_end=10,
-                event_date=event_date,
-                fired_cues=(cue,),
-                extraction_method=ExtractionMethod.OCR,
-            )
-        )
-
-    ladder = repository.signals_for_record(seeded_record.id)
-
-    assert [signal.event_date for signal in ladder] == [
-        date(2023, 6, 1),
-        date(2024, 5, 14),
-        date(2025, 1, 6),
+    assert again.id == seeded_product.id
+    assert [p.name for p in repository.products_for_substance(SUBSTANCE_ID)] == [
+        "Example 10mg Tablets (renamed)"
     ]
+
+
+def test_occurrence_round_trips_with_its_offsets(
+    repository: Repository, seeded_product: Product
+) -> None:
+    saved = repository.save_occurrence(found_in(SECTION, DOC_SHA, "renal", 42, 65))
+
+    loaded = repository.occurrences_for_substance(SUBSTANCE_ID)
+
+    assert len(loaded) == 1
+    assert loaded[0].id == saved.id
+    assert loaded[0].quote == "Severe renal impairment"
+    assert (loaded[0].char_start, loaded[0].char_end) == (42, 65)
+    assert loaded[0].section_code == "4.3"
+
+
+def test_occurrences_gather_across_every_product_of_a_substance(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """The matrix is per substance, so a second manufacturer's rows must join in."""
+    other_external_id = "1002"
+    other_sha = "b" * 64
+    repository.save_product(
+        Product(
+            source_id=SOURCE_ID,
+            external_id=other_external_id,
+            substance_id=SUBSTANCE_ID,
+            name="Example 5mg Tablets",
+            ma_holder="Another Holder Ltd",
+        )
+    )
+    repository.save_document(
+        Document(
+            sha256=other_sha,
+            source_id=SOURCE_ID,
+            product_external_id=other_external_id,
+            source_url="https://example.test/product/1002",
+        )
+    )
+    other_section = Section(code="4.3", heading="Contraindications", text="Hypersensitivity only.")
+    repository.save_section(other_sha, other_section)
+
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, "renal", 42, 65))
+    repository.save_occurrence(found_in(other_section, other_sha, "hypersensitivity", 0, 16))
+
+    loaded = repository.occurrences_for_substance(SUBSTANCE_ID)
+
+    assert {o.concept for o in loaded} == {"renal", "hypersensitivity"}
+    assert {o.document_sha256 for o in loaded} == {DOC_SHA, other_sha}
+
+
+def test_sections_come_back_verbatim(repository: Repository, seeded_product: Product) -> None:
+    """Quotes are slices of stored text, so any normalisation here breaks every offset."""
+    sections = repository.sections_for_document(DOC_SHA)
+
+    assert len(sections) == 1
+    assert sections[0].text == SECTION.text
+
+
+def test_substance_and_source_survive_a_reload(
+    repository: Repository, seeded_product: Product
+) -> None:
+    repository.save_substance(Substance(id=SUBSTANCE_ID, name="Renamed Substance"))
+
+    products = repository.products_for_substance(SUBSTANCE_ID)
+
+    assert [p.substance_id for p in products] == [SUBSTANCE_ID]

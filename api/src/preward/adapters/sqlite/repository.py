@@ -1,20 +1,11 @@
 """SQLite implementation of the pipeline's Repository port."""
 
-import json
 import sqlite3
 from datetime import date
 from importlib import resources
 from pathlib import Path
 
-from preward.domain import (
-    Document,
-    ExtractionMethod,
-    Page,
-    Record,
-    Signal,
-    Source,
-    Tier,
-)
+from preward.domain import Document, Occurrence, Product, Section, Source, Substance
 
 _SCHEMA = "schema.sql"
 
@@ -54,104 +45,148 @@ class SqliteRepository:
         )
         self._conn.commit()
 
+    def save_substance(self, substance: Substance) -> None:
+        """Insert or update a substance."""
+        self._conn.execute(
+            "INSERT INTO substances (id, name) VALUES (?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET name = excluded.name",
+            (substance.id, substance.name),
+        )
+        self._conn.commit()
+
+    def save_product(self, product: Product) -> Product:
+        """Insert or update a product, returning it with its assigned id."""
+        cursor = self._conn.execute(
+            "INSERT INTO products (source_id, external_id, substance_id, name, ma_holder) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(source_id, external_id) DO UPDATE SET "
+            "substance_id = excluded.substance_id, name = excluded.name, "
+            "ma_holder = excluded.ma_holder "
+            "RETURNING id",
+            (
+                product.source_id,
+                product.external_id,
+                product.substance_id,
+                product.name,
+                product.ma_holder,
+            ),
+        )
+        assigned = cursor.fetchone()["id"]
+        self._conn.commit()
+        return Product(
+            source_id=product.source_id,
+            external_id=product.external_id,
+            substance_id=product.substance_id,
+            name=product.name,
+            ma_holder=product.ma_holder,
+            id=assigned,
+        )
+
     def save_document(self, document: Document) -> None:
         """Insert a document, keyed by content hash. Idempotent on re-fetch."""
         self._conn.execute(
             "INSERT INTO documents "
-            "(sha256, source_id, source_url, title, published_date, category, fetched_at, page_count) "
-            "VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?) "
+            "(sha256, source_id, product_external_id, source_url, title, last_updated, fetched_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, datetime('now')) "
             "ON CONFLICT(sha256) DO NOTHING",
             (
                 document.sha256,
                 document.source_id,
+                document.product_external_id,
                 document.source_url,
                 document.title,
-                _from_date(document.published_date),
-                document.category,
-                document.page_count,
+                _from_date(document.last_updated),
             ),
         )
         self._conn.commit()
 
-    def save_page(self, document_sha256: str, page: Page) -> None:
-        """Insert or replace one page of extracted text."""
+    def save_section(self, document_sha256: str, section: Section) -> None:
+        """Insert or replace one numbered section of a document."""
         self._conn.execute(
-            "INSERT INTO pages (document_sha256, page_no, text, extraction_method) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(document_sha256, page_no) DO UPDATE SET "
-            "text = excluded.text, extraction_method = excluded.extraction_method",
-            (document_sha256, page.page_no, page.text, page.extraction_method.value),
+            "INSERT INTO sections (document_sha256, code, heading, text) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(document_sha256, code) DO UPDATE SET "
+            "heading = excluded.heading, text = excluded.text",
+            (document_sha256, section.code, section.heading, section.text),
         )
         self._conn.commit()
 
-    def save_record(self, record: Record) -> Record:
-        """Insert or update a record, returning it with its assigned id."""
-        cur = self._conn.execute(
-            "INSERT INTO records (source_id, designation, name) VALUES (?, ?, ?) "
-            "ON CONFLICT(source_id, designation) DO UPDATE SET name = excluded.name "
+    def save_occurrence(self, occurrence: Occurrence) -> Occurrence:
+        """Insert an occurrence, returning it with its assigned id."""
+        cursor = self._conn.execute(
+            "INSERT INTO occurrences "
+            "(document_sha256, section_code, concept, quote, char_start, char_end) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(document_sha256, section_code, concept, char_start, char_end) "
+            "DO UPDATE SET quote = excluded.quote "
             "RETURNING id",
-            (record.source_id, record.designation, record.name),
-        )
-        record_id = cur.fetchone()["id"]
-        self._conn.commit()
-        return Record(
-            source_id=record.source_id,
-            name=record.name,
-            designation=record.designation,
-            id=record_id,
-        )
-
-    def save_signal(self, signal: Signal) -> Signal:
-        """Insert a signal, returning it with its assigned id."""
-        cur = self._conn.execute(
-            "INSERT INTO signals "
-            "(record_id, document_sha256, page_no, tier, confidence, quote, "
-            " char_start, char_end, amount_cents, event_date, fired_cues_json, extraction_method) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
             (
-                signal.record_id,
-                signal.document_sha256,
-                signal.page_no,
-                int(signal.tier),
-                signal.confidence,
-                signal.quote,
-                signal.char_start,
-                signal.char_end,
-                signal.amount_cents,
-                _from_date(signal.event_date),
-                json.dumps(list(signal.fired_cues)),
-                signal.extraction_method.value,
+                occurrence.document_sha256,
+                occurrence.section_code,
+                occurrence.concept,
+                occurrence.quote,
+                occurrence.char_start,
+                occurrence.char_end,
             ),
         )
-        signal_id = cur.fetchone()["id"]
+        assigned = cursor.fetchone()["id"]
         self._conn.commit()
-        return self._signal_from_row(
-            self._conn.execute("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
+        return Occurrence(
+            document_sha256=occurrence.document_sha256,
+            section_code=occurrence.section_code,
+            concept=occurrence.concept,
+            quote=occurrence.quote,
+            char_start=occurrence.char_start,
+            char_end=occurrence.char_end,
+            id=assigned,
         )
 
-    def signals_for_record(self, record_id: int) -> list[Signal]:
-        """Every signal for a record, oldest event first. This is the ladder."""
+    def products_for_substance(self, substance_id: str) -> list[Product]:
+        """Every product of a substance — the columns of the comparison."""
         rows = self._conn.execute(
-            "SELECT * FROM signals WHERE record_id = ? "
-            "ORDER BY event_date IS NULL, event_date, id",
-            (record_id,),
+            "SELECT * FROM products WHERE substance_id = ? ORDER BY name", (substance_id,)
         ).fetchall()
-        return [self._signal_from_row(row) for row in rows]
+        return [_to_product(row) for row in rows]
 
-    @staticmethod
-    def _signal_from_row(row: sqlite3.Row) -> Signal:
-        return Signal(
-            id=row["id"],
-            record_id=row["record_id"],
-            document_sha256=row["document_sha256"],
-            page_no=row["page_no"],
-            tier=Tier(row["tier"]),
-            confidence=row["confidence"],
-            quote=row["quote"],
-            char_start=row["char_start"],
-            char_end=row["char_end"],
-            amount_cents=row["amount_cents"],
-            event_date=_to_date(row["event_date"]),
-            fired_cues=tuple(json.loads(row["fired_cues_json"])),
-            extraction_method=ExtractionMethod(row["extraction_method"]),
-        )
+    def sections_for_document(self, document_sha256: str) -> list[Section]:
+        """Every section stored for a document, in code order."""
+        rows = self._conn.execute(
+            "SELECT code, heading, text FROM sections WHERE document_sha256 = ? ORDER BY code",
+            (document_sha256,),
+        ).fetchall()
+        return [Section(code=r["code"], heading=r["heading"], text=r["text"]) for r in rows]
+
+    def occurrences_for_substance(self, substance_id: str) -> list[Occurrence]:
+        """Every occurrence across every product of a substance. This is the matrix."""
+        rows = self._conn.execute(
+            "SELECT o.* FROM occurrences o "
+            "JOIN documents d ON d.sha256 = o.document_sha256 "
+            "JOIN products p ON p.source_id = d.source_id "
+            "AND p.external_id = d.product_external_id "
+            "WHERE p.substance_id = ? "
+            "ORDER BY p.name, o.section_code, o.concept, o.char_start",
+            (substance_id,),
+        ).fetchall()
+        return [_to_occurrence(row) for row in rows]
+
+
+def _to_product(row: sqlite3.Row) -> Product:
+    return Product(
+        source_id=row["source_id"],
+        external_id=row["external_id"],
+        substance_id=row["substance_id"],
+        name=row["name"],
+        ma_holder=row["ma_holder"],
+        id=row["id"],
+    )
+
+
+def _to_occurrence(row: sqlite3.Row) -> Occurrence:
+    return Occurrence(
+        document_sha256=row["document_sha256"],
+        section_code=row["section_code"],
+        concept=row["concept"],
+        quote=row["quote"],
+        char_start=row["char_start"],
+        char_end=row["char_end"],
+        id=row["id"],
+    )

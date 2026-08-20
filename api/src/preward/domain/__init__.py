@@ -1,17 +1,20 @@
 """Core entities. No I/O, no framework imports, no dependencies on outer layers."""
 
-from preward.domain.document import Document, Page
-from preward.domain.record import Record
-from preward.domain.signal import Signal
+from preward.domain.concept import Placement
+from preward.domain.document import Document
+from preward.domain.occurrence import Occurrence, found_in
+from preward.domain.product import Product
+from preward.domain.section import Section
 from preward.domain.source import Source
-from preward.domain.tier import ExtractionMethod, Tier
+from preward.domain.substance import Substance
 
 __all__ = [
     "Document",
-    "ExtractionMethod",
-    "Page",
-    "Record",
-    "Signal",
+    "Occurrence",
+    "Placement",
+    "Product",
+    "Section",
     "Source",
-    "Tier",
+    "Substance",
+    "found_in",
 ]

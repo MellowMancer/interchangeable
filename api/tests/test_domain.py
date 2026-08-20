@@ -1,54 +1,88 @@
-"""Domain invariants. A signal that cannot be traced back to its source is not a signal."""
+"""Domain invariants. A claim that cannot be traced back to its source is not a claim."""
 
 import pytest
 
-from preward.domain import Document, ExtractionMethod, Page, Signal, Tier
+from preward.domain import Document, Occurrence, Placement, Product, Section, Substance, found_in
+
+SECTION = Section(
+    code="4.3",
+    heading="Contraindications",
+    text="Hypersensitivity to the active substance. Severe renal impairment.",
+)
 
 
-def _signal(**overrides) -> Signal:
+def _occurrence(**overrides) -> Occurrence:
     defaults = dict(
-        record_id=1,
         document_sha256="a" * 64,
-        page_no=1,
-        tier=Tier.MENTION,
-        confidence=0.5,
-        quote="a verbatim span of page text",
-        char_start=0,
-        char_end=27,
-        extraction_method=ExtractionMethod.NATIVE,
+        section_code="4.3",
+        concept="renal",
+        quote="Severe renal impairment",
+        char_start=42,
+        char_end=65,
     )
-    return Signal(**{**defaults, **overrides})
+    return Occurrence(**{**defaults, **overrides})
 
 
-def test_signal_requires_a_verbatim_quote() -> None:
+def test_occurrence_requires_a_verbatim_quote() -> None:
     with pytest.raises(ValueError, match="provenance"):
-        _signal(quote="")
+        _occurrence(quote="")
 
 
-def test_signal_rejects_inverted_char_span() -> None:
+def test_occurrence_rejects_inverted_char_span() -> None:
     with pytest.raises(ValueError, match="char_end"):
-        _signal(char_start=30, char_end=10)
+        _occurrence(char_start=30, char_end=10)
 
 
-def test_signal_rejects_out_of_range_confidence() -> None:
-    with pytest.raises(ValueError, match="confidence"):
-        _signal(confidence=1.5)
+def test_occurrence_requires_a_section_and_a_concept() -> None:
+    with pytest.raises(ValueError, match="section_code"):
+        _occurrence(section_code="")
+    with pytest.raises(ValueError, match="concept"):
+        _occurrence(concept="")
 
 
-def test_tiers_above_mention_must_explain_themselves() -> None:
-    with pytest.raises(ValueError, match="cues"):
-        _signal(tier=Tier.EXECUTION, fired_cues=())
+def test_found_in_slices_the_quote_from_the_section() -> None:
+    """The provenance guarantee: the quote cannot disagree with its own offsets."""
+    occurrence = found_in(SECTION, "a" * 64, "renal", 42, 65)
+
+    assert occurrence.quote == SECTION.text[42:65]
+    assert occurrence.quote == "Severe renal impairment"
+    assert occurrence.section_code == "4.3"
 
 
-def test_mention_tier_needs_no_cues() -> None:
-    assert _signal(tier=Tier.MENTION).fired_cues == ()
+def test_found_in_refuses_offsets_past_the_section() -> None:
+    with pytest.raises(ValueError, match="past the end"):
+        found_in(SECTION, "a" * 64, "renal", 0, len(SECTION.text) + 1)
 
 
-def test_document_rejects_non_sha256_key() -> None:
-    with pytest.raises(ValueError, match="sha256"):
-        Document(sha256="deadbeef", source_id="example-source", source_url="https://example.test")
+def test_document_rejects_a_short_hash() -> None:
+    with pytest.raises(ValueError, match="64-character"):
+        Document(
+            sha256="abc",
+            source_id="emc",
+            product_external_id="987",
+            source_url="https://example.test/product/987",
+        )
 
 
-def test_pages_are_one_indexed() -> None:
-    with pytest.raises(ValueError, match="1-indexed"):
-        Page(page_no=0, text="", extraction_method=ExtractionMethod.NATIVE)
+def test_section_requires_a_code() -> None:
+    with pytest.raises(ValueError, match="section code"):
+        Section(code="", heading="Contraindications", text="...")
+
+
+def test_product_requires_its_identifying_fields() -> None:
+    with pytest.raises(ValueError, match="external_id"):
+        Product(source_id="emc", external_id="", substance_id="ramipril", name="X")
+    with pytest.raises(ValueError, match="substance_id"):
+        Product(source_id="emc", external_id="987", substance_id="", name="X")
+
+
+def test_substance_requires_an_id_and_a_name() -> None:
+    with pytest.raises(ValueError, match="substance id"):
+        Substance(id="", name="Ramipril")
+
+
+def test_placement_absent_is_distinct_from_a_section() -> None:
+    """Absent means 'not in any scanned section' — never the same as appearing in one."""
+    assert Placement.ABSENT != Placement.WARNING
+    assert Placement.CONTRAINDICATION == "4.3"
+    assert Placement.ABSENT == "absent"

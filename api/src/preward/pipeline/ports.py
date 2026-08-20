@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from preward.domain import Document, Page, Record, Signal, Source
+from preward.domain import Document, Occurrence, Product, Section, Source, Substance
 
 
 class Repository(Protocol):
@@ -16,22 +16,34 @@ class Repository(Protocol):
         """Insert or update a source."""
         ...
 
+    def save_substance(self, substance: Substance) -> None:
+        """Insert or update a substance."""
+        ...
+
+    def save_product(self, product: Product) -> Product:
+        """Insert or update a product, returning it with its assigned id."""
+        ...
+
     def save_document(self, document: Document) -> None:
         """Insert a document, keyed by content hash. Idempotent on re-fetch."""
         ...
 
-    def save_page(self, document_sha256: str, page: Page) -> None:
-        """Insert or replace one page of extracted text."""
+    def save_section(self, document_sha256: str, section: Section) -> None:
+        """Insert or replace one numbered section of a document."""
         ...
 
-    def save_record(self, record: Record) -> Record:
-        """Insert or update a record, returning it with its assigned id."""
+    def save_occurrence(self, occurrence: Occurrence) -> Occurrence:
+        """Insert an occurrence, returning it with its assigned id."""
         ...
 
-    def save_signal(self, signal: Signal) -> Signal:
-        """Insert a signal, returning it with its assigned id."""
+    def products_for_substance(self, substance_id: str) -> list[Product]:
+        """Every product of a substance — the columns of the comparison."""
         ...
 
-    def signals_for_record(self, record_id: int) -> list[Signal]:
-        """Every signal for a record, oldest event first. This is the ladder."""
+    def sections_for_document(self, document_sha256: str) -> list[Section]:
+        """Every section stored for a document, in code order."""
+        ...
+
+    def occurrences_for_substance(self, substance_id: str) -> list[Occurrence]:
+        """Every occurrence across every product of a substance. This is the matrix."""
         ...
