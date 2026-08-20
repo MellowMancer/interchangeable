@@ -2,7 +2,16 @@
 
 from typing import Protocol
 
-from ixq.domain import Document, Occurrence, Product, Section, Source, Substance
+from ixq.domain import (
+    Collector,
+    CollectorKind,
+    Document,
+    Occurrence,
+    Product,
+    Section,
+    Source,
+    Substance,
+)
 
 
 class Repository(Protocol):
@@ -14,6 +23,14 @@ class Repository(Protocol):
 
     def save_source(self, source: Source) -> None:
         """Insert or update a source."""
+        ...
+
+    def save_collector(self, collector: Collector) -> None:
+        """Insert or update a collector."""
+        ...
+
+    def collector_for(self, source_id: str, kind: CollectorKind) -> Collector | None:
+        """The collector playing one role for one source, or None if not configured."""
         ...
 
     def save_substance(self, substance: Substance) -> None:

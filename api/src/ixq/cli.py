@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from ixq.adapters.config import load_sources, load_substances
+from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
@@ -44,6 +44,11 @@ def init() -> None:
     for substance in substances:
         repository.save_substance(substance)
 
+    collectors = load_collectors(config_dir / "collectors.yaml")
+    for collector in collectors:
+        repository.save_collector(collector)
+
     typer.echo(
-        f"initialised {db_path} with {len(sources)} sources and {len(substances)} substances"
+        f"initialised {db_path} with {len(sources)} sources, "
+        f"{len(substances)} substances and {len(collectors)} collectors"
     )

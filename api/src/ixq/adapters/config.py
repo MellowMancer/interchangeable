@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from ixq.domain import Concept, Source, Substance
+from ixq.domain import Collector, CollectorKind, Concept, Source, Substance
 
 
 def _read(path: Path) -> dict:
@@ -44,4 +44,16 @@ def load_concepts(path: Path) -> list[Concept]:
     return [
         Concept(name=name, patterns=tuple(patterns))
         for name, patterns in (_read(path).get("concepts") or {}).items()
+    ]
+
+
+def load_collectors(path: Path) -> list[Collector]:
+    """Read the collector roster — the Scraper Studio ids the pipeline drives."""
+    return [
+        Collector(
+            id=entry["id"],
+            source_id=entry["source_id"],
+            kind=CollectorKind(entry["kind"]),
+        )
+        for entry in (_read(path).get("collectors") or [])
     ]

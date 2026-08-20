@@ -5,7 +5,16 @@ from datetime import date
 from importlib import resources
 from pathlib import Path
 
-from ixq.domain import Document, Occurrence, Product, Section, Source, Substance
+from ixq.domain import (
+    Collector,
+    CollectorKind,
+    Document,
+    Occurrence,
+    Product,
+    Section,
+    Source,
+    Substance,
+)
 
 _SCHEMA = "schema.sql"
 
@@ -44,6 +53,28 @@ class SqliteRepository:
             (source.id, source.name, source.base_url, source.variant),
         )
         self._conn.commit()
+
+    def save_collector(self, collector: Collector) -> None:
+        """Insert or update a collector. Its id is assigned by Bright Data, never by us."""
+        self._conn.execute(
+            "INSERT INTO collectors (id, source_id, kind) VALUES (?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "source_id = excluded.source_id, kind = excluded.kind",
+            (collector.id, collector.source_id, collector.kind.value),
+        )
+        self._conn.commit()
+
+    def collector_for(self, source_id: str, kind: CollectorKind) -> Collector | None:
+        """The collector playing one role for one source, or None if not configured."""
+        row = self._conn.execute(
+            "SELECT * FROM collectors WHERE source_id = ? AND kind = ?",
+            (source_id, kind.value),
+        ).fetchone()
+        if row is None:
+            return None
+        return Collector(
+            id=row["id"], source_id=row["source_id"], kind=CollectorKind(row["kind"])
+        )
 
     def save_substance(self, substance: Substance) -> None:
         """Insert or update a substance."""

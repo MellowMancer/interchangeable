@@ -1,0 +1,11 @@
+# Scraper Studio collector ids, one per role.
+#
+# An id is stable across healing: `bdata scraper heal` repairs a collector in place and
+# never reissues its id, so nothing downstream changes when a page's layout moves.
+#
+# Created with `bdata scraper create`. Descriptions are capped at 500 characters and an
+# oversized one strands a half-built collector — see docs/BRIGHT_DATA.md.
+collectors:
+  - id: c_mt16h8d01sakfyvaem
+    source_id: emc
+    kind: product

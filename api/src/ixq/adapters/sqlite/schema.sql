@@ -13,12 +13,14 @@ CREATE TABLE IF NOT EXISTS sources (
     variant  TEXT                           -- collector layout family, not a topic
 );
 
+-- A collector id survives healing, so it is a stable reference the pipeline holds
+-- across layout changes rather than something to re-resolve each run.
 CREATE TABLE IF NOT EXISTS collectors (
     id             TEXT PRIMARY KEY,        -- Bright Data collector id (c_...)
     source_id      TEXT NOT NULL REFERENCES sources(id),
-    source_kind    TEXT NOT NULL,           -- search | product | sitemap | discovery
+    kind           TEXT NOT NULL,           -- product | search | sitemap | discovery
     schema_version INTEGER NOT NULL DEFAULT 1,
-    created_at     TEXT NOT NULL
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS collector_runs (

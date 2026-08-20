@@ -1,6 +1,14 @@
 """Exit criterion: an Occurrence round-trips through the Repository port intact."""
 
-from ixq.domain import Document, Product, Section, Substance, found_in
+from ixq.domain import (
+    Collector,
+    CollectorKind,
+    Document,
+    Product,
+    Section,
+    Substance,
+    found_in,
+)
 from ixq.pipeline.ports import Repository
 from conftest import DOC_SHA, PRODUCT_EXTERNAL_ID, SECTION, SOURCE_ID, SUBSTANCE_ID
 
@@ -92,3 +100,16 @@ def test_substance_and_source_survive_a_reload(
     products = repository.products_for_substance(SUBSTANCE_ID)
 
     assert [p.substance_id for p in products] == [SUBSTANCE_ID]
+
+
+def test_collector_round_trips_by_role(repository: Repository, seeded_product: Product) -> None:
+    """The pipeline looks collectors up by role, so that lookup is the contract."""
+    repository.save_collector(
+        Collector(id="c_abc123", source_id=SOURCE_ID, kind=CollectorKind.PRODUCT)
+    )
+
+    found = repository.collector_for(SOURCE_ID, CollectorKind.PRODUCT)
+
+    assert found is not None
+    assert found.id == "c_abc123"
+    assert repository.collector_for(SOURCE_ID, CollectorKind.SEARCH) is None

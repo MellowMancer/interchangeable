@@ -4,8 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from ixq.adapters.config import load_concepts, load_sources, load_substances
-from ixq.domain import UNCLASSIFIED, Concept
+from ixq.adapters.config import (
+    load_collectors,
+    load_concepts,
+    load_sources,
+    load_substances,
+)
+from ixq.domain import UNCLASSIFIED, CollectorKind, Concept
 
 
 def _write(tmp_path: Path, name: str, body: str) -> Path:
@@ -83,3 +88,32 @@ def test_shipped_config_parses(shipped_config_dir: Path) -> None:
     assert [s.id for s in sources] == ["emc"]
     assert "ramipril" in {s.id for s in substances}
     assert {"pregnancy", "renal", "hepatic"} <= {c.name for c in concepts}
+
+
+def test_collectors_load_with_their_kind(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        "collectors.yaml",
+        "collectors:\n  - {id: c_abc123, source_id: emc, kind: product}\n",
+    )
+
+    loaded = load_collectors(path)
+
+    assert loaded[0].id == "c_abc123"
+    assert loaded[0].kind is CollectorKind.PRODUCT
+
+
+def test_unknown_collector_kind_is_rejected(tmp_path: Path) -> None:
+    """A typo'd role must fail loudly rather than persist an unusable collector."""
+    path = _write(tmp_path, "c.yaml", "collectors:\n  - {id: c_a, source_id: emc, kind: nonsense}\n")
+
+    with pytest.raises(ValueError):
+        load_collectors(path)
+
+
+def test_shipped_collectors_parse(shipped_config_dir: Path) -> None:
+    """The committed collector ids must stay loadable — the pipeline drives them."""
+    collectors = load_collectors(shipped_config_dir / "collectors.yaml")
+
+    assert CollectorKind.PRODUCT in {c.kind for c in collectors}
+    assert all(c.id.startswith("c_") for c in collectors)

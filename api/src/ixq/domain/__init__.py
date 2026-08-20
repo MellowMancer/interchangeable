@@ -1,5 +1,6 @@
 """Core entities. No I/O, no framework imports, no dependencies on outer layers."""
 
+from ixq.domain.collector import Collector, CollectorKind
 from ixq.domain.concept import UNCLASSIFIED, Concept, Placement
 from ixq.domain.document import Document
 from ixq.domain.occurrence import Occurrence, found_in
@@ -10,6 +11,8 @@ from ixq.domain.substance import Substance
 
 __all__ = [
     "UNCLASSIFIED",
+    "Collector",
+    "CollectorKind",
     "Concept",
     "Document",
     "Occurrence",
