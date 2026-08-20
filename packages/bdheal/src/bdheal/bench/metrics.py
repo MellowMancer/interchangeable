@@ -99,7 +99,8 @@ class Metrics:
 class CoverageRow:
     """What was declared to catch a mutation class against what actually did.
 
-    `as_declared` says every signal that fired was one the generator declared. It is
+    `as_declared` compares `fired_kinds` — everything that fired — against the
+    declaration, while `caught_by` is the single kind credited by `SIGNAL_PRECEDENCE`. It is
     vacuously true when nothing fired at all, which is what `is_gap` and `escalated` are
     for: a class no detector saw, and a class only the loop's own retry caught.
 
@@ -111,6 +112,7 @@ class CoverageRow:
     mutation: MutationClass
     expected_signals: frozenset[SignalKind]
     caught_by: frozenset[SignalKind]
+    fired_kinds: frozenset[SignalKind]
     cases: int
     escalated: int
     is_gap: bool
@@ -162,17 +164,25 @@ def _row(mutation: MutationClass, cases: list[BenchCase]) -> CoverageRow:
     """
     expected = frozenset[SignalKind]().union(*(case.expected_signals for case in cases))
     caught = frozenset(case.caught_by for case in cases if case.caught_by is not None)
+    # Credited kinds are folded in so the check can never weaken: a case recorded before
+    # `fired_kinds` existed, or one carrying only the credited kind, still counts against
+    # the declaration exactly as it used to.
+    fired = caught.union(*(case.fired_kinds for case in cases)) if cases else frozenset()
     escalated = sum(1 for case in cases if case.caught_by is None and case.attempts)
     return CoverageRow(
         mutation=mutation,
         expected_signals=expected,
         caught_by=caught,
+        fired_kinds=fired,
         cases=len(cases),
         escalated=escalated,
         # A class nobody ran is not a gap. Calling it one would report a detector blind
         # spot that was never tested for, which overstates the very thing this measures.
         is_gap=bool(cases) and not caught and not escalated,
-        as_declared=caught <= expected,
+        # Against everything that fired, not just the credited kind. A volume detector
+        # firing alongside a declared one is a disagreement worth publishing, and reading
+        # only `caught_by` hid exactly that on four of nine classes in the first live run.
+        as_declared=fired <= expected,
     )
 
 

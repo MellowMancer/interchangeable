@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS bdheal_bench_cases (
     mutation              TEXT NOT NULL,
     expected_signals      TEXT NOT NULL,    -- comma-joined SignalKind set; "" is a declared gap
     caught_by             TEXT,             -- NULL is a coverage gap, not a failure
+    fired_kinds           TEXT NOT NULL DEFAULT '',  -- every kind that fired, not just the credited one
     healed                INTEGER NOT NULL DEFAULT 0,
     field_accuracy        REAL,
     non_regression_passed INTEGER,

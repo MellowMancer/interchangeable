@@ -238,6 +238,7 @@ def test_a_case_runs_the_whole_loop_and_is_recorded(bench_clock: FixedClock) -> 
         mutation=MutationClass.TABLE_TO_DIV,
         expected_signals=frozenset({SignalKind.SKELETON}),
         caught_by=SignalKind.SKELETON,
+        fired_kinds=frozenset({SignalKind.SKELETON}),
         healed=True,
         field_accuracy=1.0,
         non_regression_passed=True,
@@ -529,7 +530,19 @@ def test_the_runner_drives_a_real_loop_over_injected_ports(bench_clock: FixedClo
     assert outcomes[0].field_accuracy == 1.0
     assert outcomes[0].non_regression_passed is True
     assert {call[0] for call in studio.calls} <= {"run", "fetch_html", "heal", "approve"}
-    assert next(r for r in coverage(outcomes) if r.cases).as_declared is True
+
+    # The judged run carries a schema failure as well as the moved markup, and the failed
+    # row leaves none behind, so three detectors fire where the generator declared one. That disagreement is the matrix's whole
+    # purpose, and it stayed invisible while `as_declared` read only the credited kind:
+    # `SIGNAL_PRECEDENCE` credits `skeleton` and `schema` was never counted against the
+    # declaration. Confirmed against a live collector, where four of nine classes fired an
+    # undeclared `row_count` and every one of them still reported "as declared".
+    row = next(r for r in coverage(outcomes) if r.cases)
+    assert row.caught_by == frozenset({SignalKind.SKELETON})
+    assert row.fired_kinds == frozenset(
+        {SignalKind.SKELETON, SignalKind.SCHEMA, SignalKind.ROW_COUNT}
+    )
+    assert row.as_declared is False
 
 
 def test_the_runner_takes_the_loop_as_a_port_and_never_names_the_facade() -> None:

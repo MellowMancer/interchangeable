@@ -53,6 +53,7 @@ class _Outcome:
     """What one case's pass through the loop established, before it is timed and stored."""
 
     caught_by: SignalKind | None
+    fired_kinds: frozenset[SignalKind]
     healed: bool
     field_accuracy: float | None
     non_regression_passed: bool | None
@@ -62,7 +63,12 @@ class _Outcome:
 # A case no detector saw. Nothing was attempted on it, so it is a coverage gap rather than
 # a heal that failed — the distinction the whole matrix exists to publish.
 _MISSED = _Outcome(
-    caught_by=None, healed=False, field_accuracy=None, non_regression_passed=None, attempts=0
+    caught_by=None,
+    fired_kinds=frozenset(),
+    healed=False,
+    field_accuracy=None,
+    non_regression_passed=None,
+    attempts=0,
 )
 
 
@@ -101,6 +107,7 @@ def _run_case(
         mutation=case.mutation,
         expected_signals=case.expected_signals,
         caught_by=outcome.caught_by,
+        fired_kinds=outcome.fired_kinds,
         healed=outcome.healed,
         field_accuracy=outcome.field_accuracy,
         non_regression_passed=outcome.non_regression_passed,
@@ -129,11 +136,13 @@ def _drive(case: BenchCaseSpec, loop: HealLoop, store: HealStore) -> _Outcome:
     if not verdict.broken:
         return _MISSED
     caught_by = _credited(verdict)
+    fired = frozenset(verdict.fired_kinds)
     if not loop.heal(spec, verdict).promoted:
-        return _unscored(caught_by)
+        return _unscored(caught_by, fired)
     report = loop.verify(spec, case.golden, case.old_layout_url)
     return _Outcome(
         caught_by=caught_by,
+        fired_kinds=fired,
         healed=_kept(store, spec.collector_id),
         field_accuracy=report.field_accuracy,
         non_regression_passed=report.non_regression_passed,
@@ -141,7 +150,7 @@ def _drive(case: BenchCaseSpec, loop: HealLoop, store: HealStore) -> _Outcome:
     )
 
 
-def _unscored(caught_by: SignalKind | None) -> _Outcome:
+def _unscored(caught_by: SignalKind | None, fired: frozenset[SignalKind]) -> _Outcome:
     """A break the gate refused to heal: attempted and failed, with nothing to score.
 
     Verifying here would run the *unhealed* collector and publish its accuracy as a heal's,
@@ -150,6 +159,7 @@ def _unscored(caught_by: SignalKind | None) -> _Outcome:
     """
     return _Outcome(
         caught_by=caught_by,
+        fired_kinds=fired,
         healed=False,
         field_accuracy=None,
         non_regression_passed=None,

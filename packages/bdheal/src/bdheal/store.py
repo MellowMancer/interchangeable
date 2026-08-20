@@ -96,12 +96,13 @@ class SqliteHealStore:
         """Insert or replace one benchmark case outcome. Idempotent, so a resume is safe."""
         self._conn.execute(
             "INSERT INTO bdheal_bench_cases "
-            "(run_id, case_id, mutation, expected_signals, caught_by, healed, field_accuracy, "
-            " non_regression_passed, attempts, elapsed_s, completed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "(run_id, case_id, mutation, expected_signals, caught_by, fired_kinds, healed, "
+            " field_accuracy, non_regression_passed, attempts, elapsed_s, completed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(run_id, case_id) DO UPDATE SET "
             "mutation = excluded.mutation, expected_signals = excluded.expected_signals, "
-            "caught_by = excluded.caught_by, healed = excluded.healed, "
+            "caught_by = excluded.caught_by, fired_kinds = excluded.fired_kinds, "
+            "healed = excluded.healed, "
             "field_accuracy = excluded.field_accuracy, "
             "non_regression_passed = excluded.non_regression_passed, "
             "attempts = excluded.attempts, elapsed_s = excluded.elapsed_s, "
@@ -112,6 +113,7 @@ class SqliteHealStore:
                 case.mutation,
                 _join_kinds(case.expected_signals),
                 case.caught_by,
+                _join_kinds(case.fired_kinds),
                 int(case.healed),
                 case.field_accuracy,
                 _nullable_int(case.non_regression_passed),
@@ -219,6 +221,7 @@ def _to_bench_case(row: sqlite3.Row) -> BenchCase:
         mutation=row["mutation"],
         expected_signals=_split_kinds(row["expected_signals"]),
         caught_by=row["caught_by"],
+        fired_kinds=_split_kinds(row["fired_kinds"]),
         healed=bool(row["healed"]),
         field_accuracy=row["field_accuracy"],
         non_regression_passed=_nullable_bool(row["non_regression_passed"]),
