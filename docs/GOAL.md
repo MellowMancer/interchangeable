@@ -39,7 +39,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       `packages/bdheal/src/bdheal/`, the two port signatures (`StudioClient`,
       `HealStore`), the workspace wiring decision (see Open question Q1), and the
       persisted schema shape for baselines and heal events.
-      criteria: `ARCHITECTURE.md` exists at repo root; every module named in
+      criteria: `ARCHITECTURE.md` exists (now `docs/ARCHITECTURE.md`); every module named in
       `docs/plan.md`'s repo layout (`models · studio · store · detect · diagnose ·
       heal · verify · bench/{mutate,runner,metrics}`) is assigned to exactly one Clean
       Architecture layer, and every dependency arrow it draws points inward.
@@ -506,12 +506,15 @@ any feature code was written. Recorded here so the rationale survives.
 
 ## Deferred to submission (Aug 22–23)
 
-- **`docs/` is gitignored** (`/docs` in `.gitignore`), so `docs/plan.md` and
-  `docs/BRIGHT_DATA.md` never reach the public repo. Hackathon rule 9 requires a public
-  source repository **and** a written explanation of Scraper Studio usage. `GOAL.md` and
-  `ARCHITECTURE.md` are tracked and unaffected. User decision: revisit at submission
-  time — either publish `docs/` or write a separate root-level `SCRAPER_STUDIO.md` for
-  judges. **Do not let this land on the 23rd alongside the demo video.**
+- **RESOLVED 2026-08-20: `docs/` is public, `plan.md` is not.** The ignore rule narrowed
+  from `/docs` to `/docs/plan.md`, and `ARCHITECTURE.md` and `GOAL.md` moved into `docs/`
+  alongside `BRIGHT_DATA.md`. Hackathon rule 9 wants a public source repository **and** a
+  written explanation of Scraper Studio usage; `docs/BRIGHT_DATA.md` now reaches judges,
+  which is the verified CLI surface `AI_DISCLOSURE.md` cites. `plan.md` stays private by
+  author decision — it carries sequencing, cut order and unbuilt app design.
+  `README.md`, `LICENSE`, `CLAUDE.md` and `AI_DISCLOSURE.md` stay at the repo root:
+  GitHub renders and detects the first two there, Claude Code loads project instructions
+  from the root, and a disclosure judges are meant to find belongs where they look first.
 
 - **Licence: MIT** (decided 2026-08-19). `LICENSE` at repo root and a bundled copy at
   `packages/bdheal/LICENSE`; the wheel carries `License-Expression: MIT` and

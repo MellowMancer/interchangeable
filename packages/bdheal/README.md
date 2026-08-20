@@ -82,4 +82,4 @@ The package carries no lockfile of its own, deliberately: a lock pins one resolu
 one application, and cannot show that a library resolves for anybody else. The `publish`
 check is what backs the claim instead.
 
-See `ARCHITECTURE.md` at the repo root for the layer map and the contribution contract.
+See `docs/ARCHITECTURE.md` for the layer map and the contribution contract.
