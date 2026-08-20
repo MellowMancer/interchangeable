@@ -57,6 +57,10 @@ class CollectorSpec(_Boundary):
     name: str
     anchor_urls: list[NonBlankStr] = Field(min_length=1)
     row_schema: type[BaseModel]
+    # Scraper Studio returns one envelope per input URL, carrying its rows under a name the
+    # generated template chose. Naming it here lets the rows be found without this package
+    # guessing at a shape; `None` means the payload is already the rows.
+    rows_key: str | None = None
 
 
 class RowError(_Boundary):
@@ -73,11 +77,19 @@ class RowError(_Boundary):
 
 
 class RunResult(_Boundary):
-    """The outcome of one collector run: validated rows, failed rows, and when.
+    """The outcome of one collector run: the rows it yielded, what went wrong, and when.
 
     `rows` carries validated *data*, not `row_schema` instances, so the result stays
     serialisable and round-trips through `model_dump()`. Callers who want instances
     re-validate with their own schema.
+
+    **`rows` and `errors` do not partition the payload.** A row the schema rejected appears
+    in both: kept in `rows` with the offending fields nulled, and named in `errors` with the
+    per-field complaint. Discarding such a row entirely made one bad field read as a
+    vanished record, which blinded the null-rate detector, made the volume detectors read a
+    schema break as a collapse in row count, and drove field accuracy to zero where the rest
+    of the record was correct. A refusal is different and yields no row at all — nothing was
+    extracted from, so inventing a row of nulls would misreport what happened.
     """
 
     collector_id: NonBlankStr
@@ -208,6 +220,11 @@ class BenchCase(_Boundary):
     mutation: MutationClass
     expected_signals: frozenset[SignalKind]
     caught_by: SignalKind | None = None
+    # Everything that fired, not just the one credited. `caught_by` is chosen by
+    # `SIGNAL_PRECEDENCE` and answers "which detector gets the credit"; this answers "did
+    # anything fire that the generator never declared" — the disagreement the coverage
+    # matrix exists to publish, and could not see while only the credited kind was kept.
+    fired_kinds: frozenset[SignalKind] = frozenset()
     healed: bool = False
     field_accuracy: Ratio | None = None
     non_regression_passed: bool | None = None

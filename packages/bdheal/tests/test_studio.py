@@ -199,6 +199,75 @@ def test_per_row_errors_are_data_not_exceptions(
     assert result.fetched_at == clock.now()
 
 
+def test_envelope_rows_are_found_when_the_spec_names_them(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """Scraper Studio returns one envelope per input URL, not a bare array of rows.
+
+    Verified live against a generated collector: the payload is a single object carrying
+    its rows under a name the template chose, beside the `input` it was given. Validating
+    that envelope as a row fails every field, so a whole run reads as zero rows recovered
+    when nothing is wrong with the collector at all.
+    """
+    payload = json.dumps(
+        [
+            {
+                "listings": [
+                    {"title": "A Light in the Attic", "url": "https://example.test/1"},
+                    {"title": "Tipping the Velvet", "url": "https://example.test/2"},
+                ],
+                "input": {"url": "https://example.test/list"},
+            }
+        ]
+    )
+    recording_runner.results.append(ok(payload))
+    named = spec.model_copy(update={"rows_key": "listings"})
+
+    result = client(recording_runner, clock).run(named, named.anchor_urls)
+
+    assert [row["title"] for row in result.rows] == [
+        "A Light in the Attic",
+        "Tipping the Velvet",
+    ]
+    assert result.errors == []
+
+
+def test_a_refusal_beside_an_envelope_is_still_a_row_error(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """A target-side refusal arrives unwrapped, and must survive the descent.
+
+    It carries no envelope, so a descent that dropped anything without the named key would
+    turn a refusal into silence — and silence is what the volume detectors read as healthy.
+    """
+    payload = json.dumps(
+        [
+            {"listings": [{"title": "A Light in the Attic", "url": "https://example.test/1"}]},
+            {"error": "too many requests", "error_code": "rate_limit"},
+        ]
+    )
+    recording_runner.results.append(ok(payload))
+    named = spec.model_copy(update={"rows_key": "listings"})
+
+    result = client(recording_runner, clock).run(named, named.anchor_urls)
+
+    assert len(result.rows) == 1
+    assert result.error_codes == ["rate_limit"]
+
+
+def test_a_spec_naming_no_key_takes_the_payload_as_the_rows(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """The default stays what it was: a flat array is read as rows, not searched for one."""
+    payload = json.dumps([{"title": "A Light in the Attic", "url": "https://example.test/1"}])
+    recording_runner.results.append(ok(payload))
+
+    result = client(recording_runner, clock).run(spec, spec.anchor_urls)
+
+    assert spec.rows_key is None
+    assert [row["title"] for row in result.rows] == ["A Light in the Attic"]
+
+
 def test_a_target_error_without_a_code_is_still_target_side(
     recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
 ) -> None:
@@ -222,15 +291,39 @@ def test_a_target_error_without_a_code_is_still_target_side(
 def test_a_schema_failure_is_a_row_error_with_field_detail(
     recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
 ) -> None:
-    """The caller's schema rejecting a row is per-field evidence, not a stack trace."""
+    """The caller's schema rejecting a row is per-field evidence, not a stack trace.
+
+    The record survives with the offending field nulled, and the complaint survives beside
+    it. Discarding the whole row cost three things at once: the null-rate detector never saw
+    the hole, the volume detectors read a schema break as a collapse in row count, and field
+    accuracy fell to zero where the rest of the record was perfect. So a schema failure is
+    now both a row and an error, and `rows` and `errors` no longer partition the payload.
+    """
     recording_runner.results.append(ok(json.dumps([{"title": "no url here"}])))
 
     result = client(recording_runner, clock).run(spec, spec.anchor_urls)
 
-    assert result.rows == []
+    assert result.rows == [{"title": "no url here", "url": None, "published": None}]
     assert result.errors[0].field_errors["url"]
     assert result.errors[0].error_code is None
     assert result.error_codes == []
+
+
+def test_a_refusal_yields_no_row_at_all(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """Only schema failures keep a partial row; a refusal never reached the extractor.
+
+    Inventing a row of nulls for a page that was never read would tell the null-rate
+    detector the collector stopped extracting, when in truth nothing was extracted from.
+    """
+    payload = json.dumps([{"error": "too many requests", "error_code": "rate_limit"}])
+    recording_runner.results.append(ok(payload))
+
+    result = client(recording_runner, clock).run(spec, spec.anchor_urls)
+
+    assert result.rows == []
+    assert result.error_codes == ["rate_limit"]
 
 
 def test_a_hostile_collector_id_stays_one_argv_element(

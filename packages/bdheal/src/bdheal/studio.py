@@ -12,6 +12,7 @@ prompts are caller-supplied values, and this file is where they meet a process (
 import json
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -214,12 +215,13 @@ class BdataStudioClient:
 
     def _collate(self, spec: CollectorSpec, payload: list[Any]) -> RunResult:
         """Split the rows Bright Data returned into validated data and per-row failures."""
-        parsed = [_row(index, item, spec.row_schema) for index, item in enumerate(payload)]
-        errors = [item for item in parsed if isinstance(item, RowError)]
+        rows = _rows_in(payload, spec.rows_key)
+        parsed = [_row(index, item, spec.row_schema) for index, item in enumerate(rows)]
+        errors = [item.error for item in parsed if item.error is not None]
         return RunResult(
             collector_id=spec.collector_id,
             fetched_at=self._clock.now(),
-            rows=[item for item in parsed if not isinstance(item, RowError)],
+            rows=[item.row for item in parsed if item.row is not None],
             errors=errors,
             error_codes=_distinct_codes(errors),
         )
@@ -360,24 +362,86 @@ def _create_failure(url: str, payload: dict[str, Any], completed: ProcessResult)
     return f"{_label(CREATE)} failed for {url}: {reason}; {leftover}"
 
 
-def _row(index: int, item: Any, row_schema: type[BaseModel]) -> dict[str, Any] | RowError:
-    """One returned row as validated data, or as the reason it produced no record."""
+def _rows_in(payload: list[Any], rows_key: str | None) -> list[Any]:
+    """The rows inside a payload, descending through envelopes when the spec names one.
+
+    A spec naming no key is taken at face value: the payload already is the rows.
+    """
+    if rows_key is None:
+        return payload
+    return [row for item in payload for row in _envelope_rows(item, rows_key)]
+
+
+def _envelope_rows(item: Any, rows_key: str) -> list[Any]:
+    """One envelope's rows, or the item untouched when it is not one.
+
+    The fallback matters: a target-side refusal arrives as a bare `{"error": ...}` object
+    with no envelope around it, and it has to reach `_row` to become the `RowError` whose
+    code the detectors read. Unwrapping it away would turn a refusal into silence.
+    """
+    if isinstance(item, dict) and isinstance(item.get(rows_key), list):
+        return item[rows_key]
+    return [item]
+
+
+@dataclass(frozen=True, slots=True)
+class _Parsed:
+    """One returned item as data, as the reason it failed, or as both.
+
+    A schema failure is both: the record is kept with the offending fields nulled, and the
+    complaint is kept so the schema signal still fires.
+    """
+
+    row: dict[str, Any] | None
+    error: RowError | None
+
+
+def _row(index: int, item: Any, row_schema: type[BaseModel]) -> _Parsed:
+    """One returned row as validated data, as the reason it produced no record, or as both."""
     if not isinstance(item, dict):
-        return RowError(index=index, message=f"expected an object, got {type(item).__name__}")
+        return _Parsed(
+            row=None,
+            error=RowError(index=index, message=f"expected an object, got {type(item).__name__}"),
+        )
     if ERROR_KEY in item:
-        return RowError(
-            index=index,
-            message=str(item[ERROR_KEY]),
-            error_code=item.get(ERROR_CODE_KEY) or UNSPECIFIED_CODE,
+        return _Parsed(
+            row=None,
+            error=RowError(
+                index=index,
+                message=str(item[ERROR_KEY]),
+                error_code=item.get(ERROR_CODE_KEY) or UNSPECIFIED_CODE,
+            ),
         )
     try:
-        return row_schema.model_validate(item).model_dump()
+        return _Parsed(row=row_schema.model_validate(item).model_dump(), error=None)
     except ValidationError as exc:
-        return RowError(
-            index=index,
-            message="row does not match the collector's row schema",
-            field_errors=_field_errors(exc),
+        failed = _field_errors(exc)
+        return _Parsed(
+            row=_partial(item, row_schema, failed),
+            error=RowError(
+                index=index,
+                message="row does not match the collector's row schema",
+                field_errors=failed,
+            ),
         )
+
+
+def _partial(
+    item: dict[str, Any], row_schema: type[BaseModel], failed: dict[str, str]
+) -> dict[str, Any]:
+    """The row with the fields that failed validation nulled and the rest as returned.
+
+    A record is not worthless because one of its fields is. Discarding the whole row made a
+    single bad field read as a vanished record, which cost three things at once: the
+    null-rate detector never saw the hole, the volume detectors read a schema break as a
+    collapse in row count, and field accuracy fell to zero where four fields in five were
+    perfect. Measured against a live collector, exactly that happened on `date_format` and
+    `url_pattern`.
+
+    Surviving fields are carried through as returned rather than re-coerced: the model
+    rejected this record, so its coercions cannot be trusted to have run.
+    """
+    return {name: None if name in failed else item.get(name) for name in row_schema.model_fields}
 
 
 def _field_errors(exc: ValidationError) -> dict[str, str]:

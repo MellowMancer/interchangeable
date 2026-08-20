@@ -172,8 +172,8 @@ def _schema_signal(errors: list[RowError], row_count: int) -> Signal | None:
         kind=SignalKind.SCHEMA,
         outcome=SignalOutcome.FIRED,
         detail=(
-            f"{len(failed)} of the {row_count + len(failed)} rows that came back "
-            "did not validate against the collector's row schema"
+            f"{len(failed)} of the {row_count} rows that came back did not validate "
+            "against the collector's row schema"
         ),
     )
 
