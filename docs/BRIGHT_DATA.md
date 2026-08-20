@@ -73,20 +73,34 @@ Build minimal first, then heal to extend — a small known-good baseline makes t
 5. **approve** — anchored on the same URL.
 6. **run again** — confirm the new fields come back.
 
-### ⚠️ `approve` reporting `done` does not prove the change took
+### ⚠️ A heal is not persisted unless you pass `--auto-save`
 
-Observed 2026-08-20 on `c_mt16h8d01sakfyvaem`. A heal to add a field ran the full nine
-steps, returned `status: awaiting_approval` with a `preview_result` **containing the new
-field populated with real content**, and `approve --url <anchor>` returned
-`status: done`. Two subsequent runs — including one against the very anchor URL the heal
-was approved on — returned the original field set with the new field absent.
+Root cause found 2026-08-20 on `c_mt16h8d01sakfyvaem`, after the documented flow silently
+failed twice.
 
-So `preview_result` is a proposal, and `done` is an acknowledgement. Neither is evidence
-that a later run behaves as previewed.
+**What does not work.** `heal <id> "<prompt>"` then `approve <id> --url <anchor>`. The
+heal runs all nine steps, returns `awaiting_approval` with a `preview_result` containing
+the new field populated with real content, and `approve` returns `status: done`. Every
+later run — including against the anchor URL itself — returns the *original* field set.
+Nothing reports an error at any point.
 
-**Never approve without re-running and asserting the field you asked for.** This is
-precisely what `Healer.heal()` exists to do — it verifies before promoting, and doing the
-heal by hand through the CLI skips that. Use the facade, not the raw commands.
+**What works.** `heal <id> "<prompt>" --auto-save`. The step list then contains one extra
+entry absent from the first attempt:
+
+```
+Step: save_new_template — polling (attempt 1/1500)
+```
+
+Verified: a subsequent run returned the new field at 2,217 characters with every existing
+field unchanged.
+
+So `preview_result` is a proposal, `approve` acknowledges it, and **`--auto-save` is what
+writes the template back**. The `heal → awaiting_approval → approve → done` sequence in
+the docs is not sufficient on its own, and a pipeline following it exactly keeps running
+the old template while reporting success.
+
+**Always assert the field on a real run afterwards** — never trust a status. This is what
+`Healer.heal()` exists to do; driving the CLI by hand skips that verification.
 
 ## Heal state machine
 
