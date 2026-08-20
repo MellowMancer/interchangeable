@@ -46,6 +46,9 @@ def fetch(
 
     Returns None when the collector yields nothing for this product — an empty result is
     reported to the caller rather than persisted as a document with no sections.
+
+    The caller owns the transaction boundary, as in `collect`: a document, its sections
+    and its occurrences are one unit of work, and half of them is worse than none.
     """
     url = source.product_at(product.external_id)
     rows = labels.rows(collector_id, [url])
@@ -73,9 +76,8 @@ def fetch(
         title=title,
     )
 
-    with repository.transaction():
-        repository.save_document(document)
-        for section in sections:
-            repository.save_section(document.sha256, section)
+    repository.save_document(document)
+    for section in sections:
+        repository.save_section(document.sha256, section)
 
     return document
