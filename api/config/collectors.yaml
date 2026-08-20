@@ -9,3 +9,6 @@ collectors:
   - id: c_mt16h8d01sakfyvaem
     source_id: emc
     kind: product
+  - id: c_mt16ml4j14ri5s4qgc
+    source_id: emc
+    kind: search
