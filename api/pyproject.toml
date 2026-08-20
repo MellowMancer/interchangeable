@@ -22,6 +22,7 @@ packages = ["src/ixq"]
 
 [dependency-groups]
 dev = [
+    "httpx2>=0.28",          # starlette's TestClient transport; tests only
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
 ]
