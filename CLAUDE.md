@@ -28,7 +28,9 @@ Clean Architecture. Before creating a file, identify its layer: Entities → Use
 
 Project-specific: FastAPI is the seam between pipeline and UI — the frontend never opens SQLite. Tier cues, lexicon, and agency config are data (`config/*.yaml`), not code.
 
-`docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface, not `docs/plan.md`.
+`docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface, not `docs/superseded-municipal-agendas.md`.
+
+`docs/interchangeable.md` is the live implementation plan. `docs/superseded-municipal-agendas.md` is retained only as the record of the government-host block and the `bdheal` package split.
 
 ## Commits
 

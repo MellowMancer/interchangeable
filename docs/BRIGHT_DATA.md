@@ -86,11 +86,11 @@ in order and stop if a step fails:
 6. Run it again and confirm all fields come back.
 ```
 
-## Conflicts with `docs/plan.md`
+## Conflicts with `docs/superseded-municipal-agendas.md`
 
 Resolve before writing collector code. The plan is wrong where it disagrees with the vendor docs.
 
-| `plan.md` says | Source says |
+| `superseded-municipal-agendas.md` says | Source says |
 |---|---|
 | `npm i -g @brightdata/cli`, then `brightdata login` | no global install; `npx -p @brightdata/cli bdata login` |
 | binary `brightdata` | binary `bdata` |
@@ -182,7 +182,7 @@ Sanctioned path is KYC at `https://brightdata.com/cp/kyc`. Do not route around t
 classifier — no archive mirrors, no proxy indirection. This is a Bright Data–sponsored
 hackathon and the policy is theirs to enforce.
 
-Two host corrections to `plan.md`: Bothell is `bothellwa.gov` (the plan's
+Two host corrections to `superseded-municipal-agendas.md`: Bothell is `bothellwa.gov` (the plan's
 `ci.bothell.wa.us` resets the connection) and Lakehaven redirects to `lakehavenwsd.gov`.
 
 ## Operational timings
