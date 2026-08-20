@@ -237,7 +237,7 @@ def test_a_verdict_round_trips_through_model_dump() -> None:
         signals=[
             Signal(kind=SignalKind.SCHEMA, outcome=SignalOutcome.FIRED, detail="2 rows failed"),
             Signal(
-                kind=SignalKind.ZERO_ROWS,
+                kind=SignalKind.ROW_COUNT,
                 outcome=SignalOutcome.INCONCLUSIVE,
                 detail="sample truncated by throttling",
             ),

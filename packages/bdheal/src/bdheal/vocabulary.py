@@ -7,7 +7,7 @@ class SignalKind(StrEnum):
     """The four break detectors. None of them names a problem domain — that is the point."""
 
     SCHEMA = "schema"
-    ZERO_ROWS = "zero_rows"
+    ROW_COUNT = "row_count"
     SKELETON = "skeleton"
     NULL_RATE = "null_rate"
 
@@ -28,7 +28,7 @@ class FailureClass(StrEnum):
 
     STRUCTURE_CHANGED = "structure_changed"
     SCHEMA_MISMATCH = "schema_mismatch"
-    EMPTY_RESULT = "empty_result"
+    ROWS_LOST = "rows_lost"
     FIELDS_MISSING = "fields_missing"
     UNKNOWN = "unknown"
 
@@ -57,7 +57,7 @@ TERMINAL_STATUSES: frozenset[HealStatus] = frozenset(HealStatus) - {HealStatus.A
 SIGNAL_PRECEDENCE: tuple[SignalKind, ...] = (
     SignalKind.SKELETON,
     SignalKind.SCHEMA,
-    SignalKind.ZERO_ROWS,
+    SignalKind.ROW_COUNT,
     SignalKind.NULL_RATE,
 )
 

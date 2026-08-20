@@ -59,6 +59,10 @@ INCOMPLETE_LABEL = "incomplete sample"
 # real credits and can promote a collector fitted to bad data.
 NULL_RATE_SPIKE = 0.5
 
+# How far the row count must fall below its baseline before that counts as a break. Firing
+# only on literal emptiness leaves the partial collapse invisible.
+ROW_COUNT_DROP = 0.4
+
 
 @dataclass(frozen=True, slots=True)
 class _TargetSide:
@@ -88,7 +92,7 @@ def detect(
     fields = list(spec.row_schema.model_fields)
     candidates = (
         _schema_signal(result.errors, len(result.rows)),
-        _zero_rows_signal(result, baseline, target),
+        _row_count_signal(result, baseline, target),
         _skeleton_signal(page_html, baseline),
         _null_rate_signal(result, baseline, fields, target),
     )
@@ -174,20 +178,27 @@ def _schema_signal(errors: list[RowError], row_count: int) -> Signal | None:
     )
 
 
-def _zero_rows_signal(
+def _row_count_signal(
     result: RunResult, baseline: Baseline | None, target: _TargetSide
 ) -> Signal | None:
-    """Silence where the prior run had rows — unless the target refused part of the sample."""
+    """Rows lost against the prior run — unless the target refused part of the sample.
+
+    Silence is the extreme of this, not a separate case: a collector returning three rows
+    where it returned two hundred has broken as surely as one returning none, and every
+    other detector reads it as healthy until the null rates happen to spike too.
+    """
     if baseline is None or baseline.row_count == 0:
         return None
     if target.count:
-        return _abstention(SignalKind.ZERO_ROWS, target)
-    if result.rows:
+        return _abstention(SignalKind.ROW_COUNT, target)
+    if len(result.rows) >= baseline.row_count * (1 - ROW_COUNT_DROP):
         return None
     return Signal(
-        kind=SignalKind.ZERO_ROWS,
+        kind=SignalKind.ROW_COUNT,
         outcome=SignalOutcome.FIRED,
-        detail=f"no rows came back, against a baseline of {baseline.row_count}",
+        detail=(
+            f"{len(result.rows)} rows came back, against a baseline of {baseline.row_count}"
+        ),
     )
 
 

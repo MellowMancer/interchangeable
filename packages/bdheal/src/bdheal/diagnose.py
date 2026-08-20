@@ -49,10 +49,11 @@ TEMPLATES: dict[FailureClass, _Template] = {
         "declares. Re-derive the selector for each field so it holds the same kind of content it "
         "held before.",
     ),
-    FailureClass.EMPTY_RESULT: _Template(
-        "empty_result.v1",
-        "The collector returns no rows where it previously returned rows. Re-locate the repeating "
-        "row container on the current page and extract one object from each repetition.",
+    FailureClass.ROWS_LOST: _Template(
+        "rows_lost.v1",
+        "The collector now returns no rows, or far fewer rows than it previously returned. "
+        "Re-locate the repeating row container on the current page and extract one object from "
+        "each repetition.",
     ),
     FailureClass.FIELDS_MISSING: _Template(
         "fields_missing.v1",
@@ -74,16 +75,23 @@ TEMPLATES: dict[FailureClass, _Template] = {
 _FAILURE_BY_KIND: dict[SignalKind, FailureClass] = {
     SignalKind.SKELETON: FailureClass.STRUCTURE_CHANGED,
     SignalKind.SCHEMA: FailureClass.SCHEMA_MISMATCH,
-    SignalKind.ZERO_ROWS: FailureClass.EMPTY_RESULT,
+    SignalKind.ROW_COUNT: FailureClass.ROWS_LOST,
     SignalKind.NULL_RATE: FailureClass.FIELDS_MISSING,
 }
 
 
+# The last line is the guard against the worst outcome available to a generative healer.
+# Told only to recover a field, a model that cannot find it will write something shaped
+# like the right answer, and a heal that invents plausible values passes every detector we
+# have: the rows validate, the count holds, the null rates fall. It is stated once here
+# rather than in each instruction, so a sixth template cannot be added without it.
 PROMPT_TEMPLATE = (
     "{instruction}\n"
     "Extract these fields for every row, using exactly these names:\n"
     "{fields}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
 

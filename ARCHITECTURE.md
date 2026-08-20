@@ -200,7 +200,7 @@ field name silently becoming an ignored extra is precisely the bug class the
 schema-validation detect signal exists to catch. Models are **not** frozen —
 `model_copy(update=...)` is the store's update idiom (decided 2026-08-19).
 
-Closed vocabularies live in `vocabulary.py`: `SignalKind` (`schema · zero_rows ·
+Closed vocabularies live in `vocabulary.py`: `SignalKind` (`schema · row_count ·
 skeleton · null_rate`), `SignalOutcome` (`fired · inconclusive`), `FailureClass`,
 `HealStatus` (`awaiting_approval · done · rejected · failed`), `MutationClass`,
 `MutationClass`. Benchmark vocabulary lives there too, because `BenchCase` crosses the
@@ -211,7 +211,7 @@ persistence boundary and its values must be nameable from the innermost layer.
 `error_code` is data, never an exception. **Any row carrying a target-side or ambiguous `error_code`** —
 not merely a throttle code, but `blocked`, `captcha_timeout` and the ambiguous set —
 codes the vendor attributes to the *scraper* (`parse_error`, `bad_input`,
-`wait_element_timeout`) are extraction evidence and do fire the schema signal — makes the sample incomplete, so `zero_rows` and `null_rate` record
+`wait_element_timeout`) are extraction evidence and do fire the schema signal — makes the sample incomplete, so `row_count` and `null_rate` record
 `SignalOutcome.INCONCLUSIVE` and `retry_requested` is set. A schema failure on a row that
 *did* return is still valid break evidence. Such a run therefore never heals on volume
 grounds, may still report a schema break, and always asks for a retry.

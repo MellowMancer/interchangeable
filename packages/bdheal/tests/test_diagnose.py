@@ -37,7 +37,9 @@ STRUCTURE_CHANGED_PROMPT = (
     "the current page.\n"
     "Extract these fields for every row, using exactly these names:\n"
     f"{FIELD_LIST}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
 SCHEMA_MISMATCH_PROMPT = (
@@ -46,15 +48,20 @@ SCHEMA_MISMATCH_PROMPT = (
     "held before.\n"
     "Extract these fields for every row, using exactly these names:\n"
     f"{FIELD_LIST}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
-EMPTY_RESULT_PROMPT = (
-    "The collector returns no rows where it previously returned rows. Re-locate the repeating "
-    "row container on the current page and extract one object from each repetition.\n"
+ROWS_LOST_PROMPT = (
+    "The collector now returns no rows, or far fewer rows than it previously returned. "
+    "Re-locate the repeating row container on the current page and extract one object from "
+    "each repetition.\n"
     "Extract these fields for every row, using exactly these names:\n"
     f"{FIELD_LIST}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
 FIELDS_MISSING_PROMPT = (
@@ -63,7 +70,9 @@ FIELDS_MISSING_PROMPT = (
     "found.\n"
     "Extract these fields for every row, using exactly these names:\n"
     f"{FIELD_LIST}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
 GENERIC_PROMPT = (
@@ -72,7 +81,9 @@ GENERIC_PROMPT = (
     "current page.\n"
     "Extract these fields for every row, using exactly these names:\n"
     f"{FIELD_LIST}\n"
-    "Return one object per row, with these fields and no others."
+    "Return one object per row, with these fields and no others.\n"
+    "Do not infer, guess or complete any value that is not present on the page — return it "
+    "empty instead."
 )
 
 # signal kind that fired -> failure class, template id, rendered prompt
@@ -90,10 +101,10 @@ CASES: tuple[tuple[SignalKind, FailureClass, str, str], ...] = (
         SCHEMA_MISMATCH_PROMPT,
     ),
     (
-        SignalKind.ZERO_ROWS,
-        FailureClass.EMPTY_RESULT,
-        "empty_result.v1",
-        EMPTY_RESULT_PROMPT,
+        SignalKind.ROW_COUNT,
+        FailureClass.ROWS_LOST,
+        "rows_lost.v1",
+        ROWS_LOST_PROMPT,
     ),
     (
         SignalKind.NULL_RATE,
@@ -106,7 +117,7 @@ CASES: tuple[tuple[SignalKind, FailureClass, str, str], ...] = (
 ALL_PROMPTS = (
     STRUCTURE_CHANGED_PROMPT,
     SCHEMA_MISMATCH_PROMPT,
-    EMPTY_RESULT_PROMPT,
+    ROWS_LOST_PROMPT,
     FIELDS_MISSING_PROMPT,
     GENERIC_PROMPT,
 )
@@ -168,7 +179,7 @@ def test_a_verdict_with_no_recognised_class_falls_through_to_the_generic_templat
 def test_an_abstaining_detector_is_not_evidence() -> None:
     """`INCONCLUSIVE` means the detector could not see, not that it saw a break."""
     verdict = _verdict(
-        _signal(SignalKind.ZERO_ROWS, SignalOutcome.INCONCLUSIVE),
+        _signal(SignalKind.ROW_COUNT, SignalOutcome.INCONCLUSIVE),
         _signal(SignalKind.NULL_RATE, SignalOutcome.INCONCLUSIVE),
         incomplete=True,
     )
@@ -184,7 +195,7 @@ def test_a_healthy_verdict_produces_no_prompt(spec: CollectorSpec) -> None:
 def test_a_target_side_refusal_alone_produces_no_prompt(spec: CollectorSpec) -> None:
     """Healing cannot unblock a fetch. A refused sample is a retry, never a prompt."""
     verdict = _verdict(
-        _signal(SignalKind.ZERO_ROWS, SignalOutcome.INCONCLUSIVE),
+        _signal(SignalKind.ROW_COUNT, SignalOutcome.INCONCLUSIVE),
         broken=False,
         incomplete=True,
     )
@@ -204,7 +215,7 @@ def test_a_schema_break_inside_an_incomplete_sample_still_produces_a_prompt(
     """
     verdict = _verdict(
         _signal(SignalKind.SCHEMA),
-        _signal(SignalKind.ZERO_ROWS, SignalOutcome.INCONCLUSIVE),
+        _signal(SignalKind.ROW_COUNT, SignalOutcome.INCONCLUSIVE),
         incomplete=True,
     )
     diagnosis = diagnose(spec, verdict)

@@ -113,6 +113,11 @@ def _outcomes(verdict: DetectVerdict) -> dict[SignalKind, SignalOutcome]:
     return {signal.kind: signal.outcome for signal in verdict.signals}
 
 
+def _detail(verdict: DetectVerdict, kind: SignalKind) -> str:
+    """One signal's evidence in words — what the operator reads before approving a heal."""
+    return next(signal.detail for signal in verdict.signals if signal.kind is kind)
+
+
 def test_a_schema_validation_failure_is_a_break(spec: CollectorSpec, store: HealStore) -> None:
     """A row the caller's schema rejects is break evidence, and only the schema signal fires."""
     _store_baseline(store)
@@ -134,8 +139,12 @@ def test_a_collector_fault_code_is_break_evidence(
     Parametrised over the whole class because the live rule is its *complement*: `detect`
     asks whether a code is a refusal or ambiguous, so a code moved into either of those
     sets changes this verdict with nothing in the module to say it had.
+
+    The baseline holds one row because this run returns one: the subject is the schema
+    signal alone, and a baseline the sample cannot match would fire the row-count detector
+    as well and stop pinning which signal the code produced.
     """
-    _store_baseline(store, row_count=10)
+    _store_baseline(store, row_count=1)
     errors = [
         RowError(index=0, message="Parse error: value must be finite number", error_code=code),
     ]
@@ -211,7 +220,60 @@ def test_zero_rows_after_a_productive_prior_run_is_a_break(
     verdict = detect(spec, _result(), store)
 
     assert verdict.broken is True
-    assert _outcomes(verdict) == {SignalKind.ZERO_ROWS: SignalOutcome.FIRED}
+    assert _outcomes(verdict) == {SignalKind.ROW_COUNT: SignalOutcome.FIRED}
+
+
+def test_a_partial_row_collapse_is_a_break_even_though_the_rows_that_came_back_are_clean(
+    spec: CollectorSpec, store: HealStore
+) -> None:
+    """Four rows against a baseline of ten, every one of them valid.
+
+    The gap this closes: firing only on literal emptiness left this run reading as healthy
+    to all four detectors at once. Nothing is malformed, so the schema signal is silent;
+    rows came back, so the old zero-rows rule was silent; the rows present carry every
+    field, so the null rates are unmoved. A collector that lost six rows in ten went
+    unremarked until the next run happened to lose the rest.
+    """
+    _store_baseline(store, row_count=10)
+    verdict = detect(spec, _result([_row(index) for index in range(4)]), store)
+
+    assert verdict.broken is True
+    assert _outcomes(verdict) == {SignalKind.ROW_COUNT: SignalOutcome.FIRED}
+    assert "4 rows came back" in _detail(verdict, SignalKind.ROW_COUNT)
+
+
+def test_a_row_count_that_dipped_within_tolerance_is_not_a_break(
+    spec: CollectorSpec, store: HealStore
+) -> None:
+    """Six of ten is the boundary, and the boundary holds rather than fires.
+
+    Listings lose and gain entries on their own. A threshold that fired here would heal a
+    working collector every time the page it reads got shorter, which is the expensive
+    false positive this whole module is arranged to avoid.
+    """
+    _store_baseline(store, row_count=10)
+    verdict = detect(spec, _result([_row(index) for index in range(6)]), store)
+
+    assert verdict.broken is False
+    assert _outcomes(verdict) == {}
+
+
+def test_a_refused_sample_never_fires_the_row_count_signal(
+    spec: CollectorSpec, store: HealStore
+) -> None:
+    """The collapse the target caused, which a heal cannot fix.
+
+    Widening the detector widened its blast radius: every throttled or blocked run returns
+    fewer rows by definition, so a row-count rule that did not abstain would turn each one
+    into a paid heal against a sample that was never fully fetched.
+    """
+    _store_baseline(store, row_count=10)
+    errors = [_refused(index) for index in range(6)]
+    verdict = detect(spec, _result([_row(index) for index in range(2)], errors), store)
+
+    assert verdict.broken is False
+    assert verdict.retry_requested is True
+    assert _outcomes(verdict)[SignalKind.ROW_COUNT] is SignalOutcome.INCONCLUSIVE
 
 
 def test_a_rebuilt_page_moves_the_skeleton_hash_and_is_a_break(
@@ -279,7 +341,7 @@ def test_a_wholly_throttled_run_is_not_broken(spec: CollectorSpec, store: HealSt
     assert "throttl" in (verdict.reason or "")
     assert SignalOutcome.FIRED not in _outcomes(verdict).values()
     assert _outcomes(verdict) == {
-        SignalKind.ZERO_ROWS: SignalOutcome.INCONCLUSIVE,
+        SignalKind.ROW_COUNT: SignalOutcome.INCONCLUSIVE,
         SignalKind.NULL_RATE: SignalOutcome.INCONCLUSIVE,
     }
 
@@ -299,7 +361,7 @@ def test_a_partial_throttle_suppresses_volume_signals_but_keeps_schema_evidence(
 
     assert _outcomes(verdict) == {
         SignalKind.SCHEMA: SignalOutcome.FIRED,
-        SignalKind.ZERO_ROWS: SignalOutcome.INCONCLUSIVE,
+        SignalKind.ROW_COUNT: SignalOutcome.INCONCLUSIVE,
         SignalKind.NULL_RATE: SignalOutcome.INCONCLUSIVE,
     }
     assert verdict.broken is True
@@ -339,7 +401,7 @@ def test_a_blocked_target_is_reported_rather_than_passed_over_in_silence(
     assert verdict.signals != []
     assert BLOCKED_CODE in (verdict.reason or "")
     assert _outcomes(verdict) == {
-        SignalKind.ZERO_ROWS: SignalOutcome.INCONCLUSIVE,
+        SignalKind.ROW_COUNT: SignalOutcome.INCONCLUSIVE,
         SignalKind.NULL_RATE: SignalOutcome.INCONCLUSIVE,
     }
 

@@ -202,7 +202,7 @@ These are gates, not aspirations. Any feature that breaks one is not done.
       module downstream. So: a verdict that is `incomplete` but **not** `broken` produces
       no prompt; a verdict that is **both** produces the prompt for the fired extraction
       signal.
-      **Signal precedence** (F7's call, pinned by test): `skeleton > schema > zero_rows >
+      **Signal precedence** (F7's call, pinned by test): `skeleton > schema > row_count >
       null_rate`. A moved tag-and-class tree is *why* the others fired, so naming a
       symptom would send the heal hunting for a field on a page whose rows it can no
       longer find.
