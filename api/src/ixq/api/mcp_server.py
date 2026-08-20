@@ -52,7 +52,6 @@ def label_says(substance: str, concept: str) -> dict:
             "substance": substance,
             "concept": concept,
             "found": False,
-            "sections_read": _scope(result),
             "note": (
                 f"{concept!r} was not matched in any scanned section of any label. "
                 "That is not evidence it is absent from the labels themselves."
@@ -65,7 +64,6 @@ def label_says(substance: str, concept: str) -> dict:
         "concept": concept,
         "found": True,
         "diverges": row.diverges,
-        "sections_read": _scope(result),
         "manufacturers": [
             {
                 "name": p.ma_holder or p.external_id,
@@ -94,9 +92,8 @@ def divergences(substance: str) -> dict:
     revised = {d.product_external_id: d.last_updated for d in result.documents}
     return {
         "substance": substance,
-        "sections_read": _scope(result),
         "caveat": (
-            "'absent' means absent from the scanned sections only. A label may state the "
+            "'absent' means absent from the sections read for that manufacturer, listed against each one below. A label may state the "
             "same thing in a section that was not collected."
         ),
         "manufacturers": [
@@ -118,17 +115,6 @@ def divergences(substance: str) -> dict:
             for row in result.divergent
         ],
         "agreed_concepts": [r.concept for r in result.rows if not r.diverges],
-    }
-
-
-def _scope(result) -> dict[str, list[str]]:
-    """Sections read, per manufacturer — the scope each absence is defensible against.
-
-    Reported per label rather than as one list: they can differ, and a shared list would
-    claim a section was read for a product whose copy of it came back empty.
-    """
-    return {
-        external_id: list(codes) for external_id, codes in sorted(result.scanned.items())
     }
 
 

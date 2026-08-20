@@ -49,7 +49,17 @@ A prefix match would eat real clauses — `2.5 mg/5 ml oral solution` and `1.5 g
 renal impairment` both open with `d.d` and are contraindications, not headings.
 """
 
-BULLET = re.compile(r"^[\s ]*(?:[•·\-–—*]|o(?=\s))[\s ]*")
+SPLITTING_GLYPHS = "•·▪▫◦●○‣⁃∙*"
+"""Markers unambiguous enough to end a clause mid-line.
+
+Shared by `BULLET` and `SEGMENT` on purpose. They diverged once — `BULLET` knew `*`, `–`
+and `—` while `SEGMENT` knew only `•` and `·` — so a publisher bulleting inline with `*`
+had its markers trimmed at line start but never split, rebuilding exactly the
+single-clause section this module was fixed to prevent. Nothing would have caught it:
+no text is dropped, the clause is merely the wrong size.
+"""
+
+BULLET = re.compile(rf"^[\s ]*(?:[{re.escape(SPLITTING_GLYPHS)}\-–—]|o(?=\s))[\s ]*")
 """A bullet marker. `o` only counts when whitespace follows it.
 
 EMC nests sub-bullets as a literal `o`, but stripping `o` as a character would turn
@@ -77,7 +87,7 @@ Dropping them is a correctness one: an unclassified clause is a visible gap, a d
 clause is an invisible false absence.
 """
 
-SEGMENT = re.compile(r"[\n•·]")
+SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]")
 """Where one clause ends and the next begins.
 
 Newlines alone are not enough. Publishers differ: Zentiva's §4.3 arrives as a single line
@@ -85,8 +95,8 @@ carrying eight `•` bullets, so splitting on newlines yielded one 912-character
 the whole section — every concept in it quoted the entire section as its evidence, and a
 concept from one bullet was reported against the placement of another.
 
-Only the unambiguous bullet glyphs split mid-line. `-` and `o` do not: they occur inside
-words, and `BULLET` removes them only at the start of a segment where they cannot.
+Only `SPLITTING_GLYPHS` split mid-line. `-`, `–`, `—` and `o` do not: they occur inside
+words and as ranges, so `BULLET` removes them only at the start of a segment.
 """
 
 

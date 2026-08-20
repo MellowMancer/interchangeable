@@ -56,8 +56,12 @@ def _check_version(conn: sqlite3.Connection, db_path: Path) -> None:
     if found != SCHEMA_VERSION:
         raise RuntimeError(
             f"{db_path} is at schema version {found}, this build expects {SCHEMA_VERSION}. "
-            "The schema is create-only and holds no irreplaceable state — delete the file "
-            "and re-run init."
+            "There is no migration path: the schema is create-only, so a changed column "
+            "cannot be applied to an existing file.\n"
+            "Deleting it is NOT free. The file holds the collected corpus — hundreds of "
+            "billable fetches, which `init` does not restore and `run` re-bills — and "
+            "bdheal's baselines and heal events, which are history no command can "
+            "regenerate and which the collector health screen reads."
         )
 
 

@@ -34,6 +34,7 @@ export type ProductColumn = {
 
 export type Matrix = {
   substance_id: string;
+  substance_name: string;
   products: ProductColumn[];
   rows: Row[];
 };
@@ -106,7 +107,3 @@ export const columnLabel = (product: ProductColumn) =>
 
 /** Concept ids are lexicon keys (`metabolic_acidosis`); every screen shows them the same way. */
 export const conceptLabel = (concept: string) => concept.replace(/_/g, " ");
-
-/** The roster carries display names; an id is only shown when the roster has not loaded it. */
-export const substanceName = (substances: SubstanceSummary[], id: string) =>
-  substances.find((s) => s.id === id)?.name ?? id;

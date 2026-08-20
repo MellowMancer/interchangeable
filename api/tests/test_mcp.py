@@ -56,10 +56,10 @@ def test_every_answer_names_the_sections_actually_scanned(repository: Repository
         ["4.3", "4.4"],
         ["4.3", "4.4"],
     ]
-    assert divergences(SUBSTANCE_ID)["sections_read"] == {
-        "1": ["4.3", "4.4"],
-        "2": ["4.3", "4.4"],
-    }
+    assert [m["sections_read"] for m in divergences(SUBSTANCE_ID)["manufacturers"]] == [
+        ["4.3", "4.4"],
+        ["4.3", "4.4"],
+    ]
 
 
 def test_divergences_carry_revision_dates_so_staleness_is_separable(

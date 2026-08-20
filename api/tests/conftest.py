@@ -122,3 +122,41 @@ def _seed(repository: Repository) -> None:
             char_end=len(SECTION_43),
         )
     )
+
+
+def _corpus_database() -> Path | None:
+    """The collected database, wherever pytest was invoked from.
+
+    `database_path()` resolves `data/` against the working directory, so a suite run from
+    `api/` silently skipped every corpus guard — the tests whose whole purpose is to catch
+    what unit tests cannot. Walking up for the repo root makes them run either way.
+    """
+    from ixq.settings import DB_NAME, database_path
+
+    if database_path().exists():
+        return database_path()
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "data" / DB_NAME
+        if candidate.exists():
+            return candidate
+    return None
+
+
+@pytest.fixture
+def corpus_sections() -> list[Section]:
+    """Every stored section, or a skip when nothing has been collected."""
+    import sqlite3
+
+    path = _corpus_database()
+    if path is None:
+        pytest.skip("no corpus collected")
+    conn = sqlite3.connect(path)
+    try:
+        return [
+            Section(code=code, heading=heading, text=text)
+            for code, heading, text in conn.execute(
+                "SELECT code, heading, text FROM sections"
+            )
+        ]
+    finally:
+        conn.close()

@@ -138,9 +138,9 @@ def test_a_collectors_heal_history_is_reported_newest_first(client: TestClient) 
     from bdheal.models import HealEvent, HealStatus
     from bdheal.store import SqliteHealStore
     from bdheal.store import connect as heal_connect
-    from ixq.settings import database_path
+    from ixq.settings import heal_database_path
 
-    store = SqliteHealStore(heal_connect(database_path()))
+    store = SqliteHealStore(heal_connect(heal_database_path()))
     for day, status in ((1, HealStatus.AWAITING_APPROVAL), (2, HealStatus.DONE)):
         store.save_heal_event(
             HealEvent(

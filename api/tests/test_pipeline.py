@@ -264,12 +264,19 @@ def test_two_products_with_identical_labels_stay_two_documents(
         ("Tritace 5mg Tablets", False),
         ("Perindopril and Indapamide 4mg/1.25mg Tablets", True),
         ("Amlodipine/Valsartan 5mg/80mg Film-coated Tablets", True),
+        # A combination that ALSO names its presentation. Counting presentation words
+        # anywhere in the name admitted these into a single-substance comparison — a
+        # worse error than the dropped `Powder and Solvent` the rule exists to prevent.
+        ("Amoxicillin and Clavulanic Acid Powder for Oral Suspension", True),
+        ("Amoxicillin and Clavulanic Acid Powder and Solvent for Suspension", True),
+        ("Amlodipine/Valsartan Powder for Solution for Infusion", True),
     ],
 )
 def test_a_presentation_is_not_a_combination(name: str, combination: bool) -> None:
-    """`Powder and Solvent` is one substance in two containers, not two substances.
+    """Judged on the words either side of the join, not on the name as a whole.
 
-    A false positive here is a silent drop: the product never reaches the roster, so
-    nothing downstream can notice the manufacturer is missing.
+    Both directions are silent failures: a false positive drops a manufacturer from the
+    roster, and a false negative puts a two-substance label in a column beside
+    mono-substance ones.
     """
     assert is_combination(name) is combination

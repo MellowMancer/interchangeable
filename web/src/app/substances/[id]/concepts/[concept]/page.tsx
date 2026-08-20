@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { columnLabel, conceptLabel, getMatrix, getSubstances, substanceName } from "@/lib/api";
+import { columnLabel, conceptLabel, getMatrix } from "@/lib/api";
 import { PlacementBadge } from "@/lib/placement";
 
 /**
@@ -15,7 +15,9 @@ export default async function ConceptPage({
 }: PageProps<"/substances/[id]/concepts/[concept]">) {
   const { id, concept } = await params;
   const decoded = decodeURIComponent(concept);
-  const [matrix, substances] = await Promise.all([getMatrix(id), getSubstances()]);
+  // Only the matrix: the roster endpoint recomputes every substance's comparison, which
+  // is the whole corpus read to render one back-link.
+  const matrix = await getMatrix(id);
   if (!matrix) notFound();
 
   const row = matrix.rows.find((r) => r.concept === decoded);
@@ -30,7 +32,7 @@ export default async function ConceptPage({
           href={`/substances/${id}`}
           className="text-sm text-slate-600 hover:underline dark:text-slate-400"
         >
-          ← {substanceName(substances, id)}
+          ← {matrix.substance_name}
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">
           {conceptLabel(decoded)}

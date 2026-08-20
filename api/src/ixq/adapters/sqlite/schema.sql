@@ -1,11 +1,20 @@
 -- Interchangeable? schema. Single source of truth, applied by adapters/sqlite on connect.
 --
--- ⚠️ Create-only: every statement is IF NOT EXISTS, so a changed column is NOT migrated
--- into an existing database. `connect()` checks for known-stale shapes and says so.
+-- ⚠️ Create-only, and there is no migration runner. Every statement is IF NOT EXISTS, so
+-- a changed column is never applied to an existing database. `connect()` reads
+-- `user_version` before applying this file and refuses one it does not recognise.
+--
+-- Bumping the version is therefore a decision about existing data, not a formality. The
+-- file holds the collected corpus — hundreds of billable fetches that `init` does not
+-- restore — and bdheal's baselines and heal events, which are history no command
+-- regenerates. A bump that changes a column needs the rows copied into a fresh database
+-- by hand; "delete it and re-run init" is not a free recovery.
 -- Deliberately corpus-neutral: nothing here names a subject domain.
 --
--- `bdheal` ships its own `bdheal_`-prefixed tables and may share this file. Nothing here
--- references them, and nothing there references these.
+-- `bdheal` keeps its tables in its own database (`bdheal.db`), not this one. Nothing here
+-- references them and nothing there references these, so sharing a file bought only a
+-- shared version stamp — which meant a bump here could refuse or rebuild heal history
+-- that had not changed and cannot be regenerated.
 
 PRAGMA foreign_keys = ON;
 

@@ -19,7 +19,7 @@ from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import Document, Occurrence, Placement, variant
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.ports import Repository
-from ixq.settings import config_dir, database_path
+from ixq.settings import config_dir, database_path, heal_database_path
 
 app = FastAPI(title="Interchangeable?")
 
@@ -39,7 +39,7 @@ def repository() -> Iterator[Repository]:
 
 def heal_store() -> Iterator[HealStore]:
     """The `bdheal` store per request, thread-confined for the same reason as `repository`."""
-    conn = heal_connect(database_path())
+    conn = heal_connect(heal_database_path())
     try:
         yield SqliteHealStore(conn)
     finally:
@@ -114,6 +114,13 @@ class Matrix(BaseModel):
     """
 
     substance_id: str
+    substance_name: str
+    """Carried here so a screen showing one concept needs only this response.
+
+    The roster endpoint recomputes every substance's comparison to produce its counts, so
+    fetching it for a display name costs the whole roster to render one back-link.
+    """
+
     products: list[ProductColumn]
     rows: list[Row]
 
@@ -151,8 +158,10 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
 
     by_product = {d.product_external_id: d for d in result.documents}
 
+    names = {s.id: s.name for s in load_substances(config_dir() / "substances.yaml")}
     return Matrix(
         substance_id=result.substance_id,
+        substance_name=names.get(substance_id, substance_id),
         products=[
             ProductColumn(
                 external_id=p.external_id,
@@ -173,7 +182,10 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
                     Cell(
                         product_external_id=p.external_id,
                         placement=row.placements[p.external_id],
-                        evidence=_evidence(row.evidence.get(p.external_id), by_product),
+                        evidence=_evidence(
+                            row.evidence.get(p.external_id),
+                            by_product.get(p.external_id),
+                        ),
                     )
                     for p in result.products
                 ],
@@ -183,27 +195,22 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
     )
 
 
-def _evidence(occurrence: Occurrence | None, by_product: dict[str, Document]) -> Evidence | None:
+def _evidence(occurrence: Occurrence | None, document: Document | None) -> Evidence | None:
     """The quote behind one cell.
 
-    Taken from the occurrence `compare` used to set that cell, never looked up again:
-    re-deriving it from storage is how a placement and its quote came from two different
-    revisions of the same label.
+    Both arguments come from the caller's own loop over `(product, concept)`. Nothing is
+    looked up again: `compare` already paired every occurrence with the document it
+    belongs to, and re-deriving that pairing here is how a placement and its quote came
+    from two different revisions of the same label.
     """
-    if occurrence is None:
+    if occurrence is None or document is None:
         return None
-    document = by_product.get(
-        next(
-            (d.product_external_id for d in by_product.values() if d.sha256 == occurrence.document_sha256),
-            "",
-        )
-    )
     return Evidence(
         quote=occurrence.quote,
         section_code=occurrence.section_code,
         char_start=occurrence.char_start,
         char_end=occurrence.char_end,
-        source_url=document.source_url if document else "",
+        source_url=document.source_url,
     )
 
 

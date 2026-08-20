@@ -1,5 +1,7 @@
 """Typer entrypoints. The only module that knows the pipeline's stage order."""
 
+from collections.abc import Sequence
+
 import typer
 
 from ixq.adapters.brightdata import label_source
@@ -10,11 +12,12 @@ from ixq.adapters.config import (
     load_substances,
 )
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.domain import CollectorKind
+from ixq.domain import Collector, CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
+from ixq.pipeline.ports import CollectorMaintainer
 from ixq.settings import config_dir, database_path
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
@@ -102,17 +105,25 @@ def run(
                 _one_label(product, source, by_kind, labels, concepts, repository)
 
 
-def _check(labels, collectors, *, heal: bool) -> None:
+def _check(
+    labels: CollectorMaintainer, collectors: Sequence[Collector], *, heal: bool
+) -> None:
     """Judge each collector against its anchor before spending a fetch per product.
 
     A break found here is reported and not raised: one moved collector should not stop the
     others, and a partial corpus is visible in the comparison while a crashed run is not.
+    That has to be enforced, not just intended — the collector library raises on a refused
+    target, and letting it through would lose the whole run to one flaky page.
     """
     if not heal:
         typer.echo("skipping the collector health check (--no-heal)")
         return
     for collector in collectors:
-        check = labels.ensure_healthy(collector.id)
+        try:
+            check = labels.ensure_healthy(collector.id)
+        except Exception as failure:  # noqa: BLE001 — the boundary this docstring promises
+            typer.echo(f"  {collector.id}: health check failed — {failure}")
+            continue
         if check.promoted_unverified:
             typer.echo(f"  {collector.id}: healed, UNVERIFIED — {check.reason}")
         elif check.healed:

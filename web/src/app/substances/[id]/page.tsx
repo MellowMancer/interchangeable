@@ -5,7 +5,6 @@ import {
   getMatrix,
   getSubstances,
   manufacturer,
-  substanceName,
   type ProductColumn,
   type SubstanceSummary,
 } from "@/lib/api";
@@ -24,7 +23,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
     <div className="space-y-8">
       <header className="space-y-3">
         <h1 className="text-3xl font-semibold tracking-tight">
-          {substanceName(substances, id)}
+          {matrix.substance_name}
         </h1>
         <p className="max-w-prose text-slate-600 dark:text-slate-400">
           {matrix.products.length} manufacturers, {matrix.rows.length} concepts.{" "}

@@ -16,7 +16,7 @@ containers. Reading it as a combination drops the product silently — the same 
 loss the `/` branch was narrowed to avoid.
 """
 
-COMBINATION = re.compile(r"[A-Za-z]{4,}\s*(?:/|\band\b)\s*[A-Za-z]{4,}")
+COMBINATION = re.compile(r"([A-Za-z]{4,})\s*(?:/|\band\b)\s*([A-Za-z]{4,})")
 """A combination joins two substance names, with `/` or `and`. A concentration joins a
 number and a unit.
 
@@ -28,16 +28,28 @@ The name is *not* required to contain the substance: `Tritace` is ramipril's ori
 brand, and excluding brands would drop the reference product from every comparison.
 """
 
-def _joins_dosage_forms(name: str) -> bool:
-    """Whether the words either side of the join are presentation words."""
-    return len(DOSAGE_FORM.findall(name)) >= 2
+def _joins_substances(left: str, right: str) -> bool:
+    """Whether this join is between two substance names rather than two presentations.
+
+    Judged on the words **immediately either side** of the join, not on how many
+    presentation words the name contains anywhere. A global count admits
+    `Amoxicillin and Clavulanic Acid Powder for Oral Suspension` — a genuine combination
+    that merely also names its presentation — into a single-substance comparison, which
+    is a worse error than the dropped `Powder and Solvent` it was meant to prevent.
+    """
+    return not (DOSAGE_FORM.fullmatch(left) or DOSAGE_FORM.fullmatch(right))
 
 
 def is_combination(product_name: str) -> bool:
-    """Whether a name denotes two active substances rather than one."""
-    if _joins_dosage_forms(product_name):
-        return False
-    return bool(COMBINATION.search(product_name))
+    """Whether a name denotes two active substances rather than one.
+
+    A name may contain several joins — `Amoxicillin and Clavulanic Acid Powder and
+    Solvent` has two — so every one is examined and any single substance join settles it.
+    """
+    return any(
+        _joins_substances(left, right)
+        for left, right in COMBINATION.findall(product_name)
+    )
 
 
 def collect(

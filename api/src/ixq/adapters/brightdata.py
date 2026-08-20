@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ixq.domain import Collector, CollectorKind
 from ixq.pipeline.ports import CollectorCheck
+from ixq.settings import HEAL_DB_NAME
 
 
 class _Row(BaseModel):
@@ -94,13 +95,26 @@ class HealerLabelSource:
                 broken=False,
                 reason="no anchor_url configured — drift cannot be judged",
             )
+        if collector_id not in self._schemas:
+            # `sitemap` and `discovery` are valid kinds with no row shape yet. Raising
+            # here would abort the whole run over a collector nothing is asking to use.
+            return CollectorCheck(
+                collector_id=collector_id,
+                broken=False,
+                reason="no row schema for this collector kind — not checked",
+            )
 
         anchor = [collector.anchor_url]
         spec = self._spec(collector_id, anchor)
-        verdict = self._healer.detect(spec, self._healer.run(spec, anchor))
+        # Bound, not inlined: a second `run` is a second billable job against the one page
+        # whose baseline must stay clean, and it would store goldens from a run `detect`
+        # never judged. The docs are explicit that a duplicate run is two jobs for one
+        # answer.
+        result = self._healer.run(spec, anchor)
+        verdict = self._healer.detect(spec, result)
         if not verdict.broken:
             if self._goldens is not None and collector.old_layout_url:
-                self._goldens.save(collector_id, self._healer.run(spec, anchor).rows)
+                self._goldens.save(collector_id, result.rows)
             return CollectorCheck(collector_id=collector_id, broken=False)
 
         event = self._healer.heal(spec, verdict)
@@ -166,7 +180,13 @@ class GoldenStore:
         return json.loads(path.read_text()) if path.exists() else []
 
     def _path(self, collector_id: str) -> Path:
-        return self._directory / f"{collector_id}.json"
+        """`.name` because an id reaches this as a path segment.
+
+        Ids are operator-controlled config rather than untrusted input, so this is not a
+        live injection — but `c_../../x` would escape the directory, and that class of
+        mistake is impossible in the database this store deliberately sits beside.
+        """
+        return self._directory / f"{Path(collector_id).name}.json"
 
 
 def label_source(
@@ -176,12 +196,12 @@ def label_source(
 ) -> HealerLabelSource:
     """Wire a live `HealerLabelSource` over the `bdata` CLI.
 
-    `bdheal` keeps its baselines and heal events in its own `bdheal_`-prefixed tables in
-    the same file, which is what lets a run's history sit beside the labels it produced.
+    `bdheal` keeps its baselines and heal events in its own database beside this one, so
+    an app schema bump can never refuse or rebuild a file holding heal history.
     """
     healer = Healer(
         studio=BdataStudioClient(runner=SubprocessRunner(), clock=SystemClock()),
-        store=SqliteHealStore(heal_connect(db_path)),
+        store=SqliteHealStore(heal_connect(db_path.with_name(HEAL_DB_NAME))),
         clock=SystemClock(),
     )
     return HealerLabelSource(

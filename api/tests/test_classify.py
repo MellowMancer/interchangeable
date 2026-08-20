@@ -7,7 +7,7 @@ import pytest
 
 from ixq.adapters.config import load_concepts
 from ixq.domain import UNCLASSIFIED, Concept, Section, clauses, prepared
-from ixq.domain.section import BULLET, HEADER, LEAD_IN
+from ixq.domain.section import BULLET, HEADER, LEAD_IN, SPLITTING_GLYPHS
 from ixq.pipeline.classify import classify
 
 # Verbatim from Glucophage 500 mg, EMC product 987 — the real thing, bullets and all.
@@ -211,14 +211,9 @@ def test_every_dropped_word_is_attributable_to_a_named_rule(shape: str) -> None:
     text = SHAPES[shape]
     section = Section(code="4.3", heading="Contraindications", text=text)
 
-    covered = set()
-    for clause in clauses(section):
-        covered.update(range(clause.start, clause.end))
+    dropped = _unexplained_drops(section)
 
-    for start, end in _orphan_spans(text, covered):
-        assert _explained(text[start:end], _line_around(text, start)), (
-            f"{text[start:end]!r} was dropped from {text!r} by no named rule"
-        )
+    assert not dropped, f"{dropped!r} was dropped from {text!r} by no named rule"
 
 
 def _orphan_spans(text: str, covered: set[int]) -> list[tuple[int, int]]:
@@ -255,37 +250,27 @@ def test_every_clause_quote_is_a_slice_of_the_section() -> None:
 
 
 @pytest.mark.corpus
-def test_no_word_in_the_real_corpus_falls_outside_a_clause() -> None:
+def test_no_word_in_the_real_corpus_falls_outside_a_clause(
+    corpus_sections: list[Section],
+) -> None:
     """The synthetic shapes above are ones we thought of; this is what actually shipped.
 
-    Skipped when no database is present, so the suite stays runnable anywhere — but when
-    a corpus exists this is the check that would have caught the `:$` rule, which passed
-    every unit test while discarding 2,659 characters of real label text.
+    This is the check that would have caught the `:$` rule, which passed every unit test
+    while discarding 2,659 characters of real label text.
     """
-    import sqlite3
-
-    from ixq.settings import database_path
-
-    path = database_path()
-    if not path.exists():
-        pytest.skip("no corpus collected")
-
-    conn = sqlite3.connect(path)
-    orphaned: list[tuple[str, str]] = []
-    for code, text in conn.execute("SELECT code, text FROM sections"):
-        section = Section(code=code, heading="h", text=text)
-        covered = set()
-        for clause in clauses(section):
-            covered.update(range(clause.start, clause.end))
-        for start, end in _orphan_spans(text, covered):
-            if not _explained(text[start:end], _line_around(text, start)):
-                orphaned.append((code, text[start:end]))
+    orphaned = [
+        (section.code, dropped)
+        for section in corpus_sections
+        for dropped in _unexplained_drops(section)
+    ]
 
     assert not orphaned, f"{len(orphaned)} unexplained drops, e.g. {orphaned[:5]}"
 
 
 @pytest.mark.corpus
-def test_no_section_collapses_into_a_single_clause() -> None:
+def test_no_section_collapses_into_a_single_clause(
+    corpus_sections: list[Section],
+) -> None:
     """Coverage cannot catch this, which is why it is asserted separately.
 
     Zentiva's §4.3 — eight bullets on one line — scored ~100% coverage as a single
@@ -293,20 +278,23 @@ def test_no_section_collapses_into_a_single_clause() -> None:
     wrong: one blob matches every concept anywhere in it, so a concept from one bullet was
     reported against another's placement, and each quoted the whole section as evidence.
     """
-    import sqlite3
-
-    from ixq.settings import database_path
-
-    path = database_path()
-    if not path.exists():
-        pytest.skip("no corpus collected")
-
-    conn = sqlite3.connect(path)
-    blobs = []
-    for code, text in conn.execute("SELECT code, text FROM sections"):
-        found = clauses(Section(code=code, heading="h", text=text))
-        markers = text.count("•") + text.count("·")
-        if markers >= 3 and len(found) < markers:
-            blobs.append((code, markers, len(found)))
+    blobs = [
+        (section.code, markers, len(clauses(section)))
+        for section in corpus_sections
+        if (markers := sum(section.text.count(g) for g in SPLITTING_GLYPHS)) >= 3
+        and len(clauses(section)) < markers
+    ]
 
     assert not blobs, f"sections with bullets that did not split: {blobs}"
+
+
+def _unexplained_drops(section: Section) -> list[str]:
+    """Text no named rule accounts for. Empty is the invariant."""
+    covered: set[int] = set()
+    for clause in clauses(section):
+        covered.update(range(clause.start, clause.end))
+    return [
+        section.text[start:end]
+        for start, end in _orphan_spans(section.text, covered)
+        if not _explained(section.text[start:end], _line_around(section.text, start))
+    ]

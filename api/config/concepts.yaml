@@ -55,10 +55,15 @@ concepts:
   # A washout is one statement with many phrasings. Matching only "must not be initiated"
   # reported Wockhardt and Zentiva as silent on the 36-hour sacubitril washout their labels
   # do state ("must not be started until"), which is a false absence, not a disagreement.
-  washout:            [must not be initiated, must not be started, should not be started,
-                       must not be commenced, hours after taking the last dose,
-                       hours after the last dose, discontinuation of treatment,
-                       monoamine oxidase, maoi, days after stopping]
+  # Every phrasing must carry the *interval*, not just a prohibition. Bare "should not be
+  # started" also matches "Treatment should not be started in patients with severe renal
+  # impairment" — a false washout in 4.4, which is the same error as the false absence
+  # this list was widened to fix, pointing the other way. Verified: dropping the bare
+  # forms changes nothing on the corpus and stops matching ordinary prose.
+  washout:            [must not be initiated, must not be commenced,
+                       hours after taking the last dose, hours after the last dose,
+                       discontinuation of treatment, monoamine oxidase, maoi,
+                       days after stopping]
 
   # --- other absolute bars ---
   infection:          [infection, sepsis, septic]
