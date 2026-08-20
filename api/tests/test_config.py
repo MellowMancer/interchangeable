@@ -117,3 +117,40 @@ def test_shipped_collectors_parse(shipped_config_dir: Path) -> None:
 
     assert CollectorKind.PRODUCT in {c.kind for c in collectors}
     assert all(c.id.startswith("c_") for c in collectors)
+
+
+# Real contraindication clauses, each with the concept it must be tagged as. Every one
+# was a measured miss before the lexicon was widened against 47 live labels — they are
+# here so a future trim cannot quietly reopen the gap.
+CLAUSES = [
+    ("Diabetic pre-coma.", "glycaemic_emergency"),
+    ("Haemorrhagic stroke", "bleeding"),
+    ("History of angioedema (hereditary, idiopathic or due to ACE inhibitors)", "angioedema"),
+    ("known QT-interval prolongation or congenital long QT syndrome", "qt_prolongation"),
+    ("Thyrotoxicosis", "thyroid"),
+    ("Live virus immunisation.", "immunisation"),
+    ("rare hereditary problems of galactose intolerance", "excipient_intolerance"),
+    ("Extracorporeal treatments leading to contact of blood", "extracorporeal"),
+    ("Severe hypotension.", "hypotension"),
+    ("Shock (including cardiogenic shock).", "shock"),
+    ("obstruction of the outflow tract of the left ventricle", "cardiac_outflow"),
+    ("Intravascular administration of iodinated contrast agents", "contrast_agent"),
+    ("Severe renal failure (GFR < 30 mL/min).", "renal"),
+    ("Hepatic insufficiency, acute alcohol intoxication", "hepatic"),
+]
+
+
+@pytest.mark.parametrize("clause,expected", CLAUSES)
+def test_lexicon_covers_real_contraindication_clauses(
+    shipped_config_dir: Path, clause: str, expected: str
+) -> None:
+    concepts = {c.name: c for c in load_concepts(shipped_config_dir / "concepts.yaml")}
+    assert expected in concepts, f"{expected!r} is no longer a configured concept"
+    assert concepts[expected].matches(clause)
+
+
+def test_bleeding_matches_the_stem_not_the_whole_word(shipped_config_dir: Path) -> None:
+    """`haemorrhage` as a pattern misses `haemorrhagic` — patterns are stems by contract."""
+    concepts = {c.name: c for c in load_concepts(shipped_config_dir / "concepts.yaml")}
+    assert concepts["bleeding"].matches("Haemorrhagic stroke")
+    assert concepts["bleeding"].matches("risk of haemorrhage")

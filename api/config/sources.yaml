@@ -1,8 +1,14 @@
 # Corpus roster.
 #
 # `variant` names the collector's layout family (HTML structure), not subject matter.
+#
+# ⚠️ `search_url` must carry `limit=200`. EMC caps results at 50 per page and `page=2`
+# returns the same 50 — the real control is offset/limit. Without it, metformin silently
+# returns 50 of its 90 products and 40 vanish with no error anywhere.
 sources:
   - id: emc
     name: electronic medicines compendium
     base_url: https://www.medicines.org.uk
     variant: emc-smpc
+    search_url: https://www.medicines.org.uk/emc/search?q={query}&limit=200
+    product_url: https://www.medicines.org.uk/emc/product/{external_id}

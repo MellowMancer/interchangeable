@@ -5,14 +5,62 @@
 #
 # A clause matching nothing here is recorded as `unclassified` rather than dropped, and
 # that count is published. Recall gaps are findings; silent losses are not.
+#
+# Concepts are clinical categories, not one-per-clause labels: a clause may carry several,
+# and several clauses may share one. Widened 2026-08-20 against 194 real contraindication
+# clauses from 47 EMC labels across the eight configured substances.
 concepts:
-  pregnancy:          [pregnan, trimester, gestation]
+  # --- organ systems and physiological state ---
+  renal:              [renal, kidney, gfr, creatinine, nephro, haematuria, hematuria]
+  hepatic:            [hepatic, liver, cirrhosis, cholestasis, jaundice]
+  cardiac:            [cardiac, heart failure, myocardial, cardiogenic, cardiomyopathy]
+  cardiac_outflow:    [outflow tract, aortic stenosis, ventricle, obstructive]
+  hypotension:        [hypotension, hypotensive]
+  shock:              [shock]
+  respiratory:        [respiratory, hypoxia, pulmonary, asthma, bronchospasm]
+  metabolic_acidosis: [acidosis, ketoacidosis, ketosis]
+  glycaemic_emergency: [pre-coma, precoma, diabetic coma]
+  porphyria:          [porphyria]
+  qt_prolongation:    [qt-interval, qt interval, qtc, torsade, long qt, arrhythmi]
+  heart_block:        [heart block, atrioventricular, av block, bradycard, tachycard,
+                       fibrillation, sick sinus]
+  serotonin:          [serotonin, ssri, triptan]
+  thyroid:            [thyroid, thyrotoxic, myxoedema, myxedema]
+  electrolyte:        [kalaem, kalem, natraem, natrem, calcaem, calcem, magnesaem,
+                       sodium level, potassium]
+  endocrine:          [addison, adrenal, cushing, phaeochromocytoma, pheochromocytoma]
+  enzyme_deficiency:  [g6pd, glucose-6-phosphate, deficiency]
+  ocular:             [ophthalmic, ocular, glaucoma, intraocular]
+
+  # --- immune and reaction ---
+  hypersensitivity:   [hypersensitiv, allergic, allergy, anaphyla]
+  angioedema:         [angioedema, angio-oedema, angioneurotic]
+
+  # --- life stage ---
+  pregnancy:          [pregnan, trimester, gestation, child-bearing, childbearing]
   breastfeeding:      [lactation, breast-feed, breastfeed, nursing mother]
-  renal:              [renal, kidney, gfr, creatinine, nephro]
-  hepatic:            [hepatic, liver]
-  hypersensitivity:   [hypersensitiv, allergic, anaphyla]
+  paediatric:         [children, paediatric, pediatric, infant, neonate, adolescent]
+  elderly:            [elderly]
+
+  # --- exposures and interactions ---
   alcohol:            [alcohol]
-  cardiac:            [cardiac, heart failure, myocardial]
-  metabolic_acidosis: [acidosis, ketoacidosis]
-  concomitant_drug:   [concomitant, co-administration, combination with]
-  paediatric:         [children, paediatric, infant]
+  concomitant_drug:   [concomitant, co-administration, combination with, treated with,
+                       antiviral, contraindicated with, use with]
+  contrast_agent:     [contrast agent, iodinated, radiocontrast]
+  immunisation:       [immunisation, immunization, live virus, vaccin]
+  extracorporeal:     [extracorporeal, dialysis, apheresis]
+  washout:            [must not be initiated, discontinuation of treatment,
+                       monoamine oxidase, maoi, days after stopping]
+
+  # --- other absolute bars ---
+  infection:          [infection, sepsis, septic]
+  malignancy:         [cancer, carcinoma, malignan, tumour, tumor]
+  dehydration:        [dehydration, hypovolaem, hypovolem]
+  bleeding:           [haemorrhag, hemorrhag, bleeding, coagulop]
+  thromboembolism:    [thromboembol, thrombosis, thrombotic, embolism, thrombophilia]
+  haematological:     [bone marrow, leukopeni, leucopeni, thrombocytop, neutropeni,
+                       anaemia, anemia, aplasia, hypoplasia, blood disorder, pancytopeni]
+  gastrointestinal:   [gastrointestinal, ulcer, stomatitis, gastric, colitis, bowel]
+  fertility:          [infertility, fertility]
+  obstruction:        [obstruction, stenosis, perforation, ileus]
+  excipient_intolerance: [galactose, lactase, fructose, sucrase, intoleran]

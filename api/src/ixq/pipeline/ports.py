@@ -1,6 +1,7 @@
 """Interfaces the use cases depend on. Implementations live in the adapters layer."""
 
-from typing import Protocol
+from collections.abc import Sequence
+from typing import Any, Protocol
 
 from ixq.domain import (
     Collector,
@@ -63,4 +64,17 @@ class Repository(Protocol):
 
     def occurrences_for_substance(self, substance_id: str) -> list[Occurrence]:
         """Every occurrence across every product of a substance. This is the matrix."""
+        ...
+
+
+class LabelSource(Protocol):
+    """Where label rows come from.
+
+    Deliberately narrower than the collector library underneath it: the use cases need
+    rows, not a heal loop, so they take plain dictionaries and stay testable without any
+    of the collection machinery present.
+    """
+
+    def rows(self, collector_id: str, urls: Sequence[str]) -> list[dict[str, Any]]:
+        """Run one collector against one or more URLs and return its rows."""
         ...

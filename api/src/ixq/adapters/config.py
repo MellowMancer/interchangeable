@@ -26,6 +26,8 @@ def load_sources(path: Path) -> list[Source]:
             name=entry["name"],
             base_url=entry["base_url"],
             variant=entry.get("variant"),
+            search_url=entry.get("search_url"),
+            product_url=entry.get("product_url"),
         )
         for entry in (_read(path).get("sources") or [])
     ]
