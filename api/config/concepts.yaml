@@ -52,7 +52,12 @@ concepts:
   contrast_agent:     [contrast agent, iodinated, radiocontrast]
   immunisation:       [immunisation, immunization, live virus, vaccin]
   extracorporeal:     [extracorporeal, dialysis, apheresis]
-  washout:            [must not be initiated, discontinuation of treatment,
+  # A washout is one statement with many phrasings. Matching only "must not be initiated"
+  # reported Wockhardt and Zentiva as silent on the 36-hour sacubitril washout their labels
+  # do state ("must not be started until"), which is a false absence, not a disagreement.
+  washout:            [must not be initiated, must not be started, should not be started,
+                       must not be commenced, hours after taking the last dose,
+                       hours after the last dose, discontinuation of treatment,
                        monoamine oxidase, maoi, days after stopping]
 
   # --- other absolute bars ---

@@ -51,8 +51,15 @@ def test_an_unmatched_concept_is_a_recall_gap_not_a_denial(repository: Repositor
 def test_every_answer_names_the_sections_actually_scanned(repository: Repository) -> None:
     divergent_corpus(repository)
 
-    assert label_says(SUBSTANCE_ID, "renal")["scanned_sections"] == ["4.3", "4.4"]
-    assert divergences(SUBSTANCE_ID)["scanned_sections"] == ["4.3", "4.4"]
+    answer = label_says(SUBSTANCE_ID, "renal")
+    assert [m["sections_read"] for m in answer["manufacturers"]] == [
+        ["4.3", "4.4"],
+        ["4.3", "4.4"],
+    ]
+    assert divergences(SUBSTANCE_ID)["sections_read"] == {
+        "1": ["4.3", "4.4"],
+        "2": ["4.3", "4.4"],
+    }
 
 
 def test_divergences_carry_revision_dates_so_staleness_is_separable(

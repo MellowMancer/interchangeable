@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ixq.domain import Document, Placement, Product
+from ixq.domain import Document, Occurrence, Placement, Product
 from ixq.pipeline.ports import Repository
 
 PRECEDENCE = (
@@ -24,6 +24,14 @@ class ConceptRow:
 
     concept: str
     placements: dict[str, Placement]
+    evidence: dict[str, Occurrence]
+    """The occurrence that *set* each placement, keyed by product.
+
+    Carried here rather than looked up again downstream. A second pass over storage can
+    reach an occurrence belonging to a superseded revision of the label, and then a cell
+    reads `ABSENT` from the current document while the quote under it comes from the old
+    one — showing, as evidence for an absence, the very sentence the manufacturer removed.
+    """
 
     @property
     def diverges(self) -> bool:
@@ -37,13 +45,25 @@ class Comparison:
 
     `scanned` is not decoration. `Placement.ABSENT` means *not found in these sections*,
     so a reader cannot judge an absence without knowing what was looked at — and a claim
-    of omission is only ever defensible against this set.
+    of omission is only ever defensible against that set.
+
+    `documents` holds the **current** revision of each product's label, never the history.
+    Everything here is derived from exactly those, so no consumer can pair a placement
+    taken from one revision with a quote taken from another.
     """
 
     substance_id: str
     products: tuple[Product, ...]
     documents: tuple[Document, ...]
-    scanned: tuple[str, ...]
+    scanned: dict[str, tuple[str, ...]]
+    """Sections actually read, **per product**.
+
+    A union across products would claim, of a product whose §4.5 came back empty, that
+    4.5 was read for it — asserting a scope that was never scanned for that label. Since
+    `ABSENT` is only defensible against the set actually scanned, that scope has to be
+    the product's own.
+    """
+
     rows: tuple[ConceptRow, ...]
 
     @property
@@ -60,24 +80,35 @@ def compare(substance_id: str, repository: Repository) -> Comparison:
     """
     products = repository.products_for_substance(substance_id)
     documents = repository.documents_for_substance(substance_id)
-    by_product = {d.product_external_id: d for d in documents}
 
-    scanned: set[str] = set()
+    # Oldest first per product, so the last write wins and the newest revision survives.
+    # The query orders by `fetched_at` for exactly this: without a tiebreak, which
+    # revision counted as current was whatever order SQLite happened to return.
+    current = {d.product_external_id: d for d in documents}
+    by_sha = {d.sha256: d for d in current.values()}
+
+    scanned = {
+        external_id: tuple(
+            sorted(s.code for s in repository.sections_for_document(document.sha256))
+        )
+        for external_id, document in current.items()
+    }
+
     placements: dict[str, dict[str, Placement]] = {}
-    for external_id, document in by_product.items():
-        scanned.update(s.code for s in repository.sections_for_document(document.sha256))
-
+    evidence: dict[str, dict[str, Occurrence]] = {}
     for occurrence in repository.occurrences_for_substance(substance_id):
-        document = _document_of(occurrence.document_sha256, by_product)
+        document = by_sha.get(occurrence.document_sha256)
         if document is None:
-            continue
+            continue  # an occurrence of a superseded revision
         found = Placement(occurrence.section_code)
+        product_id = document.product_external_id
         seen = placements.setdefault(occurrence.concept, {})
-        current = seen.get(document.product_external_id)
-        if current is None or PRECEDENCE.index(found) < PRECEDENCE.index(current):
-            seen[document.product_external_id] = found
+        held = seen.get(product_id)
+        if held is None or PRECEDENCE.index(found) < PRECEDENCE.index(held):
+            seen[product_id] = found
+            evidence.setdefault(occurrence.concept, {})[product_id] = occurrence
 
-    compared = [p for p in products if p.external_id in by_product]
+    compared = [p for p in products if p.external_id in current]
     rows = tuple(
         ConceptRow(
             concept=concept,
@@ -85,17 +116,14 @@ def compare(substance_id: str, repository: Repository) -> Comparison:
                 p.external_id: per_product.get(p.external_id, Placement.ABSENT)
                 for p in compared
             },
+            evidence=evidence.get(concept, {}),
         )
         for concept, per_product in sorted(placements.items())
     )
     return Comparison(
         substance_id=substance_id,
         products=tuple(compared),
-        documents=tuple(documents),
-        scanned=tuple(sorted(scanned)),
+        documents=tuple(current.values()),
+        scanned=scanned,
         rows=rows,
     )
-
-
-def _document_of(sha256: str, by_product: dict[str, Document]) -> Document | None:
-    return next((d for d in by_product.values() if d.sha256 == sha256), None)

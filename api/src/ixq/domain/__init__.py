@@ -4,7 +4,7 @@ from ixq.domain.collector import Collector, CollectorKind
 from ixq.domain.concept import UNCLASSIFIED, Concept, Placement
 from ixq.domain.document import Document, revision_date
 from ixq.domain.occurrence import Occurrence, found_in
-from ixq.domain.product import Product
+from ixq.domain.product import Product, variant
 from ixq.domain.section import Clause, Section, clauses, prepared
 from ixq.domain.source import Source
 from ixq.domain.substance import Substance
@@ -19,6 +19,7 @@ __all__ = [
     "Occurrence",
     "Placement",
     "Product",
+    "variant",
     "Section",
     "Source",
     "Substance",

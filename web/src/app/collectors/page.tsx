@@ -1,8 +1,5 @@
 import { getCollectors, type Heal } from "@/lib/api";
 
-// Heal history is live operational state; a build-time snapshot of it would be a lie.
-export const dynamic = "force-dynamic";
-
 /**
  * What Scraper Studio is running and how it has held up.
  *

@@ -6,6 +6,16 @@ from collections.abc import Iterable
 from ixq.domain import Product, Source, Substance
 from ixq.pipeline.ports import LabelSource, Repository
 
+DOSAGE_FORM = re.compile(
+    r"\b(?:powder|solvent|solution|diluent|suspension|granules|vehicle)\b", re.I
+)
+"""Words that make an `and` a presentation, not a combination.
+
+`Cefotaxime 1g Powder and Solvent for Solution for Injection` is one substance in two
+containers. Reading it as a combination drops the product silently — the same class of
+loss the `/` branch was narrowed to avoid.
+"""
+
 COMBINATION = re.compile(r"[A-Za-z]{4,}\s*(?:/|\band\b)\s*[A-Za-z]{4,}")
 """A combination joins two substance names, with `/` or `and`. A concentration joins a
 number and a unit.
@@ -18,8 +28,15 @@ The name is *not* required to contain the substance: `Tritace` is ramipril's ori
 brand, and excluding brands would drop the reference product from every comparison.
 """
 
+def _joins_dosage_forms(name: str) -> bool:
+    """Whether the words either side of the join are presentation words."""
+    return len(DOSAGE_FORM.findall(name)) >= 2
+
+
 def is_combination(product_name: str) -> bool:
     """Whether a name denotes two active substances rather than one."""
+    if _joins_dosage_forms(product_name):
+        return False
     return bool(COMBINATION.search(product_name))
 
 

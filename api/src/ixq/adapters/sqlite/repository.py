@@ -18,7 +18,7 @@ from ixq.domain import (
 )
 
 _SCHEMA = "schema.sql"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 """Must match `PRAGMA user_version` in schema.sql.
 
 The schema is create-only — `IF NOT EXISTS` will not apply a changed column to an
@@ -28,12 +28,25 @@ fails somewhere far from the cause.
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
-    """Open a connection with foreign keys enforced and the schema applied."""
+    """Open a connection with foreign keys enforced, creating the schema only if absent.
+
+    The version is read **before** the schema is applied. Applying it first rewrote
+    `PRAGMA user_version` to the expected value, so the staleness check could never fail
+    and a database missing a renamed column opened cleanly, then failed on the first write
+    far from the cause.
+
+    Creating only when the stamp is 0 also takes the schema out of the request path. The
+    pragma write is a header fsync — measured at ~95% of this function's cost, and it
+    cannot run while another connection holds a read transaction.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(resources.files("ixq.adapters.sqlite").joinpath(_SCHEMA).read_text())
+    if conn.execute("PRAGMA user_version").fetchone()[0] == 0:
+        conn.executescript(
+            resources.files("ixq.adapters.sqlite").joinpath(_SCHEMA).read_text()
+        )
     _check_version(conn, db_path)
     return conn
 
@@ -174,7 +187,9 @@ class SqliteRepository:
             "SELECT d.* FROM documents d "
             "JOIN products p ON p.source_id = d.source_id "
             "AND p.external_id = d.product_external_id "
-            "WHERE p.substance_id = ? ORDER BY p.name",
+            # fetched_at breaks the tie between revisions of one product, so the caller's
+            # last-write-wins picks the newest deliberately rather than by SQLite's whim.
+            "WHERE p.substance_id = ? ORDER BY p.name, d.fetched_at",
             (substance_id,),
         ).fetchall()
         return [

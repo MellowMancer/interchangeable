@@ -31,3 +31,8 @@ dev = [
 [project.scripts]
 ixq = "ixq.cli:app"
 ixq-mcp = "ixq.api.mcp_server:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "corpus: asserts against the collected database; skipped when none is present",
+]

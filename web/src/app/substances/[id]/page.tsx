@@ -1,34 +1,45 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMatrix, getSubstances, manufacturer } from "@/lib/api";
-import { PLACEMENT_LEGEND, placementStyle } from "@/lib/placement";
+import {
+  conceptLabel,
+  getMatrix,
+  getSubstances,
+  manufacturer,
+  substanceName,
+  type ProductColumn,
+  type SubstanceSummary,
+} from "@/lib/api";
+import { ABSENT, PLACEMENT_LEGEND, PlacementBadge } from "@/lib/placement";
+
+const PILL = "rounded-full border px-3 py-1 text-sm";
 
 export default async function SubstancePage({ params }: PageProps<"/substances/[id]">) {
   const { id } = await params;
   const [matrix, substances] = await Promise.all([getMatrix(id), getSubstances()]);
   if (!matrix) notFound();
 
-  const divergent = matrix.rows.filter((row) => row.diverges);
-  const name = substances.find((s) => s.id === id)?.name ?? id;
+  const divergent = matrix.rows.filter((row) => row.diverges).length;
 
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {substanceName(substances, id)}
+        </h1>
         <p className="max-w-prose text-slate-600 dark:text-slate-400">
           {matrix.products.length} manufacturers, {matrix.rows.length} concepts.{" "}
-          {divergent.length === 0 ? (
+          {divergent === 0 ? (
             "They agree everywhere that was scanned."
           ) : (
             <>
               <strong className="text-slate-900 dark:text-slate-100">
-                {divergent.length} disagree
+                {divergent} disagree
               </strong>
               {" — those rows are first."}
             </>
           )}
         </p>
-        <Scanned sections={matrix.scanned} />
+        <Scanned products={matrix.products} />
       </header>
 
       <Switcher substances={substances} current={id} />
@@ -42,9 +53,15 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
               </th>
               {matrix.products.map((product) => (
                 <th key={product.external_id} className="p-2 align-bottom">
-                  <div className="font-medium">{manufacturer(product)}</div>
+                  <div className="font-medium">{product.variant ?? product.name}</div>
+                  <div className="font-normal text-xs text-slate-500">
+                    {manufacturer(product)}
+                  </div>
                   <div className="font-normal text-xs text-slate-500">
                     {product.revised ? `revised ${product.revised}` : "revision unknown"}
+                  </div>
+                  <div className="font-normal text-xs text-slate-500">
+                    read {product.scanned.join(", ") || "nothing"}
                   </div>
                 </th>
               ))}
@@ -65,7 +82,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
                     href={`/substances/${id}/concepts/${encodeURIComponent(row.concept)}`}
                     className="hover:underline"
                   >
-                    {row.concept.replace(/_/g, " ")}
+                    {conceptLabel(row.concept)}
                   </Link>
                   {row.diverges && (
                     <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
@@ -73,19 +90,11 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
                     </span>
                   )}
                 </th>
-                {row.cells.map((cell) => {
-                  const style = placementStyle(cell.placement);
-                  return (
-                    <td key={cell.product_external_id} className="p-2 text-center">
-                      <span
-                        title={style.detail}
-                        className={`inline-block w-full rounded border px-2 py-1 text-xs ${style.className}`}
-                      >
-                        {style.label}
-                      </span>
-                    </td>
-                  );
-                })}
+                {row.cells.map((cell) => (
+                  <td key={cell.product_external_id} className="p-2 text-center">
+                    <PlacementBadge placement={cell.placement} className="w-full py-1" />
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -100,15 +109,23 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
 /**
  * The scanned sections are part of the claim, not a caption.
  *
- * Every "not in scanned sections" cell is only meaningful against this list, so it sits
- * above the table rather than in a footnote.
+ * Every absence cell is only meaningful against this list, so it sits above the table
+ * rather than in a footnote — and quotes the badge's own label so the two cannot drift.
  */
-function Scanned({ sections }: { sections: string[] }) {
+function Scanned({ products }: { products: ProductColumn[] }) {
+  const scopes = new Set(products.map((p) => p.scanned.join(", ")));
+  const shared = scopes.size === 1 ? [...scopes][0] : null;
   return (
     <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-      Sections read: <span className="font-mono">{sections.join(", ")}</span>. A cell
-      saying <em>not in scanned sections</em> means the concept was not found in these —
-      not that the label omits it.
+      {shared ? (
+        <>
+          Sections read: <span className="font-mono">{shared}</span>.{" "}
+        </>
+      ) : (
+        <>Sections read differ by manufacturer and are listed under each column. </>
+      )}
+      A cell saying <em>{ABSENT.label.toLowerCase()}</em> means the concept was not found
+      in the sections read <em>for that manufacturer</em> — not that the label omits it.
     </p>
   );
 }
@@ -117,39 +134,34 @@ function Switcher({
   substances,
   current,
 }: {
-  substances: { id: string; name: string; products: number }[];
+  substances: SubstanceSummary[];
   current: string;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {substances.map((substance) => {
-        const empty = substance.products === 0;
-        const active = substance.id === current;
-        if (empty) {
-          return (
-            <span
-              key={substance.id}
-              title="No labels collected yet"
-              className="cursor-not-allowed rounded-full border border-dashed border-slate-300 px-3 py-1 text-sm text-slate-400 dark:border-slate-700"
-            >
-              {substance.name}
-            </span>
-          );
-        }
-        return (
+      {substances.map((substance) =>
+        substance.products === 0 ? (
+          <span
+            key={substance.id}
+            title="No labels collected yet"
+            className={`${PILL} cursor-not-allowed border-dashed border-slate-300 text-slate-400 dark:border-slate-700`}
+          >
+            {substance.name}
+          </span>
+        ) : (
           <Link
             key={substance.id}
             href={`/substances/${substance.id}`}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              active
+            className={`${PILL} ${
+              substance.id === current
                 ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                 : "border-slate-300 hover:border-slate-500 dark:border-slate-700"
             }`}
           >
             {substance.name}
           </Link>
-        );
-      })}
+        ),
+      )}
     </div>
   );
 }
@@ -157,11 +169,13 @@ function Switcher({
 function Legend() {
   return (
     <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600 dark:text-slate-400">
-      {PLACEMENT_LEGEND.map(([key, style]) => (
-        <div key={key} className="flex items-center gap-2">
-          <span className={`inline-block rounded border px-2 py-0.5 ${style.className}`}>
-            {style.label}
-          </span>
+      {PLACEMENT_LEGEND.map((style) => (
+        <div key={style.label} className="flex items-center gap-2">
+          <dt>
+            <span className={`inline-block rounded border px-2 py-0.5 ${style.className}`}>
+              {style.label}
+            </span>
+          </dt>
           <dd>{style.detail}</dd>
         </div>
       ))}

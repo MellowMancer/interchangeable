@@ -22,15 +22,32 @@ an empty label.
 """
 
 
-def digest(title: str | None, revised: str | None, sections: list[Section]) -> str:
+def digest(
+    source_id: str,
+    product_external_id: str,
+    title: str | None,
+    revised: str | None,
+    sections: list[Section],
+) -> str:
     """Content address for a label, over the content actually persisted.
 
     Keyed on section codes and text rather than the collector's field names: a heal that
     renames a field leaves the label byte-identical, and hashing the field names would
     change every address in the corpus, fork it against the existing occurrences, and
     defeat the idempotence this address exists to provide.
+
+    **Identity is part of the address.** Without it two manufacturers whose labels happen
+    to be byte-identical — routine for generics built by one contract manufacturer —
+    collide on `documents.sha256`, and `ON CONFLICT DO NOTHING` silently discards the
+    second. The dropped product then disappears from the comparison entirely, which reads
+    as a manufacturer having no opinion rather than as data loss.
     """
-    content = {"title": title, "revised": revised} | {s.code: s.text for s in sections}
+    content = {
+        "source": source_id,
+        "product": product_external_id,
+        "title": title,
+        "revised": revised,
+    } | {s.code: s.text for s in sections}
     return hashlib.sha256(
         json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
@@ -57,9 +74,9 @@ def fetch(
         return None
 
     row = rows[0]
-    if not any(field in row for field in SECTIONS):
+    if not any(row.get(field) for field in SECTIONS):
         raise ValueError(
-            "collector returned no section fields — expected one of "
+            "collector returned no section content — expected one of "
             f"{sorted(SECTIONS)}, got {sorted(row)}. A renamed field is a break, "
             "not a label without contraindications."
         )
@@ -71,7 +88,7 @@ def fetch(
         if row.get(field)
     ]
     document = Document(
-        sha256=digest(title, revised, sections),
+        sha256=digest(source.id, product.external_id, title, revised, sections),
         source_id=source.id,
         product_external_id=product.external_id,
         source_url=url,

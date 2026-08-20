@@ -9,9 +9,10 @@
 
 PRAGMA foreign_keys = ON;
 
--- Bumped whenever a column changes. `connect()` compares it, so the next change is
--- caught by the same one-line check rather than a new hardcoded column guard.
-PRAGMA user_version = 2;
+-- Bumped whenever a column changes. `connect()` reads it BEFORE applying this file and
+-- refuses a database it does not recognise. Applying the schema first would rewrite the
+-- stamp to the expected value and make the check unfalsifiable, which is what it did.
+PRAGMA user_version = 3;
 
 CREATE TABLE IF NOT EXISTS sources (
     id       TEXT PRIMARY KEY,              -- slug
@@ -26,21 +27,13 @@ CREATE TABLE IF NOT EXISTS collectors (
     id             TEXT PRIMARY KEY,        -- Bright Data collector id (c_...)
     source_id      TEXT NOT NULL REFERENCES sources(id),
     kind           TEXT NOT NULL,           -- product | search | sitemap | discovery
-    schema_version INTEGER NOT NULL DEFAULT 1,
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (source_id, kind)                 -- one collector per role, so lookup is total
 );
 
-CREATE TABLE IF NOT EXISTS collector_runs (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    collector_id  TEXT NOT NULL REFERENCES collectors(id),
-    started_at    TEXT NOT NULL,
-    finished_at   TEXT,
-    status        TEXT NOT NULL,            -- ok | failed | empty | rate_limited
-    row_count     INTEGER NOT NULL DEFAULT 0,
-    skeleton_hash TEXT,
-    error         TEXT
-);
+-- Run history lives in `bdheal_heal_events` and `bdheal_baselines`, which the engine
+-- actually writes. A second, unwritten copy here duplicated `skeleton_hash` and `status`
+-- and was never populated by anything.
 
 -- The active ingredient. Its id is ours, not any publisher's: the same ingredient is
 -- named differently by every source, so the join key cannot be borrowed.
@@ -52,13 +45,12 @@ CREATE TABLE IF NOT EXISTS substances (
 -- One authorised product of one substance. Products of the same substance from different
 -- holders are what this project compares, so the holder is a column, not part of a name.
 CREATE TABLE IF NOT EXISTS products (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
     source_id    TEXT NOT NULL REFERENCES sources(id),
     external_id  TEXT NOT NULL,             -- the id the source assigns
     substance_id TEXT NOT NULL REFERENCES substances(id),
     name         TEXT NOT NULL,
     ma_holder    TEXT,
-    UNIQUE (source_id, external_id)
+    PRIMARY KEY (source_id, external_id)    -- the real identity; no surrogate is referenced
 );
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -69,7 +61,10 @@ CREATE TABLE IF NOT EXISTS documents (
     title               TEXT,
     active_substance    TEXT,               -- as the label states it, not as we filed it
     last_updated        TEXT,               -- month precision, as published
-    fetched_at          TEXT NOT NULL
+    fetched_at          TEXT NOT NULL,
+    -- A document must belong to a product that exists. Without this a fetch could store a
+    -- label against an id no product carries, and the comparison would silently omit it.
+    FOREIGN KEY (source_id, product_external_id) REFERENCES products(source_id, external_id)
 );
 -- Deliberately no UNIQUE on (source_id, source_url): one URL yields a new document every
 -- time its label is revised, and that history is the point of the project.

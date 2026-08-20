@@ -6,6 +6,14 @@ import "./globals.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
+/**
+ * No screen in this app may be prerendered: every one reads live pipeline state, and a
+ * build-time snapshot of it would be a stale page rather than an error. Declared once
+ * here because route segment config is inherited by every segment beneath it — asserting
+ * it per page means the next page added silently freezes.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Interchangeable?",
   description:
@@ -18,7 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <body className="min-h-full flex flex-col font-sans bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <header className="border-b border-slate-200 dark:border-slate-800">
           <nav className="mx-auto flex max-w-7xl items-baseline gap-6 px-6 py-4">
             <Link href="/" className="font-semibold tracking-tight">

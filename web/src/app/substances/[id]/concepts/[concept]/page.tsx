@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMatrix, manufacturer } from "@/lib/api";
-import { placementStyle } from "@/lib/placement";
+import { columnLabel, conceptLabel, getMatrix, getSubstances, substanceName } from "@/lib/api";
+import { PlacementBadge } from "@/lib/placement";
 
 /**
  * Why each manufacturer's cell says what it says, side by side.
@@ -15,7 +15,7 @@ export default async function ConceptPage({
 }: PageProps<"/substances/[id]/concepts/[concept]">) {
   const { id, concept } = await params;
   const decoded = decodeURIComponent(concept);
-  const matrix = await getMatrix(id);
+  const [matrix, substances] = await Promise.all([getMatrix(id), getSubstances()]);
   if (!matrix) notFound();
 
   const row = matrix.rows.find((r) => r.concept === decoded);
@@ -30,10 +30,10 @@ export default async function ConceptPage({
           href={`/substances/${id}`}
           className="text-sm text-slate-600 hover:underline dark:text-slate-400"
         >
-          ← {matrix.substance_id}
+          ← {substanceName(substances, id)}
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">
-          {decoded.replace(/_/g, " ")}
+          {conceptLabel(decoded)}
         </h1>
         <p className="text-slate-600 dark:text-slate-400">
           {row.diverges
@@ -45,7 +45,7 @@ export default async function ConceptPage({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {row.cells.map((cell) => {
           const product = byProduct.get(cell.product_external_id);
-          const style = placementStyle(cell.placement);
+          const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
           return (
             <article
               key={cell.product_external_id}
@@ -53,13 +53,9 @@ export default async function ConceptPage({
             >
               <header className="space-y-1">
                 <h2 className="font-medium">
-                  {product ? manufacturer(product) : cell.product_external_id}
+                  {product ? columnLabel(product) : cell.product_external_id}
                 </h2>
-                <span
-                  className={`inline-block rounded border px-2 py-0.5 text-xs ${style.className}`}
-                >
-                  {style.label}
-                </span>
+                <PlacementBadge placement={cell.placement} />
               </header>
 
               {cell.evidence ? (
@@ -82,14 +78,15 @@ export default async function ConceptPage({
                 </>
               ) : (
                 <p className="text-sm text-slate-500">
-                  Not found in {matrix.scanned.join(", ")}. There is no quote because
-                  there was no match — which is not the same as the label being silent.
+                  Not found in {product?.scanned.join(", ") || "any section read"}. There
+                  is no quote because there was no match in what was read for this
+                  label — which is not the same as the label being silent.
                 </p>
               )}
 
-              {(cell.evidence?.source_url ?? product?.source_url) && (
+              {sourceUrl && (
                 <a
-                  href={cell.evidence?.source_url ?? product?.source_url ?? undefined}
+                  href={sourceUrl}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="mt-auto text-sm text-sky-700 hover:underline dark:text-sky-400"

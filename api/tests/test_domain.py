@@ -11,6 +11,7 @@ from ixq.domain import (
     Substance,
     found_in,
     revision_date,
+    variant,
 )
 from conftest import DOC_SHA, SECTION
 
@@ -116,3 +117,26 @@ def test_revision_date_keeps_the_date_and_drops_the_page_furniture(
 def test_a_string_with_no_leading_date_yields_nothing(raw) -> None:
     """Storing the raw string would put page furniture in front of a reader as a date."""
     assert revision_date(raw) is None
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Ramipril 2.5mg Capsule", "2.5mg Capsule"),
+        ("Ramipril 1.25mg Hard Capsules", "1.25mg Capsules"),
+        ("Ramipril 10 mg/5 ml Oral solution", "10mg/5ml Oral Solution"),
+        ("Tritace 5mg Tablets", "5mg Tablets"),
+        ("Ramipril Aurobindo 10 mg Tablets", "10mg Tablets"),
+        ("Something With No Strength", None),
+    ],
+)
+def test_a_variant_distinguishes_two_products_of_one_manufacturer(
+    name: str, expected: str | None
+) -> None:
+    """Derived from the stored name — the collector is never asked for it.
+
+    Scraping it would spend quota on data already held and add a field that drifts when a
+    page moves. `None` on an unparseable name lets the caller fall back to the full name
+    rather than render a blank column heading.
+    """
+    assert variant(name) == expected

@@ -9,6 +9,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from ixq.cli import app
+from ixq.pipeline.ports import CollectorCheck
 from ixq.settings import DB_NAME
 
 runner = CliRunner()
@@ -85,8 +86,13 @@ PRODUCT_ROW = {
 
 
 class FakeLabels:
+    """Satisfies both ports — rows, and the health check `run` drives before fetching."""
+
     def rows(self, collector_id, urls):
         return SEARCH_ROWS if collector_id == "c_search" else [PRODUCT_ROW]
+
+    def ensure_healthy(self, collector_id):
+        return CollectorCheck(collector_id=collector_id, broken=False)
 
 
 def _config(tmp_path: Path) -> Path:
@@ -122,7 +128,11 @@ def test_run_collects_fetches_and_classifies_into_the_database(
     }
     # the combination product is excluded; the oral solution is not
     assert counts["products"] == 2
-    assert counts["documents"] == 1 and counts["sections"] == 1
+    # One document per product, even though the fake returns identical content for both.
+    # These previously collided into a single row: the content address omitted product
+    # identity, so `ON CONFLICT DO NOTHING` discarded the second and dropped that
+    # manufacturer out of the comparison silently.
+    assert counts["documents"] == 2 and counts["sections"] == 2
     assert counts["occurrences"] >= 2
     assert {row[0] for row in conn.execute("SELECT DISTINCT concept FROM occurrences")} == {
         "renal",

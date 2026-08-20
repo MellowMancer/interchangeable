@@ -1,13 +1,18 @@
-import pytest
-
 """Exit criterion: an Occurrence round-trips through the Repository port intact."""
 
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+from ixq.adapters.sqlite.repository import SCHEMA_VERSION, connect
 from ixq.domain import (
     Collector,
     CollectorKind,
     Document,
     Product,
     Section,
+    Source,
     Substance,
     found_in,
 )
@@ -143,3 +148,68 @@ def test_a_failed_transaction_leaves_nothing_behind(repository: Repository) -> N
             raise RuntimeError("boom")
 
     assert repository.products_for_substance("rolled-back") == []
+
+
+def test_a_database_from_an_older_schema_is_refused_at_open_time(tmp_path: Path) -> None:
+    """The guard that was dead: the schema used to be applied before the version was read.
+
+    `PRAGMA user_version = N` is unconditional, so applying the file first stamped the
+    expected value and the comparison could never fail. A database still carrying a
+    renamed column then opened cleanly and failed on the first write, far from the cause —
+    exactly what this is meant to prevent.
+    """
+    stale = tmp_path / "stale.db"
+    conn = sqlite3.connect(stale)
+    conn.executescript(
+        "PRAGMA user_version = 1;"
+        "CREATE TABLE collectors (id TEXT PRIMARY KEY, source_id TEXT, source_kind TEXT);"
+    )
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RuntimeError, match="schema version 1"):
+        connect(stale)
+
+
+def test_a_fresh_database_is_created_rather_than_refused(tmp_path: Path) -> None:
+    """Version 0 means never initialised, which is the one case that should apply DDL."""
+    conn = connect(tmp_path / "new.db")
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+def test_reopening_does_not_reapply_the_schema(tmp_path: Path) -> None:
+    """DDL in the request path takes a write lock on every read, and fsyncs the header."""
+    path = tmp_path / "twice.db"
+    connect(path).close()
+
+    conn = sqlite3.connect(path)
+    conn.execute("BEGIN")
+    conn.execute("CREATE TABLE sentinel (x)")  # a lock a schema rewrite would collide with
+    try:
+        connect(path).close()  # must not need the write lock
+    finally:
+        conn.rollback()
+        conn.close()
+
+
+def test_a_document_for_a_product_that_does_not_exist_is_refused(
+    repository: Repository,
+) -> None:
+    """Without the foreign key the label is stored and the manufacturer silently vanishes.
+
+    `compare` keeps only products that have a document, so an orphan document is not a
+    loud failure — it is a column missing from the comparison with nothing to explain it.
+    """
+    repository.save_source(Source(id=SOURCE_ID, name="S", base_url="https://example.test"))
+
+    with pytest.raises(sqlite3.IntegrityError):
+        with repository.transaction():
+            repository.save_document(
+                Document(
+                    sha256="f" * 64,
+                    source_id=SOURCE_ID,
+                    product_external_id="no-such-product",
+                    source_url="https://example.test/x",
+                )
+            )

@@ -111,7 +111,36 @@ def test_the_scanned_sections_travel_with_the_comparison(repository: Repository)
     """`absent` means absent from these sections — a reader cannot judge it without them."""
     _two_manufacturers(repository)
 
-    assert compare(SUBSTANCE_ID, repository).scanned == ("4.3", "4.4")
+    assert compare(SUBSTANCE_ID, repository).scanned == {
+        "1001": ("4.3", "4.4"),
+        "1002": ("4.3", "4.4"),
+    }
+
+
+def test_scanned_sections_are_reported_per_product_not_pooled(
+    repository: Repository,
+) -> None:
+    """A union would claim a section was read for a label that never had one.
+
+    If one manufacturer's §4.4 came back empty, `fetch` stores no 4.4 section for it. A
+    shared list would still tell the reader 4.4 was scanned there, so every `ABSENT` in
+    that column would assert a scope that does not exist for that label.
+    """
+    _two_manufacturers(repository)
+    thin = next(d for d in repository.documents_for_substance(SUBSTANCE_ID)
+                if d.product_external_id == "1002")
+    repository._conn.execute(
+        "DELETE FROM occurrences WHERE document_sha256 = ? AND section_code = '4.4'",
+        (thin.sha256,),
+    )
+    repository._conn.execute(
+        "DELETE FROM sections WHERE document_sha256 = ? AND code = '4.4'", (thin.sha256,)
+    )
+
+    scanned = compare(SUBSTANCE_ID, repository).scanned
+
+    assert scanned["1001"] == ("4.3", "4.4")
+    assert scanned["1002"] == ("4.3",)
 
 
 def test_the_strongest_placement_wins_when_a_concept_appears_twice(
@@ -133,4 +162,4 @@ def test_a_substance_with_no_labels_compares_to_nothing(repository: Repository) 
 
     result = compare(SUBSTANCE_ID, repository)
 
-    assert result.rows == () and result.products == () and result.scanned == ()
+    assert result.rows == () and result.products == () and result.scanned == {}

@@ -5,10 +5,18 @@
 #
 # Created with `bdata scraper create`. Descriptions are capped at 500 characters and an
 # oversized one strands a half-built collector — see docs/BRIGHT_DATA.md.
+# `anchor_url` is the one page drift is judged against. It must be stable: the baseline is
+# keyed on the collector id, so a varying anchor rewrites it every run and reports a break
+# that never happened — at one billable fetch per product.
+#
+# `old_layout_url` is a publicly hosted snapshot of an earlier layout. Set it to enable the
+# non-regression check; without it a heal is promoted unverified and says so.
 collectors:
   - id: c_mt16h8d01sakfyvaem
     source_id: emc
     kind: product
+    anchor_url: https://www.medicines.org.uk/emc/product/7142
   - id: c_mt16ml4j14ri5s4qgc
     source_id: emc
     kind: search
+    anchor_url: https://www.medicines.org.uk/emc/search?q=ramipril

@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ixq.domain import (
@@ -73,6 +74,36 @@ class Repository(Protocol):
 
     def occurrences_for_substance(self, substance_id: str) -> list[Occurrence]:
         """Every occurrence across every product of a substance. This is the matrix."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class CollectorCheck:
+    """What one health check concluded, in terms the caller can report.
+
+    `promoted_unverified` is deliberately separate from `healed`: a heal that was accepted
+    without the non-regression pass may have fixed today's layout by breaking yesterday's,
+    and reporting it as a clean repair would hide that.
+    """
+
+    collector_id: str
+    broken: bool
+    healed: bool = False
+    promoted_unverified: bool = False
+    reason: str | None = None
+
+
+class CollectorMaintainer(Protocol):
+    """Keeps a collector fit to run. Separate from `LabelSource` on purpose.
+
+    Fetching rows and repairing a collector are different jobs with different costs: the
+    check spends one billable fetch against a stable anchor, per collector per run, while
+    rows are fetched once per product. Folding them together would multiply the first by
+    the second.
+    """
+
+    def ensure_healthy(self, collector_id: str) -> CollectorCheck:
+        """Judge the collector against its anchor and repair it in place if it has moved."""
         ...
 
 

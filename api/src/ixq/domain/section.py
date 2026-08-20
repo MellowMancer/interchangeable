@@ -61,16 +61,32 @@ CROSS_REFERENCE = re.compile(r"\(\s*see (?:also )?sections?[^)]*\)?", re.I)
 WHITESPACE = re.compile(r"\s+")
 HAS_WORD = re.compile(r"[A-Za-z]{3,}")
 
-LEAD_IN = re.compile(
-    r":$"                           # anything that merely introduces a list
-    r"|^general contraindications"
-    r"|^contraindicat\w*$",
-    re.I,
-)
-"""A clause ending in a colon introduces the real clauses; it asserts nothing itself.
+LEAD_IN = re.compile(r"^general contraindications|^contraindicat\w*$", re.I)
+"""A restatement of the section's own heading, asserting nothing the heading did not.
 
-Measured: lead-ins were 12% of apparent classification misses — `Tamoxifen should not be
-used in:`, `General contraindications (all indications)`.
+**A trailing colon is deliberately not a lead-in.** It was, and it destroyed content: EMC
+writes interaction entries as `<subjects>: <consequence>` on one line, so `Antihypertensive
+agents (e.g. diuretics) and other substances that may decrease blood pressure (e.g.
+nitrates, ... acute alcohol intake, baclofen, ...):` was dropped whole. Measured across the
+ramipril corpus that rule discarded 24 lines and 2,659 characters — every character of loss
+in the pipeline — and manufactured two false divergences, because manufacturers whose text
+was dropped read as ABSENT on concepts they in fact state.
+
+What it was solving (lead-ins inflating the unclassified count) is a metric concern.
+Dropping them is a correctness one: an unclassified clause is a visible gap, a dropped
+clause is an invisible false absence.
+"""
+
+SEGMENT = re.compile(r"[\n•·]")
+"""Where one clause ends and the next begins.
+
+Newlines alone are not enough. Publishers differ: Zentiva's §4.3 arrives as a single line
+carrying eight `•` bullets, so splitting on newlines yielded one 912-character clause for
+the whole section — every concept in it quoted the entire section as its evidence, and a
+concept from one bullet was reported against the placement of another.
+
+Only the unambiguous bullet glyphs split mid-line. `-` and `o` do not: they occur inside
+words, and `BULLET` removes them only at the start of a segment where they cannot.
 """
 
 
@@ -97,21 +113,28 @@ def clauses(section: Section) -> list[Clause]:
     """
     text = section.text
     found: list[Clause] = []
-    offset = 0
-    for line in text.split("\n"):
-        start, end = _trim(line, offset)
-        offset += len(line) + 1
-        if end <= start:
-            continue
-        body = text[start:end]
-        if not HAS_WORD.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
-            continue
-        found.append(Clause(start=start, end=end, text=body))
+    cut = 0
+    for boundary in SEGMENT.finditer(text):
+        _emit(text, cut, boundary.start(), found)
+        cut = boundary.end()
+    _emit(text, cut, len(text), found)
     return found
 
 
-def _trim(line: str, offset: int) -> tuple[int, int]:
-    """The span of `line` with its bullet and surrounding whitespace removed."""
-    lead = BULLET.match(line)
-    start = offset + (lead.end() if lead else len(line) - len(line.lstrip()))
-    return start, offset + len(line.rstrip())
+def _emit(text: str, lo: int, hi: int, found: list[Clause]) -> None:
+    """Append the segment at `[lo, hi)` as a clause, unless it asserts nothing."""
+    start, end = _trim(text, lo, hi)
+    if end <= start:
+        return
+    body = text[start:end]
+    if not HAS_WORD.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
+        return
+    found.append(Clause(start=start, end=end, text=body))
+
+
+def _trim(text: str, lo: int, hi: int) -> tuple[int, int]:
+    """The span of `text[lo:hi]` with its bullet and surrounding whitespace removed."""
+    segment = text[lo:hi]
+    lead = BULLET.match(segment)
+    start = lo + (lead.end() if lead else len(segment) - len(segment.lstrip()))
+    return start, lo + len(segment.rstrip())

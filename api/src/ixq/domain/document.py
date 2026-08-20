@@ -4,11 +4,14 @@ import re
 from dataclasses import dataclass
 
 REVISION_DATE = re.compile(
-    r"^\s*("
-    r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"      # 14/07/2026, 31-07-2024
+    r"^\s*(?:revised|last\s+revised|updated)?[:\s]*("
+    r"\d{4}-\d{2}-\d{2}"                    # 2026-07-14 — ISO, and what a heal may emit
+    r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"      # 14/07/2026, 31-07-2024
     r"|\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}"     # 04 June 2021
+    r"|[A-Za-z]{3,}\s+\d{1,2},\s*\d{4}"    # July 14, 2026
     r"|[A-Za-z]{3,}\s+\d{4}"                # November 2025
-    r")"
+    r")",
+    re.I,
 )
 
 
@@ -20,6 +23,10 @@ def revision_date(raw: str | None) -> str | None:
     PREPARATION OF RADIOPHARMACEUTICALS`. Healing the collector fixes the layouts it was
     shown; this guarantees the rest, because the rule is the same everywhere and a
     deterministic function can be tested against layouts nobody has seen.
+
+    ISO-8601 is accepted even though no current publisher emits it: `revised` is hashed
+    into the document's content address, so a heal that normalises the date would return
+    `None` here and silently fork every address in the corpus against its own occurrences.
 
     Returns None when there is no leading date. Storing an unparsed string would put page
     furniture in front of a reader as though it were a date.

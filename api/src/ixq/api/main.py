@@ -4,28 +4,24 @@ The UI never opens SQLite: every shape it renders is a response model declared h
 the domain can change without breaking a screen and vice versa.
 """
 
-import os
 from collections.abc import Iterator
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
+from bdheal.models import FailureClass, HealStatus
+from bdheal.ports import HealStore
 from bdheal.store import SqliteHealStore
 from bdheal.store import connect as heal_connect
 
 from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.domain import Placement
+from ixq.domain import Document, Occurrence, Placement, variant
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.ports import Repository
-from ixq.settings import database_path
+from ixq.settings import config_dir, database_path
 
 app = FastAPI(title="Interchangeable?")
-
-def _config_dir() -> Path:
-    return Path(os.environ.get("IXQ_CONFIG_DIR", "api/config"))
-
 
 def repository() -> Iterator[Repository]:
     """A repository per request, because a SQLite connection belongs to one thread.
@@ -41,7 +37,7 @@ def repository() -> Iterator[Repository]:
         conn.close()
 
 
-def heal_store() -> Iterator[SqliteHealStore]:
+def heal_store() -> Iterator[HealStore]:
     """The `bdheal` store per request, thread-confined for the same reason as `repository`."""
     conn = heal_connect(database_path())
     try:
@@ -91,20 +87,33 @@ class ProductColumn(BaseModel):
 
     external_id: str
     name: str
+    variant: str | None = None
+    """Strength and form, e.g. `2.5mg Capsules`. `None` when the name does not carry both.
+
+    A manufacturer may authorise several strengths of one substance, each with its own
+    label. Heading those columns by manufacturer alone makes them identical to read.
+    """
+
     ma_holder: str | None = None
     revised: str | None = None
     source_url: str | None = None
+    scanned: list[str] = []
+    """Sections read for *this* label. An absence in this column means absent from these.
+
+    Per column rather than per matrix: a product whose §4.5 came back empty was never
+    scanned for 4.5, and saying otherwise claims a scope that does not exist for it.
+    """
 
 
 class Matrix(BaseModel):
     """The comparison for one substance.
 
-    `scanned` is required reading, not metadata: `absent` means absent from these
-    sections, and a reader cannot judge an absence without knowing what was looked at.
+    Each column carries the sections read for it — required reading, not metadata:
+    `absent` means absent from those sections, and a reader cannot judge an absence
+    without knowing what was looked at.
     """
 
     substance_id: str
-    scanned: list[str]
     products: list[ProductColumn]
     rows: list[Row]
 
@@ -119,7 +128,7 @@ def health() -> dict[str, str]:
 def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]:
     """The roster, with how much of it has actually been collected."""
     summaries = []
-    for substance in load_substances(_config_dir() / "substances.yaml"):
+    for substance in load_substances(config_dir() / "substances.yaml"):
         result = compare(substance.id, repo)
         summaries.append(
             SubstanceSummary(
@@ -141,18 +150,18 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
         raise HTTPException(404, f"no labels stored for {substance_id!r}")
 
     by_product = {d.product_external_id: d for d in result.documents}
-    quotes = _quotes(result, repo)
 
     return Matrix(
         substance_id=result.substance_id,
-        scanned=list(result.scanned),
         products=[
             ProductColumn(
                 external_id=p.external_id,
                 name=p.name,
+                variant=variant(p.name),
                 ma_holder=p.ma_holder,
                 revised=(d.last_updated if (d := by_product.get(p.external_id)) else None),
                 source_url=(d.source_url if (d := by_product.get(p.external_id)) else None),
+                scanned=list(result.scanned.get(p.external_id, ())),
             )
             for p in result.products
         ],
@@ -164,7 +173,7 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
                     Cell(
                         product_external_id=p.external_id,
                         placement=row.placements[p.external_id],
-                        evidence=quotes.get((p.external_id, row.concept)),
+                        evidence=_evidence(row.evidence.get(p.external_id), by_product),
                     )
                     for p in result.products
                 ],
@@ -174,33 +183,37 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
     )
 
 
-def _quotes(result, repo: Repository) -> dict[tuple[str, str], Evidence]:
-    """One quote per (product, concept) — the strongest placement's, matching the cell."""
-    by_sha = {d.sha256: d for d in result.documents}
-    found: dict[tuple[str, str], Evidence] = {}
-    for occurrence in repo.occurrences_for_substance(result.substance_id):
-        document = by_sha.get(occurrence.document_sha256)
-        if document is None:
-            continue
-        key = (document.product_external_id, occurrence.concept)
-        if key not in found:
-            found[key] = Evidence(
-                quote=occurrence.quote,
-                section_code=occurrence.section_code,
-                char_start=occurrence.char_start,
-                char_end=occurrence.char_end,
-                source_url=document.source_url,
-            )
-    return found
+def _evidence(occurrence: Occurrence | None, by_product: dict[str, Document]) -> Evidence | None:
+    """The quote behind one cell.
+
+    Taken from the occurrence `compare` used to set that cell, never looked up again:
+    re-deriving it from storage is how a placement and its quote came from two different
+    revisions of the same label.
+    """
+    if occurrence is None:
+        return None
+    document = by_product.get(
+        next(
+            (d.product_external_id for d in by_product.values() if d.sha256 == occurrence.document_sha256),
+            "",
+        )
+    )
+    return Evidence(
+        quote=occurrence.quote,
+        section_code=occurrence.section_code,
+        char_start=occurrence.char_start,
+        char_end=occurrence.char_end,
+        source_url=document.source_url if document else "",
+    )
 
 
 class Heal(BaseModel):
     """One trip through the Bright Data heal gate, as the reliability screen shows it."""
 
-    status: str
+    status: HealStatus
     created_at: str
     promoted: bool
-    failure_class: str | None = None
+    failure_class: FailureClass | None = None
     attempts: int
     error: str | None = None
 
@@ -221,11 +234,11 @@ class CollectorHealth(BaseModel):
 
 
 @app.get("/collectors", response_model=list[CollectorHealth])
-def collectors(store: SqliteHealStore = Depends(heal_store)) -> list[CollectorHealth]:
+def collectors(store: HealStore = Depends(heal_store)) -> list[CollectorHealth]:
     """What is configured to collect, and how each one has been holding up."""
-    sources = {s.id: s.name for s in load_sources(_config_dir() / "sources.yaml")}
+    sources = {s.id: s.name for s in load_sources(config_dir() / "sources.yaml")}
     health = []
-    for collector in load_collectors(_config_dir() / "collectors.yaml"):
+    for collector in load_collectors(config_dir() / "collectors.yaml"):
         baseline = store.baseline(collector.id)
         health.append(
             CollectorHealth(
@@ -236,10 +249,10 @@ def collectors(store: SqliteHealStore = Depends(heal_store)) -> list[CollectorHe
                 baseline_row_count=baseline.row_count if baseline else None,
                 heals=[
                     Heal(
-                        status=event.status.value,
+                        status=event.status,
                         created_at=event.created_at.isoformat(),
                         promoted=event.promoted,
-                        failure_class=event.failure_class.value if event.failure_class else None,
+                        failure_class=event.failure_class,
                         attempts=event.attempts,
                         error=event.error,
                     )

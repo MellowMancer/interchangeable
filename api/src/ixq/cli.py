@@ -1,8 +1,5 @@
 """Typer entrypoints. The only module that knows the pipeline's stage order."""
 
-import os
-from pathlib import Path
-
 import typer
 
 from ixq.adapters.brightdata import label_source
@@ -13,24 +10,14 @@ from ixq.adapters.config import (
     load_substances,
 )
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.settings import database_path
 from ixq.domain import CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
+from ixq.settings import config_dir, database_path
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
-
-def _config_dir() -> Path:
-    """Where operator-tunable YAML lives.
-
-    Defaults to `api/config`, which is where it sits from the repo root and from the
-    container's workdir. The config is deployment data, not packaged into the wheel, so
-    there is no importable location to resolve it from.
-    """
-    return Path(os.environ.get("IXQ_CONFIG_DIR", "api/config"))
-
 
 @app.callback()
 def main() -> None:
@@ -43,11 +30,11 @@ def init() -> None:
     """Create the database, apply the schema, and load the rosters."""
     db_path = database_path()
     repository = SqliteRepository(connect(db_path))
-    config_dir = _config_dir()
+    config = config_dir()
 
-    sources = load_sources(config_dir / "sources.yaml")
-    substances = load_substances(config_dir / "substances.yaml")
-    collectors = load_collectors(config_dir / "collectors.yaml")
+    sources = load_sources(config / "sources.yaml")
+    substances = load_substances(config / "substances.yaml")
+    collectors = load_collectors(config / "collectors.yaml")
 
     with repository.transaction():
         for source in sources:
@@ -67,19 +54,26 @@ def init() -> None:
 def run(
     substance: str = typer.Option("", help="Only this substance id. Default: every one."),
     products: int = typer.Option(0, help="Cap products per substance. 0 means no cap."),
+    heal: bool = typer.Option(
+        True, help="Check each collector against its anchor and repair it if it has moved."
+    ),
 ) -> None:
     """Collect products, fetch their labels, and classify what the labels say.
 
     Every collector call is billable, so `--products` exists to make a first run cheap:
     the whole roster is several hundred labels.
+
+    The health check costs one fetch per collector against its stable anchor, which is
+    also the only thing that captures a baseline — without it nothing is ever recorded and
+    the reliability screen stays empty however many runs happen.
     """
-    config_dir = _config_dir()
+    config = config_dir()
     repository = SqliteRepository(connect(database_path()))
 
-    sources = {s.id: s for s in load_sources(config_dir / "sources.yaml")}
-    substances = load_substances(config_dir / "substances.yaml")
-    concepts = load_concepts(config_dir / "concepts.yaml")
-    collectors = load_collectors(config_dir / "collectors.yaml")
+    sources = {s.id: s for s in load_sources(config / "sources.yaml")}
+    substances = load_substances(config / "substances.yaml")
+    concepts = load_concepts(config / "concepts.yaml")
+    collectors = load_collectors(config / "collectors.yaml")
     if substance:
         substances = [s for s in substances if s.id == substance]
         if not substances:
@@ -93,7 +87,9 @@ def run(
                 f"source {source_id!r} has no {', '.join(sorted(k.value for k in missing))} "
                 "collector configured"
             )
-        labels = label_source(database_path(), by_kind)
+        mine = [c for c in collectors if c.source_id == source_id]
+        labels = label_source(database_path(), by_kind, mine)
+        _check(labels, mine, heal=heal)
 
         for item in substances:
             with repository.transaction():
@@ -104,6 +100,27 @@ def run(
 
             for product in chosen:
                 _one_label(product, source, by_kind, labels, concepts, repository)
+
+
+def _check(labels, collectors, *, heal: bool) -> None:
+    """Judge each collector against its anchor before spending a fetch per product.
+
+    A break found here is reported and not raised: one moved collector should not stop the
+    others, and a partial corpus is visible in the comparison while a crashed run is not.
+    """
+    if not heal:
+        typer.echo("skipping the collector health check (--no-heal)")
+        return
+    for collector in collectors:
+        check = labels.ensure_healthy(collector.id)
+        if check.promoted_unverified:
+            typer.echo(f"  {collector.id}: healed, UNVERIFIED — {check.reason}")
+        elif check.healed:
+            typer.echo(f"  {collector.id}: was broken, healed and verified")
+        elif check.broken:
+            typer.echo(f"  {collector.id}: BROKEN — {check.reason}")
+        elif check.reason:
+            typer.echo(f"  {collector.id}: not checked — {check.reason}")
 
 
 def _one_label(product, source, by_kind, labels, concepts, repository) -> None:
@@ -135,7 +152,10 @@ def matrix(substance: str = typer.Argument(..., help="Substance id, e.g. ramipri
 
     holders = [p.ma_holder or p.external_id for p in result.products]
     width = max(len(r.concept) for r in result.rows) + 2 if result.rows else 12
-    typer.echo(f"\n{substance} — sections scanned: {', '.join(result.scanned)}")
+    typer.echo(f"\n{substance}")
+    for product in result.products:
+        read = ", ".join(result.scanned.get(product.external_id, ())) or "nothing"
+        typer.echo(f"  {product.ma_holder or product.external_id} — sections read: {read}")
     typer.echo("(absent means absent from those sections, not from the label)\n")
     typer.echo(" " * width + "  ".join(h[:16].ljust(16) for h in holders))
     for row in sorted(result.rows, key=lambda r: (not r.diverges, r.concept)):

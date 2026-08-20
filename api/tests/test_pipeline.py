@@ -6,7 +6,7 @@ import pytest
 
 from ixq.domain import Product, Source, Substance
 from ixq.pipeline.collect import collect, is_combination
-from ixq.pipeline.fetch import fetch
+from ixq.pipeline.fetch import SECTIONS, fetch
 from ixq.pipeline.ports import Repository
 from conftest import SOURCE_ID, SUBSTANCE_ID
 
@@ -200,11 +200,76 @@ def test_digest_ignores_fields_that_are_not_the_label(repository: Repository) ->
     assert plain.sha256 == echoed.sha256
 
 
-def test_a_row_with_no_section_fields_is_a_break_not_an_empty_label(
+def test_a_heal_that_renames_the_section_fields_is_a_break_not_an_empty_label(
     repository: Repository,
 ) -> None:
-    """If a heal renames the fields, storing an empty document would report success."""
-    product = _seed(repository)
+    """The row shape production actually produces — which the old guard could not reject.
 
-    with pytest.raises(ValueError, match="no section fields"):
-        fetch(product, SOURCE, "c_product", StubLabels([{"product_name": "X"}]), repository)
+    `HealerLabelSource` builds rows with `ProductRow.model_validate(...).model_dump()`, so
+    every declared field is present as a key whatever the collector returned, and
+    `extra="allow"` keeps a renamed key *alongside* them. Testing `field in row` was
+    therefore always true and the guard was unfalsifiable; the earlier version of this
+    test passed a bare `{"product_name": "X"}`, a shape no collector can emit.
+    """
+    from ixq.adapters.brightdata import ProductRow
+
+    product = _seed(repository)
+    renamed = ProductRow.model_validate(
+        {"product_name": "X", "section_4_3_contra_indications": "Hypersensitivity."}
+    ).model_dump()
+
+    assert all(field in renamed for field in SECTIONS), "the shape the old guard passed"
+
+    with pytest.raises(ValueError, match="no section content"):
+        fetch(product, SOURCE, "c_product", StubLabels([renamed]), repository)
+
+
+def test_two_products_with_identical_labels_stay_two_documents(
+    repository: Repository,
+) -> None:
+    """Generics from one contract manufacturer can be byte-identical.
+
+    `documents.sha256` is the primary key with `ON CONFLICT DO NOTHING`, so a shared
+    content address silently discards the second product's document — and `compare` then
+    omits that manufacturer entirely, which reads as having no opinion rather than as
+    data loss.
+    """
+    identical = {
+        "product_name": "Same Label",
+        "section_4_3_contraindications": "Hypersensitivity to the active substance.",
+    }
+    first = _seed(repository)
+    second = Product(
+        source_id=SOURCE.id,
+        external_id="9999",
+        substance_id=first.substance_id,
+        name="Other 5mg Tablets",
+        ma_holder="Other Ltd",
+    )
+    repository.save_product(second)
+
+    a = fetch(first, SOURCE, "c_product", StubLabels([identical]), repository)
+    b = fetch(second, SOURCE, "c_product", StubLabels([identical]), repository)
+
+    assert a is not None and b is not None
+    assert a.sha256 != b.sha256
+
+
+@pytest.mark.parametrize(
+    ("name", "combination"),
+    [
+        ("Cefotaxime 1g Powder and Solvent for Solution for Injection", False),
+        ("Ceftriaxone Powder and Solvent for Solution for Infusion", False),
+        ("Ramipril 2.5 mg/5 ml Oral solution", False),
+        ("Tritace 5mg Tablets", False),
+        ("Perindopril and Indapamide 4mg/1.25mg Tablets", True),
+        ("Amlodipine/Valsartan 5mg/80mg Film-coated Tablets", True),
+    ],
+)
+def test_a_presentation_is_not_a_combination(name: str, combination: bool) -> None:
+    """`Powder and Solvent` is one substance in two containers, not two substances.
+
+    A false positive here is a silent drop: the product never reaches the roster, so
+    nothing downstream can notice the manufacturer is missing.
+    """
+    assert is_combination(name) is combination

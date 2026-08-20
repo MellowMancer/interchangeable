@@ -13,19 +13,25 @@ disagree — with the exact quoted text behind every claim.
 The question mark is deliberate. The project asks whether these products really are
 interchangeable; it does not assert that they are not.
 
-## The finding that started it
+## The finding
 
-Three UK-authorised ramipril products, same active ingredient:
+Three UK-authorised ramipril products, same active ingredient, three manufacturers. All
+three state the same clinical fact — ramipril must not be started until 36 hours after the
+last dose of sacubitril/valsartan. They do not agree on how binding it is:
 
-| Product | §4.3 Contraindications |
+| Manufacturer | Where the washout appears |
 |---|---|
-| Ramipril 10mg Tablets | hypersensitivity · angioedema history · concomitant sacubitril/valsartan |
-| Ramipril 2.5mg Tablets | *identical three* |
-| **Ramipril 1.25mg Tablets** | hypersensitivity · angioedema history · **extracorporeal treatments** · **bilateral renal artery stenosis** · **2nd/3rd trimester pregnancy** |
+| Aurobindo Pharma – Milpharm | **§4.3 Contraindications** — an absolute bar |
+| Wockhardt UK | §4.5 Interactions |
+| Zentiva | §4.5 Interactions |
 
-One manufacturer lists later-pregnancy use as an absolute contraindication. Two do not
-list it in §4.3 at all. Divergence runs both ways — the third omits the
-sacubitril/valsartan contraindication the others carry.
+A pharmacist reading Aurobindo's label sees a contraindication. Reading Zentiva's, they
+see an interaction. Same molecule, same requirement, different regulatory weight — and
+nothing on either label says the other exists.
+
+That row is produced by the pipeline in this repository, with the quote behind each cell
+sliced from the stored section text at the character offsets shown, so every cell can be
+checked against its source.
 
 ## What it will and will not say
 

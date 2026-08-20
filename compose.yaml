@@ -31,10 +31,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Server Components fetch from inside the container, where localhost is the web
-      # service itself; the browser cannot resolve `api`. The two need different URLs.
+      # Every page is a Server Component, so fetches leave the web container and must
+      # address the API by service name. A browser-side URL is deliberately not defined
+      # here: nothing fetches from the browser yet, and an unused one invites a client
+      # component to depend on config only compose supplies.
       API_URL: http://api:8000
-      NEXT_PUBLIC_API_URL: http://localhost:8000
     develop:
       watch:
         - action: sync

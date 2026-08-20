@@ -73,6 +73,8 @@ def load_collectors(path: Path) -> list[Collector]:
             id=entry["id"],
             source_id=entry["source_id"],
             kind=CollectorKind(entry["kind"]),
+            anchor_url=entry.get("anchor_url"),
+            old_layout_url=entry.get("old_layout_url"),
         )
         for entry in _entries(path, "collectors")
     ]

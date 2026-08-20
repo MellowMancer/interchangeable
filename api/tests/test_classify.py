@@ -1,11 +1,13 @@
 """S3 and S4. The invariant under test is that a quote can always be re-checked."""
 
+import re
 from pathlib import Path
 
 import pytest
 
 from ixq.adapters.config import load_concepts
 from ixq.domain import UNCLASSIFIED, Concept, Section, clauses, prepared
+from ixq.domain.section import BULLET, HEADER, LEAD_IN
 from ixq.pipeline.classify import classify
 
 # Verbatim from Glucophage 500 mg, EMC product 987 — the real thing, bullets and all.
@@ -49,23 +51,59 @@ def test_metformin_section_splits_to_its_six_contraindications() -> None:
     assert len(clauses(METFORMIN_43)) == 6
 
 
-def test_lead_ins_are_dropped_in_every_phrasing_seen() -> None:
-    """Measured as 12% of apparent misses. A colon introduces clauses; it asserts nothing."""
+def test_a_restatement_of_the_heading_is_dropped() -> None:
+    """It asserts nothing the heading did not, so it can only add noise."""
     section = Section(
         code="4.3",
         heading="Contraindications",
         text="\n".join(
             [
-                "Tamoxifen should not be used in:",
-                "Nolvadex should not be used in the following:",
                 "General contraindications (all indications)",
-                "Atorvastatin is contraindicated in patients:",
+                "Contraindications",
                 "Severe renal failure (GFR < 30 mL/min).",
             ]
         ),
     )
 
     assert [c.text for c in clauses(section)] == ["Severe renal failure (GFR < 30 mL/min)."]
+
+
+def test_a_colon_line_carrying_content_is_kept() -> None:
+    """The regression that manufactured two false divergences across the ramipril corpus.
+
+    Treating any trailing colon as a lead-in discarded this line whole — 239 characters
+    naming the interacting substances — so the manufacturers whose §4.5 is written this
+    way reported ABSENT on concepts their labels do state. An unclassified clause is a
+    visible gap; a dropped one is an invisible false absence.
+    """
+    interaction = (
+        "Antihypertensive agents (e.g. diuretics) and other substances that may decrease "
+        "blood pressure (e.g. nitrates, tricyclic antidepressants, anaesthetics, acute "
+        "alcohol intake, baclofen, alfuzosin, doxazosin, prazosin, tamsulosin):"
+    )
+    section = Section(code="4.5", heading="Interactions", text=interaction)
+
+    assert [c.text for c in clauses(section)] == [interaction]
+
+
+def test_inline_bullets_split_even_without_newlines() -> None:
+    """Zentiva's §4.3 arrives as one line of eight bullets.
+
+    Splitting on newlines alone made the whole section a single clause, so every concept
+    in it quoted the entire section as evidence and a concept from one bullet was reported
+    against another's placement.
+    """
+    section = Section(
+        code="4.3",
+        heading="Contraindications",
+        text="• Hypersensitivity to the active substance. • History of angioedema. • Pregnancy.",
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "Hypersensitivity to the active substance.",
+        "History of angioedema.",
+        "Pregnancy.",
+    ]
 
 
 def test_short_clauses_are_kept_because_they_are_real_contraindications() -> None:
@@ -143,3 +181,132 @@ def test_classifying_the_real_section_finds_its_known_concepts(
 
     assert {"hypersensitivity", "metabolic_acidosis", "glycaemic_emergency", "renal"} <= names
     assert UNCLASSIFIED not in names
+
+WORD_CHARACTER = re.compile(r"[A-Za-z0-9]")
+
+SHAPES = {
+    "newline separated": "Shock.\nPorphyria.\nPregnancy.",
+    "inline bullets": "• Hypersensitivity. • History of angioedema. • Pregnancy.",
+    "newline bullets": "- Severe renal failure.\n- Hypotension.\n",
+    "nested o bullets": "Renal impairment:\no obstruction of the renal artery\no dialysis",
+    "colon then content": "Agents that lower blood pressure (e.g. nitrates, alcohol, baclofen):",
+    "heading then clause": "4.3 Contraindications\nSevere hepatic impairment.",
+    "ragged whitespace": "   Shock.   \n\n\n   Porphyria.   \n",
+    "no trailing newline": "Hypersensitivity to the active substance",
+}
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_every_dropped_word_is_attributable_to_a_named_rule(shape: str) -> None:
+    """The invariant that keeps an absence honest.
+
+    A word the splitter drops is never offered to a concept, so the label reads as silent
+    on something it states — a false `ABSENT`, the one error this project must not make.
+
+    Drops are not forbidden: a bullet marker and a repeated heading are not content. What
+    is forbidden is dropping text *no rule claims*. Asserted per span rather than as a
+    coverage percentage, because a threshold lets the next formatting variant lose a
+    little text quietly — which is exactly how `:$` cost 2,659 characters unnoticed.
+    """
+    text = SHAPES[shape]
+    section = Section(code="4.3", heading="Contraindications", text=text)
+
+    covered = set()
+    for clause in clauses(section):
+        covered.update(range(clause.start, clause.end))
+
+    for start, end in _orphan_spans(text, covered):
+        assert _explained(text[start:end], _line_around(text, start)), (
+            f"{text[start:end]!r} was dropped from {text!r} by no named rule"
+        )
+
+
+def _orphan_spans(text: str, covered: set[int]) -> list[tuple[int, int]]:
+    """Runs of word characters that no clause covers."""
+    spans: list[tuple[int, int]] = []
+    for index, character in enumerate(text):
+        if not WORD_CHARACTER.match(character) or index in covered:
+            continue
+        if spans and spans[-1][1] == index:
+            spans[-1] = (spans[-1][0], index + 1)
+        else:
+            spans.append((index, index + 1))
+    return spans
+
+
+def _line_around(text: str, index: int) -> str:
+    """The whole line containing `index` — a heading is only recognisable in full."""
+    return text[text.rfind("\n", 0, index) + 1 :].split("\n")[0].strip()
+
+
+def _explained(dropped: str, line: str) -> bool:
+    """Whether a named rule accounts for this text: a bullet marker, or a heading line."""
+    if BULLET.match(f"{dropped} "):
+        return True
+    return bool(HEADER.fullmatch(line) or LEAD_IN.search(line))
+
+
+def test_every_clause_quote_is_a_slice_of_the_section() -> None:
+    """`Clause.text` must be the exact span, never a cleaned copy — offsets are the proof."""
+    for text in SHAPES.values():
+        section = Section(code="4.3", heading="C", text=text)
+        for clause in clauses(section):
+            assert section.text[clause.start : clause.end] == clause.text
+
+
+@pytest.mark.corpus
+def test_no_word_in_the_real_corpus_falls_outside_a_clause() -> None:
+    """The synthetic shapes above are ones we thought of; this is what actually shipped.
+
+    Skipped when no database is present, so the suite stays runnable anywhere — but when
+    a corpus exists this is the check that would have caught the `:$` rule, which passed
+    every unit test while discarding 2,659 characters of real label text.
+    """
+    import sqlite3
+
+    from ixq.settings import database_path
+
+    path = database_path()
+    if not path.exists():
+        pytest.skip("no corpus collected")
+
+    conn = sqlite3.connect(path)
+    orphaned: list[tuple[str, str]] = []
+    for code, text in conn.execute("SELECT code, text FROM sections"):
+        section = Section(code=code, heading="h", text=text)
+        covered = set()
+        for clause in clauses(section):
+            covered.update(range(clause.start, clause.end))
+        for start, end in _orphan_spans(text, covered):
+            if not _explained(text[start:end], _line_around(text, start)):
+                orphaned.append((code, text[start:end]))
+
+    assert not orphaned, f"{len(orphaned)} unexplained drops, e.g. {orphaned[:5]}"
+
+
+@pytest.mark.corpus
+def test_no_section_collapses_into_a_single_clause() -> None:
+    """Coverage cannot catch this, which is why it is asserted separately.
+
+    Zentiva's §4.3 — eight bullets on one line — scored ~100% coverage as a single
+    912-character clause. Every word reached the classifier and the result was still
+    wrong: one blob matches every concept anywhere in it, so a concept from one bullet was
+    reported against another's placement, and each quoted the whole section as evidence.
+    """
+    import sqlite3
+
+    from ixq.settings import database_path
+
+    path = database_path()
+    if not path.exists():
+        pytest.skip("no corpus collected")
+
+    conn = sqlite3.connect(path)
+    blobs = []
+    for code, text in conn.execute("SELECT code, text FROM sections"):
+        found = clauses(Section(code=code, heading="h", text=text))
+        markers = text.count("•") + text.count("·")
+        if markers >= 3 and len(found) < markers:
+            blobs.append((code, markers, len(found)))
+
+    assert not blobs, f"sections with bullets that did not split: {blobs}"
