@@ -1,13 +1,13 @@
-"""The `preward init` contract: a database exists afterwards, with the roster loaded.
+"""The `preward init` contract: a database exists afterwards, with the rosters loaded.
 
-Deliberately does not depend on the shipped corpus, which is empty until one is chosen.
+Deliberately builds its own config rather than reading the shipped one, so these stay
+true whatever corpus is configured.
 """
 
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from preward.adapters.config import load_sources
 from preward.cli import DB_NAME, app
 
 runner = CliRunner()
@@ -51,8 +51,3 @@ def test_init_succeeds_with_no_corpus_configured(tmp_path: Path, monkeypatch) ->
 
     assert result.exit_code == 0, result.output
     assert "0 sources" in result.output
-
-
-def test_shipped_roster_parses(shipped_config_dir: Path) -> None:
-    """The committed sources.yaml must stay loadable even while it is empty."""
-    assert load_sources(shipped_config_dir / "sources.yaml") == []

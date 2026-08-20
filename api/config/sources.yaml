@@ -1,29 +1,8 @@
-# Corpus roster. Empty until a corpus is selected — the pipeline is corpus-agnostic
-# and every stage below `collect` works without this file naming anything.
+# Corpus roster.
 #
 # `variant` names the collector's layout family (HTML structure), not subject matter.
-sources: []
-
-# ── ON STANDBY ────────────────────────────────────────────────────────────────
-# The WA municipal roster below is parked, not cancelled. Bright Data classifies
-# these hosts as Government and refuses them at the network layer (verified
-# 2026-08-18); their own robots.txt permits /AgendaCenter and all four return 200
-# to a direct request. A KYC request at https://brightdata.com/cp/kyc is pending.
-# If granted, move these back under `sources:` — no code changes required.
-#
-#   - id: port-angeles
-#     name: City of Port Angeles
-#     base_url: https://www.cityofpa.us          # unverified
-#     variant: C
-#   - id: bothell
-#     name: City of Bothell
-#     base_url: https://www.bothellwa.gov
-#     variant: A
-#   - id: bainbridge-island
-#     name: City of Bainbridge Island
-#     base_url: https://www.bainbridgewa.gov     # unverified
-#     variant: B
-#   - id: lakehaven
-#     name: Lakehaven Water & Sewer District
-#     base_url: https://www.lakehavenwsd.gov
-#     variant: district
+sources:
+  - id: emc
+    name: electronic medicines compendium
+    base_url: https://www.medicines.org.uk
+    variant: emc-smpc

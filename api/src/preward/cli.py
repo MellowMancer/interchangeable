@@ -5,10 +5,10 @@ from pathlib import Path
 
 import typer
 
-from preward.adapters.config import load_sources
+from preward.adapters.config import load_sources, load_substances
 from preward.adapters.sqlite import SqliteRepository, connect
 
-app = typer.Typer(help="Tiered, provenance-carrying signal extraction from documents.")
+app = typer.Typer(help="Provenance-carrying comparison of product labels.")
 
 DB_NAME = "rf.db"
 
@@ -31,12 +31,19 @@ def main() -> None:
 
 @app.command()
 def init() -> None:
-    """Create the database, apply the schema, and load the source roster."""
+    """Create the database, apply the schema, and load the rosters."""
     db_path = _data_dir() / DB_NAME
     repository = SqliteRepository(connect(db_path))
+    config_dir = _config_dir()
 
-    sources = load_sources(_config_dir() / "sources.yaml")
+    sources = load_sources(config_dir / "sources.yaml")
     for source in sources:
         repository.save_source(source)
 
-    typer.echo(f"initialised {db_path} with {len(sources)} sources")
+    substances = load_substances(config_dir / "substances.yaml")
+    for substance in substances:
+        repository.save_substance(substance)
+
+    typer.echo(
+        f"initialised {db_path} with {len(sources)} sources and {len(substances)} substances"
+    )

@@ -1,6 +1,10 @@
-"""Where a concept sits in a label."""
+"""What a label clause is about, and where it sits."""
 
+from dataclasses import dataclass
 from enum import StrEnum
+
+UNCLASSIFIED = "unclassified"
+"""Recorded for a clause no concept matched. A published recall gap, never a dropped row."""
 
 
 class Placement(StrEnum):
@@ -15,3 +19,30 @@ class Placement(StrEnum):
     WARNING = "4.4"
     PREGNANCY = "4.6"
     ABSENT = "absent"
+
+
+@dataclass(frozen=True, slots=True)
+class Concept:
+    """A named clinical concept and the stems that identify it in prose.
+
+    Patterns are stems rather than whole words, matched case-insensitively, so one entry
+    covers a family of inflections. They are lowercased on construction because the
+    comparison is, and a mixed-case pattern would silently never match.
+    """
+
+    name: str
+    patterns: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("concept name is required")
+        if self.name == UNCLASSIFIED:
+            raise ValueError(f"{UNCLASSIFIED!r} is reserved for clauses nothing matched")
+        if not self.patterns:
+            raise ValueError(f"concept {self.name!r} needs at least one pattern")
+        object.__setattr__(self, "patterns", tuple(p.lower() for p in self.patterns))
+
+    def matches(self, text: str) -> bool:
+        """Whether any pattern appears in `text`. Case-insensitive by contract."""
+        lowered = text.lower()
+        return any(pattern in lowered for pattern in self.patterns)

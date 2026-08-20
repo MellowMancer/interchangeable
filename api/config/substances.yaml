@@ -1,0 +1,22 @@
+# Active ingredients to compare across manufacturers.
+#
+# `id` is our slug, not any publisher's identifier: the same ingredient is named
+# differently by every source, so the join key cannot be borrowed. Adding a substance is
+# a change here and nowhere else.
+substances:
+  - id: ramipril
+    name: Ramipril
+  - id: metformin
+    name: Metformin
+  - id: atorvastatin
+    name: Atorvastatin
+  - id: amlodipine
+    name: Amlodipine
+  - id: omeprazole
+    name: Omeprazole
+  - id: sertraline
+    name: Sertraline
+  - id: simvastatin
+    name: Simvastatin
+  - id: amoxicillin
+    name: Amoxicillin

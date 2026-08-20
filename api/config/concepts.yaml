@@ -1,0 +1,18 @@
+# The concept lexicon: what a label clause is *about*, independent of how it is worded.
+#
+# Patterns are matched case-insensitively as substrings, so stems beat whole words —
+# `pregnan` covers pregnancy, pregnant and pregnancies without three entries.
+#
+# A clause matching nothing here is recorded as `unclassified` rather than dropped, and
+# that count is published. Recall gaps are findings; silent losses are not.
+concepts:
+  pregnancy:          [pregnan, trimester, gestation]
+  breastfeeding:      [lactation, breast-feed, breastfeed, nursing mother]
+  renal:              [renal, kidney, gfr, creatinine, nephro]
+  hepatic:            [hepatic, liver]
+  hypersensitivity:   [hypersensitiv, allergic, anaphyla]
+  alcohol:            [alcohol]
+  cardiac:            [cardiac, heart failure, myocardial]
+  metabolic_acidosis: [acidosis, ketoacidosis]
+  concomitant_drug:   [concomitant, co-administration, combination with]
+  paediatric:         [children, paediatric, infant]
