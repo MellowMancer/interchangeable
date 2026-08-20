@@ -21,6 +21,10 @@ concepts:
   # A class effect of ACE inhibitors that every ramipril label discusses in 4.4, and that
   # `respiratory` does not reach. It was the largest repeated block in `unclassified`.
   cough:              [cough]
+  # Dual RAAS blockade is its own warning class across every ACE-inhibitor label, and no
+  # other concept reaches it: `concomitant_drug` matches the co-administration wording
+  # but not the axis being blocked.
+  raas_blockade:      [renin-angiotensin, aliskiren, dual blockade, raas]
   metabolic_acidosis: [acidosis, ketoacidosis, ketosis]
   glycaemic_emergency: [pre-coma, precoma, diabetic coma]
   porphyria:          [porphyria]
