@@ -10,6 +10,7 @@ The declared signal for each class is fixed by the architecture contract; `MUTAT
 below is populated to match it.
 """
 
+import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -110,13 +111,24 @@ def column_reorder(html: str) -> str:
     return _serialise(root)
 
 
+def _uniform_tag(children: list[HtmlElement]) -> bool:
+    """Two or more siblings sharing one tag — a group, before asking what tells them apart."""
+    return len(children) >= 2 and len({child.tag for child in children}) == 1
+
+
+def _classes(children: list[HtmlElement]) -> set[str | None]:
+    """The distinct class attributes across siblings: one means uniform, more means columns."""
+    return {child.get("class") for child in children}
+
+
 def _are_columns(children: list[HtmlElement]) -> bool:
     """Two or more siblings of one tag, told apart by class: a row of columns."""
-    if len(children) < 2:
-        return False
-    tags = {child.tag for child in children}
-    classes = {child.get("class") for child in children}
-    return len(tags) == 1 and len(classes) > 1
+    return _uniform_tag(children) and len(_classes(children)) > 1
+
+
+def _are_rows(children: list[HtmlElement]) -> bool:
+    """Two or more siblings of one tag and one class: the repeating rows of a listing."""
+    return _uniform_tag(children) and len(_classes(children)) == 1
 
 
 def link_label(html: str) -> str:
@@ -181,26 +193,81 @@ def wrapper_nesting(html: str) -> str:
     return _serialise(root)
 
 
+def first_page(total: int) -> int:
+    """How many rows the first page keeps once a listing of `total` rows is split."""
+    return math.ceil(total / len(PAGE_NUMBERS))
+
+
+def _repeating(root: HtmlElement) -> list[HtmlElement]:
+    """The largest group of identical siblings on the page — the listing's rows.
+
+    Structural rather than named, so the generator stays domain-free: a listing is
+    whatever repeats most. A page with nothing repeating yields no rows and simply keeps
+    all of them, which is what makes this safe on a one-row fragment.
+    """
+    groups = (_children(node) for node in _elements(root))
+    return max((group for group in groups if _are_rows(group)), key=len, default=[])
+
+
 def pagination(html: str) -> str:
-    """Append page links, so the rows a collector expects now arrive split across pages."""
+    """Split the listing across pages: drop all but the first page, then add the page links.
+
+    The rows a collector expects genuinely stop arriving, so the row count falls as well as
+    the shape changing. That is what makes this the one class exercising the volume
+    detector — appending navigation alone moves the skeleton hash and nothing else.
+    """
     root = _parse(html)
+    rows = _repeating(root)
+    for row in rows[first_page(len(rows)) :]:
+        row.getparent().remove(row)
     navigation = _element("nav", {"class": PAGINATION_CLASS})
     navigation.extend(
         _element("a", {"class": PAGE_CLASS, "href": f"?page={number}"}, str(number))
         for number in PAGE_NUMBERS
     )
-    _content_host(root).append(navigation)
+    _place_pager(root, rows, navigation)
     return _serialise(root)
 
 
+def _place_pager(root: HtmlElement, rows: list[HtmlElement], navigation: HtmlElement) -> None:
+    """Put the pager immediately after the listing it pages, not at the end of the document.
+
+    A pager appended to the body lands after whatever else the page carries — on a real
+    layout, below the footer. Falls back to appending when there is no listing to sit
+    beside, which is what a fragment with a single row has.
+    """
+    listing = rows[0].getparent() if rows else None
+    anchor = None if listing is None else listing.getparent()
+    if anchor is not None and anchor.getparent() is not None:
+        anchor.addnext(navigation)
+        return
+    _content_host(root).append(navigation)
+
+
 MUTATIONS: tuple[Mutation, ...] = (
-    Mutation(MutationClass.CLASS_RENAME, frozenset({SignalKind.SKELETON}), class_rename),
-    Mutation(MutationClass.TABLE_TO_DIV, frozenset({SignalKind.SKELETON}), table_to_div),
+    Mutation(
+        MutationClass.CLASS_RENAME,
+        frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
+        class_rename,
+    ),
+    Mutation(
+        MutationClass.TABLE_TO_DIV,
+        frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
+        table_to_div,
+    ),
     Mutation(MutationClass.COLUMN_REORDER, frozenset({SignalKind.SKELETON}), column_reorder),
     Mutation(MutationClass.LINK_LABEL, frozenset(), link_label),
     Mutation(MutationClass.URL_PATTERN, frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}), url_pattern),
-    Mutation(MutationClass.DATE_FORMAT, frozenset({SignalKind.SCHEMA}), date_format),
+    Mutation(
+        MutationClass.DATE_FORMAT,
+        frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}),
+        date_format,
+    ),
     Mutation(MutationClass.FIELD_SPLIT_MERGE, frozenset({SignalKind.SKELETON}), field_split_merge),
     Mutation(MutationClass.WRAPPER_NESTING, frozenset({SignalKind.SKELETON}), wrapper_nesting),
-    Mutation(MutationClass.PAGINATION, frozenset({SignalKind.SKELETON}), pagination),
+    Mutation(
+        MutationClass.PAGINATION,
+        frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
+        pagination,
+    ),
 )

@@ -22,7 +22,7 @@ from conftest import assert_names_no_problem_domain
 from lxml import etree
 
 from bdheal.bench import mutate
-from bdheal.bench.mutate import MUTATIONS, Mutation
+from bdheal.bench.mutate import MUTATIONS, Mutation, first_page
 from bdheal.skeleton import skeleton_hash
 from bdheal.vocabulary import MutationClass, SignalKind
 
@@ -40,18 +40,21 @@ FIXTURE = (
 
 # The declared-detector table, restated as an assertion rather than trusted.
 DECLARED_SIGNAL = {
-    MutationClass.CLASS_RENAME: frozenset({SignalKind.SKELETON}),
-    MutationClass.TABLE_TO_DIV: frozenset({SignalKind.SKELETON}),
+    MutationClass.CLASS_RENAME: frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
+    MutationClass.TABLE_TO_DIV: frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
     MutationClass.COLUMN_REORDER: frozenset({SignalKind.SKELETON}),
     MutationClass.FIELD_SPLIT_MERGE: frozenset({SignalKind.SKELETON}),
     MutationClass.WRAPPER_NESTING: frozenset({SignalKind.SKELETON}),
-    MutationClass.PAGINATION: frozenset({SignalKind.SKELETON}),
-    MutationClass.DATE_FORMAT: frozenset({SignalKind.SCHEMA}),
+    MutationClass.PAGINATION: frozenset({SignalKind.SKELETON, SignalKind.ROW_COUNT}),
+    MutationClass.DATE_FORMAT: frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}),
     MutationClass.URL_PATTERN: frozenset({SignalKind.SCHEMA, SignalKind.NULL_RATE}),
     MutationClass.LINK_LABEL: frozenset(),
 }
+# Membership, not equality: `pagination` also trips the volume detector, and asking whether
+# its signal set *equals* {skeleton} would file it under the classes that leave the hash
+# alone — which it plainly does not.
 STRUCTURAL = frozenset(
-    name for name, signal in DECLARED_SIGNAL.items() if signal == frozenset({SignalKind.SKELETON})
+    name for name, signal in DECLARED_SIGNAL.items() if SignalKind.SKELETON in signal
 )
 
 GOLDEN = {
@@ -240,7 +243,7 @@ def test_link_label_declares_that_nothing_catches_it() -> None:
 
 @pytest.mark.parametrize("name", sorted(STRUCTURAL))
 def test_structural_classes_move_the_skeleton_hash(name: MutationClass) -> None:
-    """Six rebuilds of the tree; each one must be visible to the structural detector."""
+    """Seven rebuilds of the tree; each one must be visible to the structural detector."""
     assert skeleton_hash(_mutation(name).apply(FIXTURE)) != skeleton_hash(FIXTURE)
 
 
@@ -248,6 +251,21 @@ def test_structural_classes_move_the_skeleton_hash(name: MutationClass) -> None:
 def test_text_and_attribute_classes_leave_the_skeleton_hash_alone(name: MutationClass) -> None:
     """The skeleton hash is text-insensitive by contract; these three are other detectors' work."""
     assert skeleton_hash(_mutation(name).apply(FIXTURE)) == skeleton_hash(FIXTURE)
+
+
+def test_pagination_leaves_only_the_first_page_of_rows() -> None:
+    """The rows genuinely stop arriving, which is what the volume detector is there to see.
+
+    Asserted on its own listing because the shared fixture carries a single row, and one
+    row is already a whole first page — so it could never show the split.
+    """
+    listing = (
+        '<ul class="rows">'
+        '<li class="row">a</li><li class="row">b</li><li class="row">c</li>'
+        "</ul>"
+    )
+    paginated = _mutation(MutationClass.PAGINATION).apply(listing)
+    assert paginated.count('class="row"') == first_page(3) == 2
 
 
 def test_the_fixture_under_test_is_generic() -> None:
