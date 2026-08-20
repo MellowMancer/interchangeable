@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from preward.domain.section import Section
+from ixq.domain.section import Section
 
 
 @dataclass(frozen=True, slots=True)

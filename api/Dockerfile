@@ -10,7 +10,7 @@ USER app
 COPY --chown=app:app pyproject.toml uv.lock ./
 COPY --chown=app:app packages/bdheal ./packages/bdheal
 COPY --chown=app:app api ./api
-RUN uv sync --frozen --package preward
+RUN uv sync --frozen --package ixq
 
 EXPOSE 8000
-CMD ["uv", "run", "--frozen", "--package", "preward", "uvicorn", "preward.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "--frozen", "--package", "ixq", "uvicorn", "ixq.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

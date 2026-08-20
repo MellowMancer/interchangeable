@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from preward.adapters.config import load_concepts, load_sources, load_substances
-from preward.domain import UNCLASSIFIED, Concept
+from ixq.adapters.config import load_concepts, load_sources, load_substances
+from ixq.domain import UNCLASSIFIED, Concept
 
 
 def _write(tmp_path: Path, name: str, body: str) -> Path:

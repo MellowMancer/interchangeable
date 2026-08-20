@@ -5,22 +5,22 @@ from pathlib import Path
 
 import typer
 
-from preward.adapters.config import load_sources, load_substances
-from preward.adapters.sqlite import SqliteRepository, connect
+from ixq.adapters.config import load_sources, load_substances
+from ixq.adapters.sqlite import SqliteRepository, connect
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
 
-DB_NAME = "rf.db"
+DB_NAME = "interchangeable.db"
 
 
 def _data_dir() -> Path:
     """Where the database and fetched artifacts live."""
-    return Path(os.environ.get("PREWARD_DATA_DIR", "data"))
+    return Path(os.environ.get("IXQ_DATA_DIR", "data"))
 
 
 def _config_dir() -> Path:
     """Where operator-tunable YAML lives."""
-    return Path(os.environ.get("PREWARD_CONFIG_DIR", "config"))
+    return Path(os.environ.get("IXQ_CONFIG_DIR", "config"))
 
 
 @app.callback()

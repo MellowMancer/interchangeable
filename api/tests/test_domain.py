@@ -2,7 +2,7 @@
 
 import pytest
 
-from preward.domain import Document, Occurrence, Placement, Product, Section, Substance, found_in
+from ixq.domain import Document, Occurrence, Placement, Product, Section, Substance, found_in
 
 SECTION = Section(
     code="4.3",

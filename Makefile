@@ -1,10 +1,10 @@
 # Wraps the container invocations that are impractical to type by hand.
 # Run the stack directly: docker compose watch / down / build
 #
-#   make add-py pkg=httpx              -> adds to preward (the app)
+#   make add-py pkg=httpx              -> adds to ixq (the app)
 #   make add-py pkg=httpx member=bdheal
 
-member ?= preward
+member ?= ixq
 
 ifeq ($(shell uname),Linux)
 USER_FLAG := --user $(shell id -u):$(shell id -g) -e HOME=/tmp

@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from preward.adapters.sqlite import SqliteRepository, connect
-from preward.domain import Document, Product, Section, Source, Substance
-from preward.pipeline.ports import Repository
+from ixq.adapters.sqlite import SqliteRepository, connect
+from ixq.domain import Document, Product, Section, Source, Substance
+from ixq.pipeline.ports import Repository
 
 SOURCE_ID = "example-source"
 SUBSTANCE_ID = "example-substance"

@@ -1,7 +1,7 @@
 -- bdheal's own persistence. Ships inside the package and is applied by store.connect().
 --
 -- Every table is prefixed `bdheal_` so the package can share a SQLite file with a host
--- application that already owns tables of its own (the rf-pre app has a `heal_events`
+-- application that already owns tables of its own (the Interchangeable? app has a `heal_events`
 -- of a different shape). Nothing here references an application table: bdheal does not
 -- own collectors, it is told about them.
 

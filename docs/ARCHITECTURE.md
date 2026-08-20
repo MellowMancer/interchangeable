@@ -16,8 +16,8 @@ Gates, not aspirations. Checked on every change, not only the one that introduce
 
 | | Invariant |
 |---|---|
-| **G1** | **Isolation.** `uv run --package bdheal pytest packages/bdheal` exits 0 with no corpus, no database file, no app and no network. Both ports are stubbed at their interfaces in every test. A test that needs `preward` means a layer boundary leaked. |
-| **G2** | **No upward dependency.** `rg -n "preward" packages/bdheal/` returns nothing in `src/` or `tests/`, and the manifest never names it. The app depends on `bdheal`; never the reverse. |
+| **G1** | **Isolation.** `uv run --package bdheal pytest packages/bdheal` exits 0 with no corpus, no database file, no app and no network. Both ports are stubbed at their interfaces in every test. A test that needs `ixq` means a layer boundary leaked. |
+| **G2** | **No upward dependency.** `rg -n "ixq" packages/bdheal/` returns nothing in `src/` or `tests/`, and the manifest never names it. The app depends on `bdheal`; never the reverse. |
 | **G3** | **argv is a list.** Every `bdata` invocation passes argv as `list[str]`; `shell=True` appears nowhere. Collector ids and heal prompts are interpolated values, so this is the injection boundary. |
 | **G4** | **Thin dependencies.** Runtime deps are exactly `pydantic selectolax lxml`; dev deps exactly `pytest pytest-cov`. No `fastapi`, no `typer`, no `httpx`. (`structlog` was dropped as a declared dependency with no call sites.) |
 | **G5** | **Buildable at every step.** `docker compose build api` exits 0 and the isolation test stays green after every change. |
@@ -26,7 +26,7 @@ Gates, not aspirations. Checked on every change, not only the one that introduce
 ## 2. The one dependency arrow
 
 ```
-preward (the app)  ──depends on──▶  bdheal  ──▶  bdata CLI  ──▶  Bright Data
+ixq (the app)  ──depends on──▶  bdheal  ──▶  bdata CLI  ──▶  Bright Data
 ```
 
 Never the reverse (G2). `bdheal` is a **sibling** of `api/`, not a child: a package buried
@@ -40,7 +40,7 @@ under `packages/bdheal/` is a defect.**
 ## 3. Workspace wiring
 
 ```
-rf-pre/
+interchangeable/
 ├─ pyproject.toml          # virtual uv workspace root; members = api, packages/bdheal
 ├─ uv.lock                 # ONE lockfile for the workspace
 ├─ .dockerignore           # the api image builds from the repo root

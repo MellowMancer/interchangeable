@@ -1,37 +1,62 @@
-# rf-pre
+# Interchangeable?
 
-Early-signal intelligence for municipal capital projects.
+Same drug, different manufacturer, different label.
 
-Public agencies decide to build things long before they publish a solicitation.
-That intent is visible in council agendas, capital facilities plans, and staff
-reports — sometimes years ahead. This project reads those public documents and
-turns them into scored, sourced signals.
+When a pharmacy dispenses a generic, it substitutes whichever manufacturer's version is
+on the shelf. Everyone — patient and prescriber alike — assumes same drug, same
+information. That assumption is not always true.
 
-**Scope:** Washington State, water and wastewater.
+**Interchangeable?** compares the UK Summaries of Product Characteristics of every
+authorised product sharing an active substance, and shows where the manufacturers
+disagree — with the exact quoted text behind every claim.
 
-## Signal ladder
+The question mark is deliberate. The project asks whether these products really are
+interchangeable; it does not assert that they are not.
 
-| Tier | Signal |
+## The finding that started it
+
+Three UK-authorised ramipril products, same active ingredient:
+
+| Product | §4.3 Contraindications |
 |---|---|
-| 1 | Casual mention |
-| 2 | Feasibility study or comprehensive plan commissioned |
-| 3 | Budgeted line item in a capital plan |
-| 4 | Design or construction contract awarded |
+| Ramipril 10mg Tablets | hypersensitivity · angioedema history · concomitant sacubitril/valsartan |
+| Ramipril 2.5mg Tablets | *identical three* |
+| **Ramipril 1.25mg Tablets** | hypersensitivity · angioedema history · **extracorporeal treatments** · **bilateral renal artery stenosis** · **2nd/3rd trimester pregnancy** |
 
-Every signal carries a verbatim quote, a link to the source document, a page
-reference, and the meeting date. Provenance is a requirement, not a feature.
+One manufacturer lists later-pregnancy use as an absolute contraindication. Two do not
+list it in §4.3 at all. Divergence runs both ways — the third omits the
+sacubitril/valsartan contraindication the others carry.
 
-## Approach
+## What it will and will not say
 
-Agency documents are public by law but scattered across vendor platforms with
-inconsistent structure and no common interface. The collection layer is built
-to notice when a source changes shape and repair itself, so the pipeline keeps
-running without hand-maintenance per agency.
+Absence from §4.3 does not prove absence from the label: a warning missing there is often
+present in §4.4 or §4.6. So the system reports **placement**, never omission it has not
+checked, and every claim names the sections that were actually scanned.
+
+Divergence is reported as individual findings, not as a rate. Establishing a rate needs a
+far larger run than has been done.
+
+Clauses that match no known concept are counted and published as `unclassified` rather
+than dropped. A visible recall gap is worth more than a clean-looking result that quietly
+lost what it could not parse.
+
+## How it works
+
+Labels are collected through Bright Data Scraper Studio: a collector generated from a
+one-line description returns the structured sections of a product page, and `bdheal` —
+the self-healing loop in `packages/bdheal/` — detects when a page's structure drifts,
+composes a repair prompt, verifies the fix against goldens and the previous layout, and
+promotes or rolls back. The collector ID never changes, so nothing downstream notices.
+
+No language model sits in the data path. Section splitting is deterministic because the
+EU SmPC format is legally standardised, concept matching is a YAML lexicon, and every
+quote is sliced from the stored section text at exact character offsets — so a claim can
+always be checked against its source.
 
 ## Status
 
-Early. Corpus selection and pipeline validation in progress. Nothing here is
-production-ready.
+Early. The engine, domain and configuration are in place; collection and the comparison
+API are next. Nothing here is production-ready, and nothing it outputs is medical advice.
 
 ## Development
 
@@ -53,7 +78,7 @@ your checkout.
 ### Adding dependencies
 
 ```bash
-make add-py pkg=httpx    # Python, into preward
+make add-py pkg=httpx    # Python, into ixq
 make add-py pkg=httpx member=bdheal
 make add-js pkg=zod      # Node
 docker compose build     # rebuild images with the new dependency

@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from preward.domain import Document, Occurrence, Product, Section, Source, Substance
+from ixq.domain import Document, Occurrence, Product, Section, Source, Substance
 
 
 class Repository(Protocol):

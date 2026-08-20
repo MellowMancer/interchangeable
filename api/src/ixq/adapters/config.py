@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from preward.domain import Concept, Source, Substance
+from ixq.domain import Concept, Source, Substance
 
 
 def _read(path: Path) -> dict:

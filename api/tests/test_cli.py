@@ -1,4 +1,4 @@
-"""The `preward init` contract: a database exists afterwards, with the rosters loaded.
+"""The `ixq init` contract: a database exists afterwards, with the rosters loaded.
 
 Deliberately builds its own config rather than reading the shipped one, so these stay
 true whatever corpus is configured.
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from preward.cli import DB_NAME, app
+from ixq.cli import DB_NAME, app
 
 runner = CliRunner()
 
@@ -29,8 +29,8 @@ def test_init_creates_database_and_loads_roster(tmp_path: Path, monkeypatch) -> 
     config_dir.mkdir()
     (config_dir / "sources.yaml").write_text(ROSTER)
 
-    monkeypatch.setenv("PREWARD_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("PREWARD_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("IXQ_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("IXQ_CONFIG_DIR", str(config_dir))
 
     result = runner.invoke(app, ["init"])
 
@@ -44,8 +44,8 @@ def test_init_succeeds_with_no_corpus_configured(tmp_path: Path, monkeypatch) ->
     config_dir.mkdir()
     (config_dir / "sources.yaml").write_text("sources: []\n")
 
-    monkeypatch.setenv("PREWARD_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("PREWARD_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("IXQ_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("IXQ_CONFIG_DIR", str(config_dir))
 
     result = runner.invoke(app, ["init"])
 

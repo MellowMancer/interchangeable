@@ -1,4 +1,4 @@
--- rf-pre schema. Single source of truth; applied as migrations by adapters/sqlite.
+-- Interchangeable? schema. Single source of truth; applied as migrations by adapters/sqlite.
 -- Deliberately corpus-neutral: nothing here names a subject domain.
 --
 -- `bdheal` ships its own `bdheal_`-prefixed tables and may share this file. Nothing here

@@ -1,7 +1,7 @@
 """Exit criterion: an Occurrence round-trips through the Repository port intact."""
 
-from preward.domain import Document, Product, Section, Substance, found_in
-from preward.pipeline.ports import Repository
+from ixq.domain import Document, Product, Section, Substance, found_in
+from ixq.pipeline.ports import Repository
 from conftest import DOC_SHA, PRODUCT_EXTERNAL_ID, SECTION, SOURCE_ID, SUBSTANCE_ID
 
 
