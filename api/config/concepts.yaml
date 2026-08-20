@@ -18,6 +18,9 @@ concepts:
   hypotension:        [hypotension, hypotensive]
   shock:              [shock]
   respiratory:        [respiratory, hypoxia, pulmonary, asthma, bronchospasm]
+  # A class effect of ACE inhibitors that every ramipril label discusses in 4.4, and that
+  # `respiratory` does not reach. It was the largest repeated block in `unclassified`.
+  cough:              [cough]
   metabolic_acidosis: [acidosis, ketoacidosis, ketosis]
   glycaemic_emergency: [pre-coma, precoma, diabetic coma]
   porphyria:          [porphyria]
