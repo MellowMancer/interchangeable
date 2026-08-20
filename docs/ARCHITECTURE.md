@@ -249,11 +249,19 @@ value-based `VerifyReport.non_regression_passed=False`, so the caller cannot bra
 | Condition | Outcome |
 |---|---|
 | `except StudioError` | not promoted |
-| `except VerificationIncompleteError` | **retry** — never rollback |
-| `VerifyReport` is `False` | roll back |
+| `except VerificationIncompleteError` | **retry** — never refuse |
+| `VerifyReport` is `False` | refuse |
 
-Rolling back on `VerificationIncompleteError` would discard a heal that was never actually
+Refusing on `VerificationIncompleteError` would discard a heal that was never actually
 tested, and feed the benchmark a fabricated non-regression failure.
+
+**⚠️ "Refused" is a verdict, not an undo.** `heal` runs with `--auto-save`, so the new
+template is live the moment it is written; `approve` refuses anything no longer waiting at
+the gate, so once verification has a verdict there is nothing pending to reject; and the API
+exposes no way to restore a previous template. A refused heal therefore leaves the collector
+**modified**, with only the heal event recording that the change was not kept. Anything
+driving many collectors must treat a refused heal as permanent — which is why benchmark
+cases cannot share one collector.
 
 **Two promotion floors**, both of which must appear in any published methodology or the
 numbers are not reproducible:
@@ -384,8 +392,10 @@ and publishes disagreements as coverage gaps. **A gap is a finding, not a failur
 
 | Mutation class | Declared detectors | Moves the skeleton hash? |
 |---|---|---|
-| `class_rename` · `table_to_div` · `column_reorder` · `field_split_merge` · `wrapper_nesting` · `pagination` | `{skeleton}` | yes |
-| `date_format` | `{schema}` | no |
+| `column_reorder` · `field_split_merge` · `wrapper_nesting` | `{skeleton}` | yes |
+| `class_rename` · `table_to_div` | `{skeleton, row_count}` | yes — extraction stops entirely, so the count collapses too |
+| `pagination` | `{skeleton, row_count}` | yes — and the row count falls with it |
+| `date_format` | `{schema, null_rate}` | no |
 | `url_pattern` | `{schema, null_rate}` | no |
 | `link_label` | `{}` — expected to evade all four detectors | no |
 
@@ -416,6 +426,14 @@ passes against one golden set — right for the six structural classes, wrong fo
 travelling on every `Metrics` value, because a limit disclosed only in documentation is not
 disclosed to whoever reads the number. Incomplete verifications are excluded too, not
 counted as failures.
+
+**`caught_by` is one signal; `fired_kinds` is all of them.** `caught_by` is chosen by
+`SIGNAL_PRECEDENCE` and answers "which detector gets the credit". `as_declared` compares
+`fired_kinds` against the declaration, because a class that also trips an undeclared
+detector is a disagreement worth publishing. The first live run made the point: `row_count`
+fired on `class_rename`, `table_to_div`, `url_pattern` and `date_format`, none of which
+declare it, and while only the credited kind was kept every one of them reported "as
+declared".
 
 **What the runner must honour:**
 
@@ -469,6 +487,12 @@ Real, recorded, none blocking. Say these out loud rather than letting a reader d
 - **`mean_attempts_to_heal` publishes `1.0` by construction** — one loop pass per case, one
   heal per pass. Real and tested, but carries no information until the runner has a retry
   budget. Say so when publishing it.
+- **`null_rate` has never fired.** Confirmed against a live collector across all nine
+  classes: `url_pattern` declares it, but a bad field used to reject the whole row, leaving
+  `rows` empty and every null rate at 0.0, which cannot spike. Partial rows (§7) make it
+  reachable; whether it now fires is untested until the next live run.
+- **A refused heal cannot be reversed on Bright Data** (§9). The record says the heal was
+  not kept; the collector stays healed either way.
 - **A target-side code with no baseline yields `signals == []`** while `incomplete`,
   `retry_requested` and `reason` still speak. Consistent with "no baseline means no detector
   ran", but it deserves a regression test next time `detect.py` is touched.

@@ -7,11 +7,11 @@ It is corpus-agnostic by construction. It knows collector ids, Pydantic schemas,
 URLs and HTML structure — and nothing about any problem domain. If you have a Bright
 Data account and a Pydantic model, it is meant for you.
 
-> **Status: scaffolded, not working.** The public surface below — models, ports and the
-> `Healer` facade — is settled and stable, and the package builds, installs and imports.
-> The behaviour behind it is being filled in feature by feature; calls currently raise
-> `NotImplementedError`. Nothing on this page describes something you can run yet
-> except the install and the checks.
+> **Status: implemented; not yet run against a live account.** Every call below is
+> implemented and covered — `pytest packages/bdheal` is green with no corpus, no database
+> and no network. What has *not* happened yet is an end-to-end run against a real Bright
+> Data collector; the benchmark that will do that lives in `fixtures/`, and until it has
+> run, the numbers this package can produce are untested against reality.
 
 ## Install
 
@@ -77,6 +77,10 @@ network — set the variable to opt in:
 |---|---|---|
 | `live` | `BDHEAL_LIVE=1` | calls the real `bdata` CLI, to confirm its surface has not moved |
 | `publish` | `BDHEAL_PUBLISH_CHECK=1` | builds wheel and sdist, installs into an empty venv from the declared ranges alone, and proves `import bdheal` works with this repo off `sys.path` |
+
+The fixture benchmark that exercises the loop end to end is a separate concern and lives
+outside this package, in `fixtures/` — `bdheal` is corpus-agnostic and does not ship one.
+See `docs/GOLDEN_BENCHMARK.md`.
 
 The package carries no lockfile of its own, deliberately: a lock pins one resolution for
 one application, and cannot show that a library resolves for anybody else. The `publish`
