@@ -26,6 +26,25 @@ bdata scraper heal    <collector_id> <prompt>
 bdata scraper approve <collector_id>
 ```
 
+### ⚠️ `create` descriptions are capped at 500 characters
+
+`--help` states it on the argument; nothing else does. Over the cap the template is
+created and *then* the AI trigger returns `Invalid description` (400) — so an oversized
+description costs an orphaned collector rather than a clean rejection. **Measure before
+sending:**
+
+```bash
+LEN=$(printf '%s' "$DESC" | wc -c); [ "$LEN" -lt 500 ] || echo "too long: $LEN"
+```
+
+Verified the expensive way on 2026-08-20: a 587-character description stranded
+`c_mt16flbr27bq7fbsjp`.
+
+**Any AI-trigger failure orphans a collector**, not only the blocked-host case documented
+below. The template is created first and generation is triggered second, so every 400 at
+that second step leaves a `status: ai_trigger_failed` collector behind, with no
+programmatic delete.
+
 Flags that the source page did not show, but which exist:
 
 | Flag | Where | Note |
