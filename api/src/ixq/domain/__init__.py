@@ -5,12 +5,13 @@ from ixq.domain.concept import UNCLASSIFIED, Concept, Placement
 from ixq.domain.document import Document
 from ixq.domain.occurrence import Occurrence, found_in
 from ixq.domain.product import Product
-from ixq.domain.section import Section
+from ixq.domain.section import Clause, Section
 from ixq.domain.source import Source
 from ixq.domain.substance import Substance
 
 __all__ = [
     "UNCLASSIFIED",
+    "Clause",
     "Collector",
     "CollectorKind",
     "Concept",
