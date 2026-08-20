@@ -15,7 +15,7 @@ re-derived:
 - **A verification the target refused is retried, never rolled back.** The heal was never
   actually tested, so rolling back would discard a heal that may be fine and publish a
   non-regression failure nobody measured.
-- **A report that came back false is rolled back**: one heal event saying so, and the
+- **A report that came back false is refused**: one heal event saying so, and the
   stored known-good shape left exactly where it was.
 - **Ambiguous error codes are retried once.** `detect` judges one run and stays stateless,
   so the loop belongs here. Codes that come back a second time are no longer plausibly
@@ -127,7 +127,8 @@ class Healer:
         """Score the healed collector against golden records and the old layout.
 
         The score decides the heal: a report that clears both halves is promoted, anything
-        else is rolled back, and either way one heal event records which it was.
+        else is refused, and either way one heal event records which it was. Refusal is a
+        verdict, not an undo — see `_settle`.
         """
         report = self._score(spec, golden, old_layout_url)
         self._settle(spec, report)
@@ -203,10 +204,19 @@ class Healer:
         )
 
     def _settle(self, spec: CollectorSpec, report: VerifyReport) -> None:
-        """Promote or roll back: one heal event either way, the baseline only on a promotion.
+        """Promote or refuse: one heal event either way, the baseline only on a promotion.
 
-        A rolled-back heal leaves the stored known-good shape exactly where it was. Moving
-        it for a heal nobody kept would tell the next run that the break is the new normal.
+        A heal that is not promoted leaves the stored known-good shape exactly where it was.
+        Moving it for a heal nobody kept would tell the next run that the break is the new
+        normal.
+
+        **This does not undo the heal on Bright Data.** `heal` runs with `--auto-save`, so
+        the new template is already live, and `approve` refuses anything not still waiting
+        at the gate — by the time verification has a verdict there is nothing pending to
+        reject, and the API exposes no way to restore a previous template. So "not promoted"
+        is this package's judgement of a change it cannot reverse: the collector stays
+        healed and the record says the heal was not kept. Anything driving many collectors
+        has to treat a refused heal as a permanent modification.
         """
         promoted = _promotable(report)
         self._store.save_heal_event(self._settlement(spec, report, promoted=promoted))
@@ -222,7 +232,7 @@ class Healer:
             "status": HealStatus.DONE if promoted else HealStatus.REJECTED,
             "created_at": self._clock.now(),
             "promoted": promoted,
-            "error": None if promoted else _rollback_reason(report),
+            "error": None if promoted else _not_promoted_reason(report),
         }
         healed = self._settled(spec.collector_id)
         if healed is None:
@@ -298,10 +308,10 @@ def _promotable(report: VerifyReport) -> bool:
     return report.non_regression_passed and report.field_accuracy > NO_FIELDS_RECOVERED
 
 
-def _rollback_reason(report: VerifyReport) -> str:
+def _not_promoted_reason(report: VerifyReport) -> str:
     """Why the heal was not kept, in numbers alone: no page content, no URL, no credential (G6)."""
     outcome = "passed" if report.non_regression_passed else "failed"
     return (
-        f"rolled back after verification: field accuracy {report.field_accuracy}, "
+        f"not promoted after verification: field accuracy {report.field_accuracy}, "
         f"non-regression {outcome}"
     )
