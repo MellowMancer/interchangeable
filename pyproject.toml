@@ -2,3 +2,12 @@
 
 [tool.uv.workspace]
 members = ["api", "packages/bdheal"]
+
+# Both test trees keep their own config; this exists only so a run spanning them (`pytest`
+# from the root) knows the markers each one gates on, instead of warning about them.
+[tool.pytest.ini_options]
+markers = [
+    "live: calls the real bdata CLI over the network; skipped unless BDHEAL_LIVE=1",
+    "publish: builds and installs the package over the network; skipped unless BDHEAL_PUBLISH_CHECK=1",
+    "pages: reads the deployed GitHub Pages site; skipped unless BDHEAL_PAGES_URL is set",
+]

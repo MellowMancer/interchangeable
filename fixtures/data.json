@@ -1,5 +1,7 @@
 {
   "title": "Component Register",
+  "base_path": "/interchangeable",
+  "origin": "https://mellowmancer.github.io",
   "records": [
     {"ref": "RF-001", "name": "Cobalt Spindle Bracket", "category": "Brackets", "updated": "2026-01-14", "href": "/register/rf-001"},
     {"ref": "RF-002", "name": "Tessellated Damper Ring", "category": "Dampers", "updated": "2026-01-22", "href": "/register/rf-002"},
