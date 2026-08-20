@@ -39,8 +39,14 @@ class StudioClient(Protocol):
     that a subprocess exists.
     """
 
-    def create(self, url: str, description: str) -> str:
-        """Build a collector and return its id. Raises `CollectorCreateError` on failure."""
+    def create(self, url: str, description: str, name: str | None = None) -> str:
+        """Build a collector and return its id. Raises `CollectorCreateError` on failure.
+
+        `name` is what the collector is called in Bright Data's UI. Optional because the
+        platform supplies one, but worth passing: there is no programmatic delete, so a
+        collector that outlives its run can only be removed by a human who can pick it out
+        of a list — and the default is `cli-scraper-<timestamp>`.
+        """
         ...
 
     def run(self, spec: CollectorSpec, urls: Sequence[str]) -> RunResult:

@@ -590,6 +590,31 @@ def test_no_mutually_exclusive_flags_are_ever_emitted_together(
             assert not (left in argv and right in argv), f"{left} was sent with {right}"
 
 
+def test_create_passes_a_caller_chosen_name_through(clock: Clock) -> None:
+    """Absence is not a flag violation, so the argv guard cannot catch this one either.
+
+    Bright Data exposes no programmatic delete. A collector that outlives its run can only
+    be removed by a human picking it out of a list, and the CLI's default name is
+    `cli-scraper-<timestamp>` — which makes ten of them indistinguishable.
+    """
+    runner = RecordingRunner([ok(json.dumps({"collector_id": "c_x", "status": "ready"}))])
+
+    client(runner, clock).create("https://example.test", "extract rows", "bench-class-rename")
+
+    argv = runner.argvs[-1]
+    assert "--name" in argv
+    assert argv[argv.index("--name") + 1] == "bench-class-rename"
+
+
+def test_create_without_a_name_lets_the_platform_choose(clock: Clock) -> None:
+    """`--name` with an empty value would be a worse default than not passing it."""
+    runner = RecordingRunner([ok(json.dumps({"collector_id": "c_x", "status": "ready"}))])
+
+    client(runner, clock).create("https://example.test", "extract rows")
+
+    assert "--name" not in runner.argvs[-1]
+
+
 def test_heal_always_asks_the_cli_to_save_the_new_template(
     clock: Clock, spec: CollectorSpec
 ) -> None:

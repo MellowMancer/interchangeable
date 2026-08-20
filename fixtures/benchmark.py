@@ -60,6 +60,13 @@ from bdheal.studio import BdataStudioClient
 from bdheal.vocabulary import MutationClass, SignalKind
 
 HERE = Path(__file__).resolve().parent
+NAME_PREFIX = "bdheal-bench-"
+"""What these collectors are called in Bright Data's UI.
+
+One prefix for every collector the benchmark builds, so a run's leftovers can be selected
+as a group by someone deleting them by hand — the only way they can be deleted.
+"""
+
 GATE = "BDHEAL_BENCH"
 BASE_URL_VARIABLE = "BDHEAL_PAGES_URL"
 
@@ -143,7 +150,10 @@ def collector_ids(path: Path, studio: BdataStudioClient, base_url: str, cases: l
         if case in known:
             continue
         print(f"building a collector for {case} (about two minutes)", flush=True)
-        known[case] = studio.create(base_url, COLLECTOR_DESCRIPTION)
+        # Named, because deletion is manual. The CLI's default is
+        # `cli-scraper-<timestamp>`, which makes ten of these indistinguishable in the UI
+        # from each other and from anything else the account has ever built.
+        known[case] = studio.create(base_url, COLLECTOR_DESCRIPTION, f"{NAME_PREFIX}{case}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(known, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return known

@@ -50,6 +50,7 @@ URL_SEPARATOR = ","
 HTML_FORMAT: tuple[str, ...] = ("--format", "html")
 
 # Verbatim from a v0.3.5 run whose realtime page limit was exceeded.
+NAME_FLAG = "--name"
 CREATE_FAILED_STATUS = "ai_trigger_failed"
 ERROR_KEY = "error"
 ERROR_CODE_KEY = "error_code"
@@ -126,13 +127,18 @@ class BdataStudioClient:
         self._timeout_s = timeout_s
         self._batch_timeout_s = batch_timeout_s
 
-    def create(self, url: str, description: str) -> str:
+    def create(self, url: str, description: str, name: str | None = None) -> str:
         """Build a collector and return its id.
 
         Raises `CollectorCreateError` naming the orphaned collector when the
         AI-generation trigger fails — Bright Data exposes no programmatic delete.
+
+        `name` is passed straight through to `--name`. Since a failed or superseded
+        collector can only be removed by hand, the difference between a caller-chosen name
+        and the default `cli-scraper-<timestamp>` is whether that is possible at all.
         """
-        argv = _argv(CREATE, url, description, *self._flags(self._timeout_s))
+        named = [NAME_FLAG, name] if name else []
+        argv = _argv(CREATE, url, description, *named, *self._flags(self._timeout_s))
         completed = self._call(argv, self._timeout_s)
         try:
             payload = _object(completed, CREATE)
