@@ -22,9 +22,15 @@ an empty label.
 
 
 def digest(row: dict[str, Any]) -> str:
-    """Content address for a fetched row, stable across key ordering."""
+    """Content address for a label, over its content only.
+
+    Deliberately not the whole row: a collector echoes its input URL and may carry run
+    metadata, so hashing everything would give an unchanged label a new address on every
+    run and defeat the idempotence this address exists to provide.
+    """
+    content = {key: row.get(key) for key in (*SECTIONS, "product_name")}
     return hashlib.sha256(
-        json.dumps(row, sort_keys=True, ensure_ascii=False).encode()
+        json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
 
 
@@ -46,6 +52,12 @@ def fetch(
         return None
 
     row = rows[0]
+    if not any(field in row for field in SECTIONS):
+        raise ValueError(
+            "collector returned no section fields — expected one of "
+            f"{sorted(SECTIONS)}, got {sorted(row)}. A renamed field is a break, "
+            "not a label without contraindications."
+        )
     document = Document(
         sha256=digest(row),
         source_id=source.id,

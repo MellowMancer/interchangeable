@@ -154,3 +154,18 @@ def test_bleeding_matches_the_stem_not_the_whole_word(shipped_config_dir: Path) 
     concepts = {c.name: c for c in load_concepts(shipped_config_dir / "concepts.yaml")}
     assert concepts["bleeding"].matches("Haemorrhagic stroke")
     assert concepts["bleeding"].matches("risk of haemorrhage")
+
+
+def test_a_scalar_pattern_list_is_rejected(tmp_path: Path) -> None:
+    """`renal: renal` would iterate to single letters that match nearly every clause."""
+    path = _write(tmp_path, "c.yaml", "concepts:\n  renal: renal\n")
+
+    with pytest.raises(ValueError, match="list of string patterns"):
+        load_concepts(path)
+
+
+def test_a_non_string_pattern_is_rejected(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", "concepts:\n  renal: [renal, 5]\n")
+
+    with pytest.raises(ValueError, match="list of string patterns"):
+        load_concepts(path)

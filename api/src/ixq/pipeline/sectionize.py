@@ -4,9 +4,24 @@ import re
 
 from ixq.domain import Clause, Section
 
-HEADER = re.compile(r"^\s*\d+\.\d+\s*[a-z, ]*\s*", re.I)
+HEADER = re.compile(r"\s*\d+\.\d+\s+[A-Za-z][A-Za-z, ]*")
+"""A section heading: a number, then words. Matched with `fullmatch`, deliberately.
+
+A prefix match would eat real clauses — `2.5 mg/5 ml oral solution` and `1.5 g daily in
+renal impairment` both open with `d.d` and are contraindications, not headings.
+"""
+
+BULLET = re.compile(r"^[\s ]*(?:[•·\-–—*]|o(?=\s))[\s ]*")
+"""A bullet marker. `o` only counts when whitespace follows it.
+
+EMC nests sub-bullets as a literal `o`, but stripping `o` as a character would turn
+`obstruction` into `bstruction` — killing the concept match and corrupting the quote
+shown to the user.
+"""
+
 CROSS_REFERENCE = re.compile(r"\(\s*see (also )?sections?[^)]*\)?", re.I)
 WHITESPACE = re.compile(r"\s+")
+HAS_WORD = re.compile(r"[A-Za-z]{3,}")
 
 LEAD_IN = re.compile(
     r":\s*$"                        # anything that merely introduces a list
@@ -17,13 +32,8 @@ LEAD_IN = re.compile(
 """A clause ending in a colon introduces the real clauses; it asserts nothing itself.
 
 Measured: lead-ins were 12% of apparent classification misses — `Tamoxifen should not be
-used in:`, `General contraindications (all indications)`. Counting them as unclassified
-overstates the lexicon's gaps and hides the real ones.
+used in:`, `General contraindications (all indications)`.
 """
-
-MIN_LENGTH = 12
-MAX_LENGTH = 400
-BULLET_CHARS = " \t•·-–—o"
 
 
 def normalise(text: str) -> str:
@@ -40,6 +50,11 @@ def clauses(section: Section) -> list[Clause]:
 
     Offsets are into the untouched text, so a quote built from one can always be checked
     against the stored section.
+
+    The only things dropped are headings, list lead-ins, and fragments carrying no word
+    at all. There is no length filter: `Porphyria.` is a real contraindication at ten
+    characters, and a 466-character paragraph is a real one too. Dropping either would be
+    a silent loss, which is the failure this pipeline exists to avoid.
     """
     text = section.text
     found: list[Clause] = []
@@ -50,18 +65,14 @@ def clauses(section: Section) -> list[Clause]:
         if end <= start:
             continue
         body = text[start:end]
-        if HEADER.match(body) and len(body) < 60:
-            continue
-        if not MIN_LENGTH < len(body) < MAX_LENGTH:
-            continue
-        if LEAD_IN.search(body):
+        if not HAS_WORD.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
             continue
         found.append(Clause(start=start, end=end, text=body))
     return found
 
 
 def _trim(line: str, offset: int) -> tuple[int, int]:
-    """The span of `line` with bullets and whitespace removed, in section coordinates."""
-    stripped = line.lstrip(BULLET_CHARS)
-    start = offset + (len(line) - len(stripped))
-    return start, start + len(stripped.rstrip())
+    """The span of `line` with its bullet and surrounding whitespace removed."""
+    lead = BULLET.match(line)
+    start = offset + (lead.end() if lead else len(line) - len(line.lstrip()))
+    return start, offset + len(line.rstrip())

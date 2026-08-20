@@ -65,10 +65,32 @@ def test_lead_ins_are_dropped_in_every_phrasing_seen() -> None:
     assert [c.text for c in clauses(section)] == ["Severe renal failure (GFR < 30 mL/min)."]
 
 
-def test_fragments_too_short_to_assert_anything_are_dropped() -> None:
-    section = Section(code="4.3", heading="C", text="Shock.\nSevere renal failure (GFR < 30).")
+def test_short_clauses_are_kept_because_they_are_real_contraindications() -> None:
+    """`Porphyria.` is ten characters and absolute. A length filter would silently lose it."""
+    section = Section(code="4.3", heading="C", text="Shock.\nPorphyria.\nPregnancy.")
 
-    assert [c.text for c in clauses(section)] == ["Severe renal failure (GFR < 30)."]
+    assert [c.text for c in clauses(section)] == ["Shock.", "Porphyria.", "Pregnancy."]
+
+
+def test_a_leading_o_bullet_does_not_eat_the_first_letter() -> None:
+    """EMC nests sub-bullets as a literal `o`; stripping it as a character breaks words."""
+    section = Section(
+        code="4.3",
+        heading="C",
+        text="o Concurrent anastrozole therapy.\nobstruction of the outflow tract.",
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "Concurrent anastrozole therapy.",
+        "obstruction of the outflow tract.",
+    ]
+
+
+def test_a_clause_opening_with_a_dose_is_not_mistaken_for_a_heading() -> None:
+    """`2.5 mg/5 ml ...` starts like a section number and is a contraindication."""
+    section = Section(code="4.3", heading="C", text="2.5 mg/5 ml oral solution in children.")
+
+    assert [c.text for c in clauses(section)] == ["2.5 mg/5 ml oral solution in children."]
 
 
 def test_cross_references_are_removed_for_matching_but_not_from_the_quote() -> None:

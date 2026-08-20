@@ -27,7 +27,23 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     schema = resources.files("ixq.adapters.sqlite").joinpath(_SCHEMA).read_text()
     conn.executescript(schema)
+    _reject_stale(conn, db_path)
     return conn
+
+
+def _reject_stale(conn: sqlite3.Connection, db_path: Path) -> None:
+    """Refuse a database whose shape predates the current schema.
+
+    The schema is create-only, so a renamed column is silently not applied to an existing
+    file and the first write fails somewhere far from the cause. Better to say so here.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(collectors)")}
+    if columns and "kind" not in columns:
+        raise RuntimeError(
+            f"{db_path} predates the current schema (collectors has no 'kind' column). "
+            "The schema is create-only and holds no irreplaceable state — delete the file "
+            "and re-run init."
+        )
 
 
 def _to_date(value: str | None) -> date | None:
@@ -119,7 +135,7 @@ class SqliteRepository:
             "INSERT INTO documents "
             "(sha256, source_id, product_external_id, source_url, title, last_updated, fetched_at) "
             "VALUES (?, ?, ?, ?, ?, ?, datetime('now')) "
-            "ON CONFLICT(sha256) DO NOTHING",
+            "ON CONFLICT(sha256) DO NOTHING",  # same bytes, same document
             (
                 document.sha256,
                 document.source_id,

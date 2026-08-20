@@ -6,12 +6,16 @@ from collections.abc import Iterable
 from ixq.domain import Product, Source, Substance
 from ixq.pipeline.ports import LabelSource, Repository
 
-COMBINATION = re.compile(r"[A-Za-z]{4,}\s*/\s*[A-Za-z]{4,}")
-"""A combination joins two substance names. A concentration joins a number and a unit.
+COMBINATION = re.compile(r"[A-Za-z]{4,}\s*(?:/|\band\b)\s*[A-Za-z]{4,}")
+"""A combination joins two substance names, with `/` or `and`. A concentration joins a
+number and a unit.
 
 Matching a bare `/` conflates the two: of 31 ramipril products, 6 contain a `/` and none
 is a combination — they are `Ramipril 2.5 mg/5 ml Oral solution`. Dropping those removes
 three manufacturers that publish only oral solutions.
+
+The name is *not* required to contain the substance: `Tritace` is ramipril's originator
+brand, and excluding brands would drop the reference product from every comparison.
 """
 
 PRODUCT_ID = re.compile(r"/product/(\d+)")
@@ -40,6 +44,10 @@ def collect(
     Combination products are excluded here rather than downstream: comparing a
     combination against a single-ingredient product is the resolution error that makes
     every later divergence meaningless.
+
+    Precondition: `source` must already be persisted — `products.source_id` is a foreign
+    key, and `init` loads the roster. The substance is saved here because this stage is
+    what establishes it as one worth tracking.
     """
     repository.save_substance(substance)
     rows = labels.rows(collector_id, [source.search_for(substance.name)])

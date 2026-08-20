@@ -1,3 +1,5 @@
+import pytest
+
 """Exit criterion: an Occurrence round-trips through the Repository port intact."""
 
 from ixq.domain import (
@@ -113,3 +115,19 @@ def test_collector_round_trips_by_role(repository: Repository, seeded_product: P
     assert found is not None
     assert found.id == "c_abc123"
     assert repository.collector_for(SOURCE_ID, CollectorKind.SEARCH) is None
+
+
+def test_one_collector_per_role_is_enforced_by_the_store(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """Lookup is by role, so two collectors sharing a role would make it non-deterministic."""
+    import sqlite3
+
+    repository.save_collector(
+        Collector(id="c_first", source_id=SOURCE_ID, kind=CollectorKind.PRODUCT)
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.save_collector(
+            Collector(id="c_second", source_id=SOURCE_ID, kind=CollectorKind.PRODUCT)
+        )

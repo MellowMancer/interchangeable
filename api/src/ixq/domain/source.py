@@ -1,6 +1,7 @@
 """A site whose documents are collected."""
 
 from dataclasses import dataclass
+from urllib.parse import quote_plus
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,10 +27,14 @@ class Source:
             raise ValueError("source id is required")
 
     def search_for(self, query: str) -> str:
-        """The search URL for one query. Carries the publisher's own paging limit."""
+        """The search URL for one query. Carries the publisher's own paging limit.
+
+        The query is percent-encoded: a multi-word substance would otherwise put a raw
+        space in the URL, and an `&` in a name would truncate it at that point.
+        """
         if not self.search_url:
             raise ValueError(f"source {self.id!r} has no search_url template")
-        return self.search_url.format(query=query)
+        return self.search_url.format(query=quote_plus(query))
 
     def product_at(self, external_id: str) -> str:
         """The canonical URL of one product page."""

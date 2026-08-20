@@ -44,9 +44,21 @@ def load_substances(path: Path) -> list[Substance]:
 def load_concepts(path: Path) -> list[Concept]:
     """Read the concept lexicon, in file order so the published matrix is stable."""
     return [
-        Concept(name=name, patterns=tuple(patterns))
-        for name, patterns in (_read(path).get("concepts") or {}).items()
+        Concept(name=name, patterns=_patterns(name, raw))
+        for name, raw in (_read(path).get("concepts") or {}).items()
     ]
+
+
+def _patterns(name: str, raw: object) -> tuple[str, ...]:
+    """Patterns as a tuple of strings, or a clear error.
+
+    A bare scalar — `renal: renal` — would otherwise be iterated character by character
+    into single-letter patterns that match nearly every clause, corrupting the whole
+    comparison with no error anywhere.
+    """
+    if not isinstance(raw, list) or not all(isinstance(p, str) for p in raw):
+        raise ValueError(f"concept {name!r} needs a list of string patterns, got {raw!r}")
+    return tuple(raw)
 
 
 def load_collectors(path: Path) -> list[Collector]:

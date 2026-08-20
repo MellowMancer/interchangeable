@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 from ixq.domain import Product, Source, Substance
 from ixq.pipeline.collect import collect, is_combination
 from ixq.pipeline.fetch import fetch
@@ -60,7 +62,25 @@ def test_collect_keeps_single_substance_products_only(repository: Repository) ->
     products = collect(SUBSTANCE, SOURCE, "c_search", labels, repository)
 
     assert [p.external_id for p in products] == ["1001", "1002"]
-    assert labels.urls == ["https://example.test/search?q=Example Substance&limit=200"]
+    assert labels.urls == ["https://example.test/search?q=Example+Substance&limit=200"]
+
+
+def test_search_queries_are_percent_encoded(repository: Repository) -> None:
+    """A raw space makes a malformed URL, and a raw `&` truncates the query at that point."""
+    repository.save_source(SOURCE)
+    labels = StubLabels([])
+
+    collect(Substance(id="x", name="Insulin glargine & co"), SOURCE, "c", labels, repository)
+
+    assert labels.urls == [
+        "https://example.test/search?q=Insulin+glargine+%26+co&limit=200"
+    ]
+
+
+def test_combination_products_named_with_and_are_excluded() -> None:
+    """`Amlodipine and Valsartan` is a combination; the slash form is not the only one."""
+    assert is_combination("Amlodipine and Valsartan 5 mg/160 mg film-coated tablets")
+    assert not is_combination("Ramipril 2.5 mg/5 ml Oral solution")
 
 
 def test_collect_is_idempotent_across_reruns(repository: Repository) -> None:
@@ -153,3 +173,38 @@ def test_fetch_skips_a_section_the_label_does_not_have(repository: Repository) -
 
     assert document is not None
     assert {s.code for s in repository.sections_for_document(document.sha256)} == {"4.3", "4.4"}
+
+
+def test_a_revised_label_is_stored_alongside_the_previous_one(repository: Repository) -> None:
+    """One URL yields a new document each time its label changes — that history is the point."""
+    product = _seed(repository)
+    revised = dict(PRODUCT_ROW, section_4_3_contraindications="Hypersensitivity. Renal failure.")
+
+    first = fetch(product, SOURCE, "c_product", StubLabels([PRODUCT_ROW]), repository)
+    second = fetch(product, SOURCE, "c_product", StubLabels([revised]), repository)
+
+    assert first is not None and second is not None
+    assert first.sha256 != second.sha256
+    assert first.source_url == second.source_url
+
+
+def test_digest_ignores_fields_that_are_not_the_label(repository: Repository) -> None:
+    """A collector echoes its input; that must not give an unchanged label a new address."""
+    product = _seed(repository)
+    noisy = dict(PRODUCT_ROW, input={"url": "https://example.test/product/987"}, run_id="abc")
+
+    plain = fetch(product, SOURCE, "c_product", StubLabels([PRODUCT_ROW]), repository)
+    echoed = fetch(product, SOURCE, "c_product", StubLabels([noisy]), repository)
+
+    assert plain is not None and echoed is not None
+    assert plain.sha256 == echoed.sha256
+
+
+def test_a_row_with_no_section_fields_is_a_break_not_an_empty_label(
+    repository: Repository,
+) -> None:
+    """If a heal renames the fields, storing an empty document would report success."""
+    product = _seed(repository)
+
+    with pytest.raises(ValueError, match="no section fields"):
+        fetch(product, SOURCE, "c_product", StubLabels([{"product_name": "X"}]), repository)

@@ -1,4 +1,7 @@
--- Interchangeable? schema. Single source of truth; applied as migrations by adapters/sqlite.
+-- Interchangeable? schema. Single source of truth, applied by adapters/sqlite on connect.
+--
+-- ⚠️ Create-only: every statement is IF NOT EXISTS, so a changed column is NOT migrated
+-- into an existing database. `connect()` checks for known-stale shapes and says so.
 -- Deliberately corpus-neutral: nothing here names a subject domain.
 --
 -- `bdheal` ships its own `bdheal_`-prefixed tables and may share this file. Nothing here
@@ -20,7 +23,8 @@ CREATE TABLE IF NOT EXISTS collectors (
     source_id      TEXT NOT NULL REFERENCES sources(id),
     kind           TEXT NOT NULL,           -- product | search | sitemap | discovery
     schema_version INTEGER NOT NULL DEFAULT 1,
-    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (source_id, kind)                 -- one collector per role, so lookup is total
 );
 
 CREATE TABLE IF NOT EXISTS collector_runs (
@@ -60,9 +64,10 @@ CREATE TABLE IF NOT EXISTS documents (
     source_url          TEXT NOT NULL,
     title               TEXT,
     last_updated        TEXT,               -- ISO 8601 date, as published
-    fetched_at          TEXT NOT NULL,
-    UNIQUE (source_id, source_url)
+    fetched_at          TEXT NOT NULL
 );
+-- Deliberately no UNIQUE on (source_id, source_url): one URL yields a new document every
+-- time its label is revised, and that history is the point of the project.
 
 -- Sections are stored verbatim. Every quote shown is a slice of `text`, so normalising it
 -- here would break the offsets in `occurrences`.
