@@ -8,7 +8,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from ixq.cli import DB_NAME, app
+from ixq.cli import app
+from ixq.settings import DB_NAME
 
 runner = CliRunner()
 

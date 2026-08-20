@@ -13,6 +13,7 @@ from ixq.adapters.config import (
     load_substances,
 )
 from ixq.adapters.sqlite import SqliteRepository, connect
+from ixq.settings import database_path
 from ixq.domain import CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
@@ -20,14 +21,6 @@ from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
-
-DB_NAME = "interchangeable.db"
-
-
-def _data_dir() -> Path:
-    """Where the database lives."""
-    return Path(os.environ.get("IXQ_DATA_DIR", "data"))
-
 
 def _config_dir() -> Path:
     """Where operator-tunable YAML lives.
@@ -48,7 +41,7 @@ def main() -> None:
 @app.command()
 def init() -> None:
     """Create the database, apply the schema, and load the rosters."""
-    db_path = _data_dir() / DB_NAME
+    db_path = database_path()
     repository = SqliteRepository(connect(db_path))
     config_dir = _config_dir()
 
@@ -81,7 +74,7 @@ def run(
     the whole roster is several hundred labels.
     """
     config_dir = _config_dir()
-    repository = SqliteRepository(connect(_data_dir() / DB_NAME))
+    repository = SqliteRepository(connect(database_path()))
 
     sources = {s.id: s for s in load_sources(config_dir / "sources.yaml")}
     substances = load_substances(config_dir / "substances.yaml")
@@ -100,7 +93,7 @@ def run(
                 f"source {source_id!r} has no {', '.join(sorted(k.value for k in missing))} "
                 "collector configured"
             )
-        labels = label_source(_data_dir() / DB_NAME, by_kind)
+        labels = label_source(database_path(), by_kind)
 
         for item in substances:
             with repository.transaction():
@@ -134,7 +127,7 @@ def matrix(substance: str = typer.Argument(..., help="Substance id, e.g. ramipri
 
     Reads only what is already stored — no collector calls, nothing billable.
     """
-    repository = SqliteRepository(connect(_data_dir() / DB_NAME))
+    repository = SqliteRepository(connect(database_path()))
     result = compare(substance, repository)
     if not result.products:
         typer.echo(f"no labels stored for {substance!r} — run `ixq run --substance {substance}`")

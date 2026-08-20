@@ -53,10 +53,30 @@ EU SmPC format is legally standardised, concept matching is a YAML lexicon, and 
 quote is sliced from the stored section text at exact character offsets — so a claim can
 always be checked against its source.
 
+## Ask it from an agent
+
+The comparison is also exposed over MCP, so an assistant can answer a dispensing question
+directly rather than being handed a dashboard:
+
+```bash
+ixq-mcp        # stdio MCP server
+```
+
+| Tool | Question |
+|---|---|
+| `label_says(substance, concept)` | Does this manufacturer's label contraindicate X? |
+| `divergences(substance)` | Where do these manufacturers disagree? |
+
+Both answers name the sections that were actually scanned, and a concept that was never
+matched comes back as `found: false` with the list of concepts that *are* known — never as
+a bare "no". `divergences` includes each label's revision date, so a one-sided finding can
+be read as a stale label rather than a real disagreement.
+
 ## Status
 
-Early. The engine, domain and configuration are in place; collection and the comparison
-API are next. Nothing here is production-ready, and nothing it outputs is medical advice.
+Working end to end for the ramipril corpus: collection, section splitting, concept
+classification, comparison, an HTTP API and an MCP server. The UI is not built yet.
+Nothing here is production-ready, and nothing it outputs is medical advice.
 
 ## Development
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.domain import Document, Product, Section, Source, Substance
+from ixq.domain import Document, Occurrence, Product, Section, Source, Substance
 from ixq.pipeline.ports import Repository
 
 SOURCE_ID = "example-source"
@@ -61,3 +61,64 @@ def seeded_product(repository: Repository) -> Product:
 def shipped_config_dir() -> Path:
     """The real config/ directory, so tests fail if the shipped YAML breaks."""
     return Path(__file__).resolve().parent.parent / "config"
+
+
+SECTION_43 = "Hypersensitivity to the active substance."
+SECTION_44 = "Caution in renal impairment."
+
+
+def divergent_corpus(repository: Repository) -> None:
+    """Two products that agree on one concept and diverge on another.
+
+    Seeded inside a transaction — an open write holds a lock a reader cannot get past.
+    """
+    with repository.transaction():
+        _seed(repository)
+
+
+def _seed(repository: Repository) -> None:
+    repository.save_source(Source(id=SOURCE_ID, name="Example", base_url="https://example.test"))
+    repository.save_substance(Substance(id=SUBSTANCE_ID, name="Ex"))
+    for external_id, holder, revised in (("1", "Alpha Ltd", "07/07/2026"), ("2", "Beta Ltd", None)):
+        repository.save_product(
+            Product(
+                source_id=SOURCE_ID,
+                external_id=external_id,
+                substance_id=SUBSTANCE_ID,
+                name=f"Ex {external_id}",
+                ma_holder=holder,
+            )
+        )
+        sha = external_id.rjust(64, "0")
+        repository.save_document(
+            Document(
+                sha256=sha,
+                source_id=SOURCE_ID,
+                product_external_id=external_id,
+                source_url=f"https://example.test/product/{external_id}",
+                last_updated=revised,
+            )
+        )
+        repository.save_section(sha, Section(code="4.3", heading="C", text=SECTION_43))
+        repository.save_section(sha, Section(code="4.4", heading="W", text=SECTION_44))
+        repository.save_occurrence(
+            Occurrence(
+                document_sha256=sha,
+                section_code="4.3",
+                concept="hypersensitivity",
+                quote=SECTION_43,
+                char_start=0,
+                char_end=len(SECTION_43),
+            )
+        )
+    # only Alpha bars renal outright
+    repository.save_occurrence(
+        Occurrence(
+            document_sha256="1".rjust(64, "0"),
+            section_code="4.3",
+            concept="renal",
+            quote=SECTION_43,
+            char_start=0,
+            char_end=len(SECTION_43),
+        )
+    )

@@ -16,15 +16,9 @@ from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import Placement
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.ports import Repository
+from ixq.settings import database_path
 
 app = FastAPI(title="Interchangeable?")
-
-DB_NAME = "interchangeable.db"
-
-
-def _data_dir() -> Path:
-    return Path(os.environ.get("IXQ_DATA_DIR", "data"))
-
 
 def _config_dir() -> Path:
     return Path(os.environ.get("IXQ_CONFIG_DIR", "api/config"))
@@ -37,7 +31,7 @@ def repository() -> Iterator[Repository]:
     is used from whichever worker picks up the request and raises. Opening per request
     costs well under a millisecond and keeps each one thread-confined.
     """
-    conn = connect(_data_dir() / DB_NAME)
+    conn = connect(database_path())
     try:
         yield SqliteRepository(conn)
     finally:
