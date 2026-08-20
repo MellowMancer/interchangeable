@@ -2,7 +2,7 @@
 
 from ixq.domain.collector import Collector, CollectorKind
 from ixq.domain.concept import UNCLASSIFIED, Concept, Placement
-from ixq.domain.document import Document
+from ixq.domain.document import Document, revision_date
 from ixq.domain.occurrence import Occurrence, found_in
 from ixq.domain.product import Product
 from ixq.domain.section import Clause, Section, clauses, prepared

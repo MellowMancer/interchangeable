@@ -1,6 +1,31 @@
 """The document a product's label is published as."""
 
+import re
 from dataclasses import dataclass
+
+REVISION_DATE = re.compile(
+    r"^\s*("
+    r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"      # 14/07/2026, 31-07-2024
+    r"|\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}"     # 04 June 2021
+    r"|[A-Za-z]{3,}\s+\d{4}"                # November 2025
+    r")"
+)
+
+
+def revision_date(raw: str | None) -> str | None:
+    """The revision date at the start of `raw`, with any trailing page text dropped.
+
+    Publishers print the date immediately before whatever section follows it, and the
+    collector sometimes takes both — `31-07-2024 11. DOSIMETRY 12. INSTRUCTIONS FOR
+    PREPARATION OF RADIOPHARMACEUTICALS`. Healing the collector fixes the layouts it was
+    shown; this guarantees the rest, because the rule is the same everywhere and a
+    deterministic function can be tested against layouts nobody has seen.
+
+    Returns None when there is no leading date. Storing an unparsed string would put page
+    furniture in front of a reader as though it were a date.
+    """
+    found = REVISION_DATE.match(raw or "")
+    return " ".join(found.group(1).split()) if found else None
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from ixq.domain import Document, Placement, Product, Section, Source
+from ixq.domain import Document, Placement, Product, Section, Source, revision_date
 from ixq.pipeline.ports import LabelSource, Repository
 
 SECTIONS: dict[str, tuple[Placement, str]] = {
@@ -64,7 +64,7 @@ def fetch(
             "not a label without contraindications."
         )
     title = row.get("product_name") or None
-    revised = row.get("last_updated") or None
+    revised = revision_date(row.get("last_updated"))
     sections = [
         Section(code=placement.value, heading=heading, text=row[field])
         for field, (placement, heading) in SECTIONS.items()

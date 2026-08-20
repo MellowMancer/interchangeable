@@ -2,7 +2,16 @@
 
 import pytest
 
-from ixq.domain import Document, Occurrence, Placement, Product, Section, Substance, found_in
+from ixq.domain import (
+    Document,
+    Occurrence,
+    Placement,
+    Product,
+    Section,
+    Substance,
+    found_in,
+    revision_date,
+)
 from conftest import DOC_SHA, SECTION
 
 
@@ -81,3 +90,29 @@ def test_placement_absent_is_distinct_from_a_section() -> None:
     assert Placement.ABSENT != Placement.WARNING
     assert Placement.CONTRAINDICATION == "4.3"
     assert Placement.ABSENT == "absent"
+
+
+# Every string here came back from the live collector. The last two are what the
+# extractor produced before it was healed — kept because a heal fixes the layouts it was
+# shown, and the next publisher layout is one nobody has seen.
+REVISION_DATES = [
+    ("14/07/2026", "14/07/2026"),
+    ("31-07-2024", "31-07-2024"),
+    ("November 2025", "November 2025"),
+    ("04 June 2021", "04 June 2021"),
+    ("31-07-2024 11. DOSIMETRY 12. INSTRUCTIONS FOR PREPARATION", "31-07-2024"),
+    ("04 June 2021 LEGAL STATUS POM", "04 June 2021"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", REVISION_DATES)
+def test_revision_date_keeps_the_date_and_drops_the_page_furniture(
+    raw: str, expected: str
+) -> None:
+    assert revision_date(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["LEGAL STATUS POM", "", None, "see section 4.4"])
+def test_a_string_with_no_leading_date_yields_nothing(raw) -> None:
+    """Storing the raw string would put page furniture in front of a reader as a date."""
+    assert revision_date(raw) is None
