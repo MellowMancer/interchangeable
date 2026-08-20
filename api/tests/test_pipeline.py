@@ -114,14 +114,14 @@ def test_collect_skips_rows_with_no_resolvable_id(repository: Repository) -> Non
 def _seed(repository: Repository) -> Product:
     repository.save_source(SOURCE)
     repository.save_substance(SUBSTANCE)
-    return repository.save_product(
-        Product(
-            source_id=SOURCE_ID,
-            external_id="987",
-            substance_id=SUBSTANCE_ID,
-            name="Example 10mg Tablets",
-        )
+    product = Product(
+        source_id=SOURCE_ID,
+        external_id="987",
+        substance_id=SUBSTANCE_ID,
+        name="Example 10mg Tablets",
     )
+    repository.save_product(product)
+    return product
 
 
 PRODUCT_ROW = {

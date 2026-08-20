@@ -18,18 +18,9 @@ The name is *not* required to contain the substance: `Tritace` is ramipril's ori
 brand, and excluding brands would drop the reference product from every comparison.
 """
 
-PRODUCT_ID = re.compile(r"/product/(\d+)")
-
-
 def is_combination(product_name: str) -> bool:
     """Whether a name denotes two active substances rather than one."""
     return bool(COMBINATION.search(product_name))
-
-
-def external_id(url: str) -> str | None:
-    """The publisher's product id, read out of a product URL."""
-    found = PRODUCT_ID.search(url or "")
-    return found.group(1) if found else None
 
 
 def collect(
@@ -45,13 +36,16 @@ def collect(
     combination against a single-ingredient product is the resolution error that makes
     every later divergence meaningless.
 
+    The caller owns the transaction boundary — writes here are not durable until it
+    commits, which lets one substance's whole product set land atomically.
+
     Precondition: `source` must already be persisted — `products.source_id` is a foreign
     key, and `init` loads the roster. The substance is saved here because this stage is
     what establishes it as one worth tracking.
     """
     repository.save_substance(substance)
     rows = labels.rows(collector_id, [source.search_for(substance.name)])
-    return [p for p in _products(rows, substance, source, repository)]
+    return list(_products(rows, substance, source, repository))
 
 
 def _products(
@@ -60,16 +54,16 @@ def _products(
     seen: set[str] = set()
     for row in rows:
         name = (row.get("product_name") or "").strip()
-        ident = external_id(row.get("product_url") or row.get("product_page_url") or "")
+        ident = source.external_id_from(row.get("product_url") or "")
         if not name or not ident or ident in seen or is_combination(name):
             continue
         seen.add(ident)
-        yield repository.save_product(
-            Product(
-                source_id=source.id,
-                external_id=ident,
-                substance_id=substance.id,
-                name=name,
-                ma_holder=(row.get("company") or row.get("ma_holder") or None),
-            )
+        product = Product(
+            source_id=source.id,
+            external_id=ident,
+            substance_id=substance.id,
+            name=name,
+            ma_holder=row.get("company") or None,
         )
+        repository.save_product(product)
+        yield product

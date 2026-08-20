@@ -1,6 +1,7 @@
 """Interfaces the use cases depend on. Implementations live in the adapters layer."""
 
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
 from ixq.domain import (
@@ -38,8 +39,12 @@ class Repository(Protocol):
         """Insert or update a substance."""
         ...
 
-    def save_product(self, product: Product) -> Product:
-        """Insert or update a product, returning it with its assigned id."""
+    def transaction(self) -> AbstractContextManager[None]:
+        """One unit of work. Saves are not durable until this exits."""
+        ...
+
+    def save_product(self, product: Product) -> None:
+        """Insert or update a product."""
         ...
 
     def save_document(self, document: Document) -> None:
@@ -50,8 +55,8 @@ class Repository(Protocol):
         """Insert or replace one numbered section of a document."""
         ...
 
-    def save_occurrence(self, occurrence: Occurrence) -> Occurrence:
-        """Insert an occurrence, returning it with its assigned id."""
+    def save_occurrence(self, occurrence: Occurrence) -> None:
+        """Insert an occurrence."""
         ...
 
     def products_for_substance(self, substance_id: str) -> list[Product]:

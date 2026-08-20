@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
+import pytest
+
 from ixq.adapters.config import load_concepts
-from ixq.domain import UNCLASSIFIED, Concept, Section
+from ixq.domain import UNCLASSIFIED, Concept, Section, clauses, prepared
 from ixq.pipeline.classify import classify
-from ixq.pipeline.sectionize import clauses, normalise
 
 # Verbatim from Glucophage 500 mg, EMC product 987 — the real thing, bullets and all.
 METFORMIN_43 = Section(
@@ -22,8 +23,10 @@ METFORMIN_43 = Section(
 SHA = "a" * 64
 
 
-def _concepts() -> list[Concept]:
-    return load_concepts(Path(__file__).resolve().parent.parent / "config" / "concepts.yaml")
+@pytest.fixture
+def concepts(shipped_config_dir: Path) -> list[Concept]:
+    """The shipped lexicon, so these run against the real thing."""
+    return load_concepts(shipped_config_dir / "concepts.yaml")
 
 
 def test_clauses_are_exact_slices_of_the_section() -> None:
@@ -93,30 +96,34 @@ def test_a_clause_opening_with_a_dose_is_not_mistaken_for_a_heading() -> None:
     assert [c.text for c in clauses(section)] == ["2.5 mg/5 ml oral solution in children."]
 
 
-def test_cross_references_are_removed_for_matching_but_not_from_the_quote() -> None:
+def test_cross_references_are_removed_for_matching_but_not_from_the_quote(
+    concepts: list[Concept],
+) -> None:
     raw = "Severe renal failure (see section 4.4) and dehydration."
 
-    assert "see section" not in normalise(raw)
-    assert normalise(raw) == "Severe renal failure and dehydration."
+    assert "see section" not in prepared(raw)
+    assert prepared(raw) == "severe renal failure and dehydration."
 
     section = Section(code="4.3", heading="C", text=raw)
-    occurrence = classify(section, SHA, _concepts())[0]
+    occurrence = classify(section, SHA, concepts)[0]
     assert "see section" in occurrence.quote  # the quote stays verbatim
 
 
-def test_every_occurrence_quote_matches_its_stored_offsets() -> None:
-    for occurrence in classify(METFORMIN_43, SHA, _concepts()):
+def test_every_occurrence_quote_matches_its_stored_offsets(concepts: list[Concept]) -> None:
+    for occurrence in classify(METFORMIN_43, SHA, concepts):
         assert (
             METFORMIN_43.text[occurrence.char_start : occurrence.char_end] == occurrence.quote
         )
 
 
-def test_a_clause_carrying_two_concepts_yields_two_occurrences() -> None:
+def test_a_clause_carrying_two_concepts_yields_two_occurrences(
+    concepts: list[Concept],
+) -> None:
     section = Section(
         code="4.3", heading="C", text="Hepatic insufficiency, acute alcohol intoxication."
     )
 
-    assert {o.concept for o in classify(section, SHA, _concepts())} == {"hepatic", "alcohol"}
+    assert {o.concept for o in classify(section, SHA, concepts)} == {"hepatic", "alcohol"}
 
 
 def test_an_unmatched_clause_is_recorded_not_dropped() -> None:
@@ -129,8 +136,10 @@ def test_an_unmatched_clause_is_recorded_not_dropped() -> None:
     assert occurrences[0].quote == "Wearing an unusually large hat indoors."
 
 
-def test_classifying_the_real_section_finds_its_known_concepts() -> None:
-    names = {o.concept for o in classify(METFORMIN_43, SHA, _concepts())}
+def test_classifying_the_real_section_finds_its_known_concepts(
+    concepts: list[Concept],
+) -> None:
+    names = {o.concept for o in classify(METFORMIN_43, SHA, concepts)}
 
     assert {"hypersensitivity", "metabolic_acidosis", "glycaemic_emergency", "renal"} <= names
     assert UNCLASSIFIED not in names

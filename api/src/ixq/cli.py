@@ -14,7 +14,7 @@ DB_NAME = "interchangeable.db"
 
 
 def _data_dir() -> Path:
-    """Where the database and fetched artifacts live."""
+    """Where the database lives."""
     return Path(os.environ.get("IXQ_DATA_DIR", "data"))
 
 
@@ -37,16 +37,16 @@ def init() -> None:
     config_dir = _config_dir()
 
     sources = load_sources(config_dir / "sources.yaml")
-    for source in sources:
-        repository.save_source(source)
-
     substances = load_substances(config_dir / "substances.yaml")
-    for substance in substances:
-        repository.save_substance(substance)
-
     collectors = load_collectors(config_dir / "collectors.yaml")
-    for collector in collectors:
-        repository.save_collector(collector)
+
+    with repository.transaction():
+        for source in sources:
+            repository.save_source(source)
+        for substance in substances:
+            repository.save_substance(substance)
+        for collector in collectors:
+            repository.save_collector(collector)
 
     typer.echo(
         f"initialised {db_path} with {len(sources)} sources, "

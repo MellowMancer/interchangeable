@@ -18,6 +18,11 @@ def _read(path: Path) -> dict:
     return yaml.safe_load(path.read_text()) or {}
 
 
+def _entries(path: Path, key: str) -> list[dict]:
+    """The rows under one top-level key, or none when the file or key is absent."""
+    return _read(path).get(key) or []
+
+
 def load_sources(path: Path) -> list[Source]:
     """Read the source roster. Returns an empty list when no corpus is configured."""
     return [
@@ -29,7 +34,7 @@ def load_sources(path: Path) -> list[Source]:
             search_url=entry.get("search_url"),
             product_url=entry.get("product_url"),
         )
-        for entry in (_read(path).get("sources") or [])
+        for entry in _entries(path, "sources")
     ]
 
 
@@ -37,7 +42,7 @@ def load_substances(path: Path) -> list[Substance]:
     """Read the substance roster — the active ingredients to compare across products."""
     return [
         Substance(id=entry["id"], name=entry["name"])
-        for entry in (_read(path).get("substances") or [])
+        for entry in _entries(path, "substances")
     ]
 
 
@@ -69,5 +74,5 @@ def load_collectors(path: Path) -> list[Collector]:
             source_id=entry["source_id"],
             kind=CollectorKind(entry["kind"]),
         )
-        for entry in (_read(path).get("collectors") or [])
+        for entry in _entries(path, "collectors")
     ]

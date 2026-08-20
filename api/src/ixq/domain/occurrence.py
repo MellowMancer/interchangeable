@@ -20,7 +20,6 @@ class Occurrence:
     quote: str
     char_start: int
     char_end: int
-    id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.quote:

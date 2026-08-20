@@ -4,7 +4,6 @@ Test data is deliberately corpus-neutral: nothing here names a real medicine, so
 fixtures keep working whatever roster is configured.
 """
 
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -37,15 +36,14 @@ def seeded_product(repository: Repository) -> Product:
         Source(id=SOURCE_ID, name="Example Source", base_url="https://example.test", variant="A")
     )
     repository.save_substance(Substance(id=SUBSTANCE_ID, name="Example Substance"))
-    product = repository.save_product(
-        Product(
-            source_id=SOURCE_ID,
-            external_id=PRODUCT_EXTERNAL_ID,
-            substance_id=SUBSTANCE_ID,
-            name="Example 10mg Tablets",
-            ma_holder="Example Holder Ltd",
-        )
+    product = Product(
+        source_id=SOURCE_ID,
+        external_id=PRODUCT_EXTERNAL_ID,
+        substance_id=SUBSTANCE_ID,
+        name="Example 10mg Tablets",
+        ma_holder="Example Holder Ltd",
     )
+    repository.save_product(product)
     repository.save_document(
         Document(
             sha256=DOC_SHA,
@@ -53,7 +51,6 @@ def seeded_product(repository: Repository) -> Product:
             product_external_id=PRODUCT_EXTERNAL_ID,
             source_url="https://example.test/product/1001",
             title="Example 10mg Tablets",
-            last_updated=date(2025, 1, 6),
         )
     )
     repository.save_section(DOC_SHA, SECTION)

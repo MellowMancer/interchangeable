@@ -9,6 +9,10 @@
 
 PRAGMA foreign_keys = ON;
 
+-- Bumped whenever a column changes. `connect()` compares it, so the next change is
+-- caught by the same one-line check rather than a new hardcoded column guard.
+PRAGMA user_version = 1;
+
 CREATE TABLE IF NOT EXISTS sources (
     id       TEXT PRIMARY KEY,              -- slug
     name     TEXT NOT NULL,
@@ -63,7 +67,6 @@ CREATE TABLE IF NOT EXISTS documents (
     product_external_id TEXT NOT NULL,      -- natural key, so fetch order does not matter
     source_url          TEXT NOT NULL,
     title               TEXT,
-    last_updated        TEXT,               -- ISO 8601 date, as published
     fetched_at          TEXT NOT NULL
 );
 -- Deliberately no UNIQUE on (source_id, source_url): one URL yields a new document every

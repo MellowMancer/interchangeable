@@ -4,13 +4,13 @@ import hashlib
 import json
 from typing import Any
 
-from ixq.domain import Document, Product, Section, Source
+from ixq.domain import Document, Placement, Product, Section, Source
 from ixq.pipeline.ports import LabelSource, Repository
 
-SECTIONS: dict[str, tuple[str, str]] = {
-    "section_4_3_contraindications": ("4.3", "Contraindications"),
-    "section_4_4_warnings": ("4.4", "Special warnings and precautions for use"),
-    "section_4_6_pregnancy_lactation": ("4.6", "Fertility, pregnancy and lactation"),
+SECTIONS: dict[str, tuple[Placement, str]] = {
+    "section_4_3_contraindications": (Placement.CONTRAINDICATION, "Contraindications"),
+    "section_4_4_warnings": (Placement.WARNING, "Special warnings and precautions for use"),
+    "section_4_6_pregnancy_lactation": (Placement.PREGNANCY, "Fertility, pregnancy and lactation"),
 }
 """Collector field -> (section code, heading).
 
@@ -21,14 +21,15 @@ an empty label.
 """
 
 
-def digest(row: dict[str, Any]) -> str:
-    """Content address for a label, over its content only.
+def digest(title: str | None, sections: list[Section]) -> str:
+    """Content address for a label, over the content actually persisted.
 
-    Deliberately not the whole row: a collector echoes its input URL and may carry run
-    metadata, so hashing everything would give an unchanged label a new address on every
-    run and defeat the idempotence this address exists to provide.
+    Keyed on section codes and text rather than the collector's field names: a heal that
+    renames a field leaves the label byte-identical, and hashing the field names would
+    change every address in the corpus, fork it against the existing occurrences, and
+    defeat the idempotence this address exists to provide.
     """
-    content = {key: row.get(key) for key in (*SECTIONS, "product_name")}
+    content = {"title": title} | {s.code: s.text for s in sections}
     return hashlib.sha256(
         json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
@@ -58,19 +59,23 @@ def fetch(
             f"{sorted(SECTIONS)}, got {sorted(row)}. A renamed field is a break, "
             "not a label without contraindications."
         )
+    title = row.get("product_name") or None
+    sections = [
+        Section(code=placement.value, heading=heading, text=row[field])
+        for field, (placement, heading) in SECTIONS.items()
+        if row.get(field)
+    ]
     document = Document(
-        sha256=digest(row),
+        sha256=digest(title, sections),
         source_id=source.id,
         product_external_id=product.external_id,
         source_url=url,
-        title=(row.get("product_name") or None),
+        title=title,
     )
-    repository.save_document(document)
 
-    for field, (code, heading) in SECTIONS.items():
-        text = row.get(field)
-        if not text:
-            continue
-        repository.save_section(document.sha256, Section(code=code, heading=heading, text=text))
+    with repository.transaction():
+        repository.save_document(document)
+        for section in sections:
+            repository.save_section(document.sha256, section)
 
     return document

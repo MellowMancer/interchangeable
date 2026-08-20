@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from ixq.domain.section import prepared
+
 UNCLASSIFIED = "unclassified"
 """Recorded for a clause no concept matched. A published recall gap, never a dropped row."""
 
@@ -43,6 +45,11 @@ class Concept:
         object.__setattr__(self, "patterns", tuple(p.lower() for p in self.patterns))
 
     def matches(self, text: str) -> bool:
-        """Whether any pattern appears in `text`. Case-insensitive by contract."""
-        lowered = text.lower()
-        return any(pattern in lowered for pattern in self.patterns)
+        """Whether any pattern appears in `text`.
+
+        Owns the whole matching contract — case folding *and* cross-reference removal.
+        Splitting it left a caller able to pass raw text and get a different answer with
+        no error, for a rule that is impossible to get right by accident.
+        """
+        text = prepared(text)
+        return any(pattern in text for pattern in self.patterns)

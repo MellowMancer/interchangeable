@@ -17,7 +17,6 @@ class Product:
     substance_id: str
     name: str
     ma_holder: str | None = None
-    id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.source_id:

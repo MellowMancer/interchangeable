@@ -3,17 +3,12 @@
 import pytest
 
 from ixq.domain import Document, Occurrence, Placement, Product, Section, Substance, found_in
-
-SECTION = Section(
-    code="4.3",
-    heading="Contraindications",
-    text="Hypersensitivity to the active substance. Severe renal impairment.",
-)
+from conftest import DOC_SHA, SECTION
 
 
 def _occurrence(**overrides) -> Occurrence:
     defaults = dict(
-        document_sha256="a" * 64,
+        document_sha256=DOC_SHA,
         section_code="4.3",
         concept="renal",
         quote="Severe renal impairment",
@@ -42,7 +37,7 @@ def test_occurrence_requires_a_section_and_a_concept() -> None:
 
 def test_found_in_slices_the_quote_from_the_section() -> None:
     """The provenance guarantee: the quote cannot disagree with its own offsets."""
-    occurrence = found_in(SECTION, "a" * 64, "renal", 42, 65)
+    occurrence = found_in(SECTION, DOC_SHA, "renal", 42, 65)
 
     assert occurrence.quote == SECTION.text[42:65]
     assert occurrence.quote == "Severe renal impairment"
@@ -51,7 +46,7 @@ def test_found_in_slices_the_quote_from_the_section() -> None:
 
 def test_found_in_refuses_offsets_past_the_section() -> None:
     with pytest.raises(ValueError, match="past the end"):
-        found_in(SECTION, "a" * 64, "renal", 0, len(SECTION.text) + 1)
+        found_in(SECTION, DOC_SHA, "renal", 0, len(SECTION.text) + 1)
 
 
 def test_document_rejects_a_short_hash() -> None:

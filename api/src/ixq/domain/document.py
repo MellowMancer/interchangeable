@@ -1,7 +1,6 @@
 """The document a product's label is published as."""
 
 from dataclasses import dataclass
-from datetime import date
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +16,6 @@ class Document:
     product_external_id: str
     source_url: str
     title: str | None = None
-    last_updated: date | None = None
 
     def __post_init__(self) -> None:
         if len(self.sha256) != 64:

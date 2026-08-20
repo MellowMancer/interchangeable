@@ -2,8 +2,7 @@
 
 from collections.abc import Sequence
 
-from ixq.domain import UNCLASSIFIED, Concept, Occurrence, Section, found_in
-from ixq.pipeline.sectionize import clauses, normalise
+from ixq.domain import UNCLASSIFIED, Concept, Occurrence, Section, clauses, found_in
 
 
 def classify(
@@ -19,8 +18,7 @@ def classify(
     """
     occurrences: list[Occurrence] = []
     for clause in clauses(section):
-        text = normalise(clause.text)
-        names = [c.name for c in concepts if c.matches(text)] or [UNCLASSIFIED]
+        names = [c.name for c in concepts if c.matches(clause.text)] or [UNCLASSIFIED]
         occurrences.extend(
             found_in(section, document_sha256, name, clause.start, clause.end)
             for name in names
