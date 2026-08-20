@@ -88,6 +88,25 @@ class SqliteRepository:
             raise
         self._conn.commit()
 
+    def section_codes_for_substance(self, substance_id: str) -> dict[str, tuple[str, ...]]:
+        """Every document's section codes for one substance, in one query.
+
+        Deliberately selects `code` only. The text column holds whole SmPC sections, and
+        the caller is building a set of four short strings from it.
+        """
+        rows = self._conn.execute(
+            "SELECT s.document_sha256 AS sha, s.code FROM sections s "
+            "JOIN documents d ON d.sha256 = s.document_sha256 "
+            "JOIN products p ON p.source_id = d.source_id "
+            "AND p.external_id = d.product_external_id "
+            "WHERE p.substance_id = ? ORDER BY s.document_sha256, s.code",
+            (substance_id,),
+        ).fetchall()
+        codes: dict[str, list[str]] = {}
+        for row in rows:
+            codes.setdefault(row["sha"], []).append(row["code"])
+        return {sha: tuple(found) for sha, found in codes.items()}
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """The roster's three numbers per substance, counted in SQL.
 

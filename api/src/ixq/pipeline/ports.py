@@ -38,6 +38,15 @@ class Repository(Protocol):
     single reason to change. Nothing above this line may know that SQL exists.
     """
 
+    def section_codes_for_substance(self, substance_id: str) -> dict[str, tuple[str, ...]]:
+        """Per document sha, the section codes it holds — the codes alone.
+
+        `compare` needs this to say what was scanned for each product. Asking for whole
+        `Section` objects instead meant one query per document, each dragging the full
+        label text back, to build a four-element set of codes.
+        """
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 

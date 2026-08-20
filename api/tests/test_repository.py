@@ -260,3 +260,28 @@ def test_placement_codes_sort_in_precedence_order() -> None:
     ranked = [placement.value for placement in PRECEDENCE]
 
     assert ranked == sorted(ranked), f"MIN() would no longer pick the strongest: {ranked}"
+
+
+def test_section_codes_come_back_without_the_section_text(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """`compare` needs the codes to say what was scanned; it never needs the bodies.
+
+    Asking for whole sections meant one query per document, each returning the full label
+    text, to build a set of four short strings.
+    """
+    codes = repository.section_codes_for_substance(SUBSTANCE_ID)
+
+    assert codes == {DOC_SHA: (SECTION.code,)}
+
+
+def test_section_codes_are_grouped_per_document(repository: Repository) -> None:
+    """Two products' codes must not pool: an absence is only defensible per label."""
+    from conftest import divergent_corpus
+
+    divergent_corpus(repository)
+
+    codes = repository.section_codes_for_substance(SUBSTANCE_ID)
+
+    assert len(codes) == 2
+    assert all(found == ("4.3", "4.4") for found in codes.values())

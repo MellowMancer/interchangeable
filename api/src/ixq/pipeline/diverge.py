@@ -87,10 +87,9 @@ def compare(substance_id: str, repository: Repository) -> Comparison:
     current = {d.product_external_id: d for d in documents}
     by_sha = {d.sha256: d for d in current.values()}
 
+    codes = repository.section_codes_for_substance(substance_id)
     scanned = {
-        external_id: tuple(
-            sorted(s.code for s in repository.sections_for_document(document.sha256))
-        )
+        external_id: tuple(sorted(codes.get(document.sha256, ())))
         for external_id, document in current.items()
     }
 
