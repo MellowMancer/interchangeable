@@ -18,7 +18,7 @@ from ixq.domain import (
 )
 
 _SCHEMA = "schema.sql"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 """Must match `PRAGMA user_version` in schema.sql.
 
 The schema is create-only — `IF NOT EXISTS` will not apply a changed column to an
@@ -123,8 +123,9 @@ class SqliteRepository:
     def save_document(self, document: Document) -> None:
         self._conn.execute(
             "INSERT INTO documents "
-            "(sha256, source_id, product_external_id, source_url, title, fetched_at) "
-            "VALUES (?, ?, ?, ?, ?, datetime('now')) "
+            "(sha256, source_id, product_external_id, source_url, title, "
+            "active_substance, last_updated, fetched_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) "
             "ON CONFLICT(sha256) DO NOTHING",  # same bytes, same document
             (
                 document.sha256,
@@ -132,6 +133,8 @@ class SqliteRepository:
                 document.product_external_id,
                 document.source_url,
                 document.title,
+                document.active_substance,
+                document.last_updated,
             ),
         )
 
@@ -165,6 +168,27 @@ class SqliteRepository:
             "SELECT * FROM products WHERE substance_id = ? ORDER BY name", (substance_id,)
         ).fetchall()
         return [_to_product(row) for row in rows]
+
+    def documents_for_substance(self, substance_id: str) -> list[Document]:
+        rows = self._conn.execute(
+            "SELECT d.* FROM documents d "
+            "JOIN products p ON p.source_id = d.source_id "
+            "AND p.external_id = d.product_external_id "
+            "WHERE p.substance_id = ? ORDER BY p.name",
+            (substance_id,),
+        ).fetchall()
+        return [
+            Document(
+                sha256=r["sha256"],
+                source_id=r["source_id"],
+                product_external_id=r["product_external_id"],
+                source_url=r["source_url"],
+                title=r["title"],
+                active_substance=r["active_substance"],
+                last_updated=r["last_updated"],
+            )
+            for r in rows
+        ]
 
     def sections_for_document(self, document_sha256: str) -> list[Section]:
         rows = self._conn.execute(

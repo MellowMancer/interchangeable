@@ -44,6 +44,7 @@ class ProductRow(_Row):
     ma_holder: str | None = None
     section_4_3_contraindications: str | None = None
     section_4_4_warnings: str | None = None
+    section_4_5_interactions: str | None = None
     section_4_6_pregnancy_lactation: str | None = None
     last_updated: str | None = None
 

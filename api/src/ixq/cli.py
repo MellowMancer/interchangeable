@@ -16,6 +16,7 @@ from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
+from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
 
 app = typer.Typer(help="Provenance-carrying comparison of product labels.")
@@ -29,8 +30,13 @@ def _data_dir() -> Path:
 
 
 def _config_dir() -> Path:
-    """Where operator-tunable YAML lives."""
-    return Path(os.environ.get("IXQ_CONFIG_DIR", "config"))
+    """Where operator-tunable YAML lives.
+
+    Defaults to `api/config`, which is where it sits from the repo root and from the
+    container's workdir. The config is deployment data, not packaged into the wheel, so
+    there is no importable location to resolve it from.
+    """
+    return Path(os.environ.get("IXQ_CONFIG_DIR", "api/config"))
 
 
 @app.callback()
@@ -120,3 +126,33 @@ def _one_label(product, source, by_kind, labels, concepts, repository) -> None:
                 repository.save_occurrence(occurrence)
                 found += 1
     typer.echo(f"  {product.external_id}: {found} occurrences")
+
+
+@app.command()
+def matrix(substance: str = typer.Argument(..., help="Substance id, e.g. ramipril")) -> None:
+    """Show where the manufacturers of one substance disagree.
+
+    Reads only what is already stored — no collector calls, nothing billable.
+    """
+    repository = SqliteRepository(connect(_data_dir() / DB_NAME))
+    result = compare(substance, repository)
+    if not result.products:
+        typer.echo(f"no labels stored for {substance!r} — run `ixq run --substance {substance}`")
+        raise typer.Exit(1)
+
+    holders = [p.ma_holder or p.external_id for p in result.products]
+    width = max(len(r.concept) for r in result.rows) + 2 if result.rows else 12
+    typer.echo(f"\n{substance} — sections scanned: {', '.join(result.scanned)}")
+    typer.echo("(absent means absent from those sections, not from the label)\n")
+    typer.echo(" " * width + "  ".join(h[:16].ljust(16) for h in holders))
+    for row in sorted(result.rows, key=lambda r: (not r.diverges, r.concept)):
+        cells = "  ".join(
+            row.placements[p.external_id].value.ljust(16) for p in result.products
+        )
+        mark = "  <-- differs" if row.diverges else ""
+        typer.echo(f"{row.concept.ljust(width)}{cells}{mark}")
+
+    typer.echo(f"\n{len(result.divergent)} of {len(result.rows)} concepts differ")
+    for document in result.documents:
+        product = next(p for p in result.products if p.external_id == document.product_external_id)
+        typer.echo(f"  {(product.ma_holder or ''):<34} revised {document.last_updated or 'unknown'}")

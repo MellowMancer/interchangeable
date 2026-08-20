@@ -73,6 +73,21 @@ Build minimal first, then heal to extend — a small known-good baseline makes t
 5. **approve** — anchored on the same URL.
 6. **run again** — confirm the new fields come back.
 
+### ⚠️ `approve` reporting `done` does not prove the change took
+
+Observed 2026-08-20 on `c_mt16h8d01sakfyvaem`. A heal to add a field ran the full nine
+steps, returned `status: awaiting_approval` with a `preview_result` **containing the new
+field populated with real content**, and `approve --url <anchor>` returned
+`status: done`. Two subsequent runs — including one against the very anchor URL the heal
+was approved on — returned the original field set with the new field absent.
+
+So `preview_result` is a proposal, and `done` is an acknowledgement. Neither is evidence
+that a later run behaves as previewed.
+
+**Never approve without re-running and asserting the field you asked for.** This is
+precisely what `Healer.heal()` exists to do — it verifies before promoting, and doing the
+heal by hand through the CLI skips that. Use the facade, not the raw commands.
+
 ## Heal state machine
 
 ```

@@ -19,6 +19,7 @@ class Placement(StrEnum):
 
     CONTRAINDICATION = "4.3"
     WARNING = "4.4"
+    INTERACTION = "4.5"
     PREGNANCY = "4.6"
     ABSENT = "absent"
 

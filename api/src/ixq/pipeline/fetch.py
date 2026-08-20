@@ -10,6 +10,7 @@ from ixq.pipeline.ports import LabelSource, Repository
 SECTIONS: dict[str, tuple[Placement, str]] = {
     "section_4_3_contraindications": (Placement.CONTRAINDICATION, "Contraindications"),
     "section_4_4_warnings": (Placement.WARNING, "Special warnings and precautions for use"),
+    "section_4_5_interactions": (Placement.INTERACTION, "Interaction with other medicinal products"),
     "section_4_6_pregnancy_lactation": (Placement.PREGNANCY, "Fertility, pregnancy and lactation"),
 }
 """Collector field -> (section code, heading).
@@ -21,7 +22,7 @@ an empty label.
 """
 
 
-def digest(title: str | None, sections: list[Section]) -> str:
+def digest(title: str | None, revised: str | None, sections: list[Section]) -> str:
     """Content address for a label, over the content actually persisted.
 
     Keyed on section codes and text rather than the collector's field names: a heal that
@@ -29,7 +30,7 @@ def digest(title: str | None, sections: list[Section]) -> str:
     change every address in the corpus, fork it against the existing occurrences, and
     defeat the idempotence this address exists to provide.
     """
-    content = {"title": title} | {s.code: s.text for s in sections}
+    content = {"title": title, "revised": revised} | {s.code: s.text for s in sections}
     return hashlib.sha256(
         json.dumps(content, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
@@ -63,17 +64,20 @@ def fetch(
             "not a label without contraindications."
         )
     title = row.get("product_name") or None
+    revised = row.get("last_updated") or None
     sections = [
         Section(code=placement.value, heading=heading, text=row[field])
         for field, (placement, heading) in SECTIONS.items()
         if row.get(field)
     ]
     document = Document(
-        sha256=digest(title, sections),
+        sha256=digest(title, revised, sections),
         source_id=source.id,
         product_external_id=product.external_id,
         source_url=url,
         title=title,
+        active_substance=row.get("active_substance") or None,
+        last_updated=revised,
     )
 
     repository.save_document(document)

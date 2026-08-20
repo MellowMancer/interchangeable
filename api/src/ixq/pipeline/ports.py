@@ -63,6 +63,10 @@ class Repository(Protocol):
         """Every product of a substance — the columns of the comparison."""
         ...
 
+    def documents_for_substance(self, substance_id: str) -> list[Document]:
+        """Every stored label across every product of a substance."""
+        ...
+
     def sections_for_document(self, document_sha256: str) -> list[Section]:
         """Every section stored for a document, in code order."""
         ...
