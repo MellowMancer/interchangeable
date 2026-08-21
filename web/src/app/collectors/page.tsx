@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { getBenchmark, getCollectors, type BenchCase, type BenchRun, type Heal } from "@/lib/api";
+
+export const metadata: Metadata = { title: "Reliability" };
 
 /**
  * What Scraper Studio is running, and how the repair loop has actually scored.
