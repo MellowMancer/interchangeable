@@ -145,6 +145,33 @@ export function DosageGlyph({ appearance }: { appearance: Appearance }) {
 }
 
 /**
+ * The placeholder for a description this build cannot draw.
+ *
+ * Deliberately **not** a member of `SHAPES` and **not** a colour from `PRODUCT_COLOURS`.
+ * It is drawn in an interface token that repaints with the theme, because every product
+ * colour names a physical object: a grey bar filled with `--pc-grey` would read as a
+ * drawn grey oblong tablet, which is a claim about the product rather than the absence of
+ * one. It is also drawn short, faint, and without the hairline outline every real glyph
+ * carries, so it cannot be mistaken for one at a glance.
+ *
+ * The reasons move to the metadata line rather than disappearing. The gap stays visible —
+ * it just stops printing a sentence where a picture belongs.
+ */
+function NotDrawn({ reasons }: { reasons: string[] }) {
+  return (
+    <svg
+      viewBox="0 0 120 56"
+      preserveAspectRatio="xMinYMid meet"
+      role="img"
+      aria-label={`Not drawn — ${reasons.join(", ")}. The label's own description is printed beside it.`}
+      className="h-14 w-full text-ink-muted"
+    >
+      <rect x={25} y={23} width={34} height={10} rx={5} fill="currentColor" opacity={0.45} />
+    </svg>
+  );
+}
+
+/**
  * Every manufacturer's product side by side — the point of the whole comparison, made
  * literal.
  *
@@ -196,9 +223,7 @@ function DescribedProduct({ product }: { product: ProductColumn }) {
         {reasons.length === 0 ? (
           <DosageGlyph appearance={appearance} />
         ) : (
-          <p className="font-mono text-kicker text-ink-muted">
-            described but not drawn — {reasons.join(", ")}
-          </p>
+          <NotDrawn reasons={reasons} />
         )}
       </div>
 
@@ -214,6 +239,7 @@ function DescribedProduct({ product }: { product: ProductColumn }) {
           <> · {appearance.length_mm} × {appearance.width_mm} mm as stated</>
         )}
         {appearance.imprints.length > 0 && <> · imprinted {appearance.imprints.join(", ")}</>}
+        {reasons.length > 0 && <> · not drawn: {reasons.join(", ")}</>}
       </p>
     </li>
   );
