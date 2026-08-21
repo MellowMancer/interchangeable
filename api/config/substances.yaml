@@ -110,3 +110,43 @@ substances:
     name: Flucloxacillin
   - id: methotrexate
     name: Methotrexate
+  - id: azithromycin
+    name: Azithromycin
+  - id: metronidazole
+    name: Metronidazole
+  - id: fluconazole
+    name: Fluconazole
+  - id: aciclovir
+    name: Aciclovir
+  - id: spironolactone
+    name: Spironolactone
+  - id: perindopril
+    name: Perindopril
+  - id: irbesartan
+    name: Irbesartan
+  - id: valsartan
+    name: Valsartan
+  - id: diltiazem
+    name: Diltiazem
+  - id: indapamide
+    name: Indapamide
+  - id: sitagliptin
+    name: Sitagliptin
+  - id: ezetimibe
+    name: Ezetimibe
+  - id: aripiprazole
+    name: Aripiprazole
+  - id: olanzapine
+    name: Olanzapine
+  - id: risperidone
+    name: Risperidone
+  - id: donepezil
+    name: Donepezil
+  - id: memantine
+    name: Memantine
+  - id: rivaroxaban
+    name: Rivaroxaban
+  - id: oxycodone
+    name: Oxycodone
+  - id: betahistine
+    name: Betahistine
