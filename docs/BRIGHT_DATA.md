@@ -136,13 +136,46 @@ which returns `{"status":"rejected","completed_steps":[…,"user_approval"]}` an
 collector immediately. **Any code path that opens a heal must answer the gate on its way
 out, including on failure.**
 
-### `--auto-save` on `heal` is enough; `approve` does not need its own
+### ⚠️ `--auto-save` on `heal` alone is NOT enough — `approve` needs its own
 
-`bdata scraper approve` also exposes `--auto-save`, so it looks like it might be required
-for the resume call. It is not. Verified by running a healed collector from a cold process
-afterwards: 12/12 rows exact on the mutated page **and** on the original layout, with
-`--auto-save` passed only to `heal`. Assert the fields on a real run rather than reasoning
-about the flag — that is the rule this file already records, and it is what settled it.
+**Corrected 2026-08-21, on `c_mt16h8d01sakfyvaem`, after this file's previous advice cost
+a completed repair.**
+
+This section used to say `--auto-save` on `heal` was sufficient and `approve` did not need
+its own. That is wrong, and following it loses the template silently.
+
+`heal <id> "<prompt>" --auto-save` on a collector that has **no drift to repair** — i.e. a
+deliberate schema extension rather than a fix — runs to `user_approval` and stops:
+
+```
+"status": "awaiting_approval",
+"completed_steps": ["planner", "control_preview_runner", "code_fixer",
+                    "step_preview_runner", "request_fulfillment_validator", "step_advance"]
+```
+
+**`save_new_template` is absent.** `preview_result` shows every requested field correctly
+populated, which is what makes this so convincing and so wrong: the proposal is perfect
+and nothing was written. A later run returns the original field set.
+
+`approve <id> --auto-save` is what completes it:
+
+```
+"status": "done",
+"completed_steps": [..., "step_advance", "user_approval", "save_new_template"]
+```
+
+**The working sequence is `heal --auto-save` then `approve --auto-save`.** Look for
+`save_new_template` in `completed_steps`; its absence is the failure, whatever `status`
+says.
+
+The earlier note was verified against a *mutated page*, where the loop presumably
+auto-approves its own repair. A schema extension has no mutation to detect, parks at the
+gate, and the flag never gets to act. Both observations can be true; the old wording
+generalised from one.
+
+**And the rule this file already records still governs: assert the fields on a real run.**
+That is what caught it — eight fields were live at 09:26 and gone by 10:37 because the gate
+was never answered.
 
 ## Heal state machine
 
