@@ -145,6 +145,8 @@ def _as_int(value: Any) -> int | None:
     """
     if isinstance(value, bool) or value is None:
         return None
+    if isinstance(value, float) and not value.is_integer():
+        return None
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -157,10 +159,14 @@ def _as_bool(value: Any) -> bool | None:
     `None` is preserved as "the fetch did not report it", distinct from `False` meaning
     "the page carried no badge". The string forms are accepted because the collector's
     generator is free to emit `"false"`, and treating that as truthy would mark every
-    live product discontinued.
+    live product discontinued. `0` and `1` are accepted for the same reason — a JSON
+    generator emits a boolean either way, and reading `1` as "not reported" would drop a
+    discontinuation the source did state.
     """
     if isinstance(value, bool):
         return value
+    if isinstance(value, int):
+        return value != 0
     if isinstance(value, str):
         return value.strip().lower() in {"true", "yes", "discontinued", "1"}
     return None
