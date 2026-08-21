@@ -70,9 +70,13 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           {holders} manufacturers · {matrix.products.length} products · {concepts} concepts
           · {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
-        <Classification products={matrix.products} />
+        {/* The links start level with the caveat, not below the indications: the column
+            beside a three-line warning was otherwise empty. */}
         <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,18rem)]">
-          <Indications groups={matrix.indications} total={matrix.products.length} />
+          <div className="space-y-5">
+            <Classification products={matrix.products} />
+            <Indications groups={matrix.indications} total={matrix.products.length} />
+          </div>
           <AppearanceRail products={matrix.products} />
         </div>
       </header>

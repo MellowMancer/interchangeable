@@ -1,5 +1,6 @@
 """The seam the UI reads. Shapes are the contract; the UI never opens SQLite."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -733,3 +734,27 @@ def test_a_holder_with_several_products_is_named_once(
 
     for group in groups:
         assert len(group["manufacturers"]) == len(set(group["manufacturers"]))
+
+
+def test_a_company_name_collected_as_an_atc_code_is_not_served_as_one(
+    client: TestClient, repository: Repository
+) -> None:
+    """One metronidazole label's `atc_code` is "Morningside Healthcare Ltd See contact
+    details" — a company block read from the wrong element.
+
+    Served as a code it becomes a third distinct value, and `Classification` then warns
+    that these products may not be alternatives to one another. A parsing error must not
+    produce a clinical-sounding claim.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        repository.save_document(
+            replace(
+                next(d for d in repository.documents_for_substance(SUBSTANCE_ID)),
+                atc_code="Morningside Healthcare Ltd See contact details",
+            )
+        )
+
+    codes = [c["atc_code"] for c in client.get(f"/substances/{SUBSTANCE_ID}").json()["products"]]
+
+    assert "Morningside Healthcare Ltd See contact details" not in codes

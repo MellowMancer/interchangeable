@@ -17,6 +17,7 @@
  * could not parse.
  */
 
+import Link from "next/link";
 import { manufacturer, type Appearance, type ProductColumn } from "./api";
 
 /**
@@ -263,7 +264,7 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
   return (
     <section className="space-y-3">
       <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-        What they look like
+        Quick links
       </h2>
 
       {/* One column: this sits in a narrow column beside the indications, and the caller
@@ -275,7 +276,11 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
           if (!appearance) return null;
           const undrawn = undrawnBecause(appearance);
           return (
-            <li key={product.external_id} className="flex items-center gap-3">
+            <li key={product.external_id}>
+              <Link
+                href={`/products/${product.external_id}`}
+                className="flex items-center gap-3 rounded-sheet py-1 hover:bg-rule/40 hover:text-accent"
+              >
               <span className="flex h-8 w-20 shrink-0 items-center">
                 {undrawn.length === 0 ? (
                   <DosageGlyph appearance={appearance} />
@@ -294,7 +299,8 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
                 <span className="block truncate font-mono text-kicker text-ink-muted">
                   {product.variant ?? product.name}
                 </span>
-              </span>
+                </span>
+              </Link>
             </li>
           );
         })}

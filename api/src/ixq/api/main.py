@@ -4,6 +4,7 @@ The UI never opens SQLite: every shape it renders is a response model declared h
 the domain can change without breaking a screen and vice versa.
 """
 
+import re
 from collections.abc import Iterator, Mapping, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -511,7 +512,7 @@ def _column(
         holder_id=document.holder_id if document else None,
         revised=document.last_updated if document else None,
         listing_updated=document.listing_updated if document else None,
-        atc_code=document.atc_code if document else None,
+        atc_code=_atc(document.atc_code) if document else None,
         legal_status=document.legal_status if document else None,
         ma_number=document.ma_number if document else None,
         discontinued=document.discontinued if document else None,
@@ -519,6 +520,22 @@ def _column(
         scanned=list(scanned),
         appearance=_appearance(described),
     )
+
+
+ATC_CODE = re.compile(r"^[A-Z]\d{2}[A-Z]{2}\d{2}$")
+"""The WHO shape: anatomical letter, two digits, two therapeutic letters, two digits.
+
+Checked because the collector does not always return one. Across the metronidazole labels
+one product's `atc_code` is "Morningside Healthcare Ltd See contact details" — a company
+block read out of the wrong element. Served as a code it becomes a third distinct value in
+`Classification`, which then warns that these products may not be alternatives to one
+another. That is a clinical-sounding claim produced by a parsing error.
+"""
+
+
+def _atc(code: str | None) -> str | None:
+    """An ATC code, or None when what was collected is not one."""
+    return code if code and ATC_CODE.fullmatch(code.strip()) else None
 
 
 def _evidence(occurrence: Occurrence | None, document: Document | None) -> Evidence | None:
