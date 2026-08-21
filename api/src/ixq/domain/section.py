@@ -96,7 +96,19 @@ Dropping them is a correctness one: an unclassified clause is a visible gap, a d
 clause is an invisible false absence.
 """
 
-SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]")
+SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]|(?<=\s)-(?=\s+[A-Za-z])")
+"""Newline, a bullet glyph, or a hyphen being used as one.
+
+The hyphen arm was added 2026-08-21 after §4.1 tripped
+`test_no_section_collapses_into_a_single_clause`: EMC writes top-level indications as
+`- Treatment of hypertension. - Cardiovascular prevention: ...` on a single line, with
+sub-bullets in EM SPACE glyphs beneath. Without it those merge, and the same style was
+found in five comparable §4.4 sections carrying 29 such bullets — so this was mis-splitting
+real safety content, not only the new section that exposed it.
+
+It is deliberately narrow. A hyphen only splits when it is surrounded by whitespace and
+followed by a letter, so `2-8°C`, `6-17`, `non-diabetic` and `cardio-protective` are
+untouched — the ranges and compounds that fill these labels."""
 """Where one clause ends and the next begins.
 
 Newlines alone are not enough. Publishers differ: Zentiva's §4.3 arrives as a single line
