@@ -19,6 +19,7 @@ from ixq.domain import (
     Substance,
     appearance,
 )
+from ixq.domain.sections import INDICATIONS_CODE
 from ixq.pipeline.ports import ClauseCounts, ConceptDivergence, SubstanceCounts
 
 _SCHEMA = "schema.sql"
@@ -75,6 +76,35 @@ def _check_version(conn: sqlite3.Connection, db_path: Path) -> None:
         )
 
 
+_CURRENT_DOCUMENTS = """
+            SELECT d.sha256, d.product_external_id, p.substance_id
+            FROM documents d
+            JOIN products p
+              ON p.source_id = d.source_id AND p.external_id = d.product_external_id
+            WHERE d.sha256 = (
+              SELECT d2.sha256 FROM documents d2
+              WHERE d2.source_id = d.source_id
+                AND d2.product_external_id = d.product_external_id
+              ORDER BY d2.fetched_at DESC, d2.sha256 DESC
+              LIMIT 1
+            )
+"""
+"""The newest revision of each product's label, and only that one.
+
+One URL yields a new document every time its label is revised, and that history is kept
+deliberately. `compare()` reduces it with a last-write-wins pass over `fetched_at`; every
+query that counts or previews the comparison has to agree with it, or the roster
+advertises findings the matrix does not have.
+
+Held here once rather than pasted into each query. Three of them had drifted into joining
+every revision, which agreed with `compare()` only for as long as newer revisions happened
+to be supersets of older ones.
+
+The `sha256` tiebreak makes it deterministic where two revisions share a `fetched_at`,
+which the caller-side reduction cannot promise.
+"""
+
+
 class SqliteRepository:
     """Persistence backed by a single SQLite file.
 
@@ -124,13 +154,26 @@ class SqliteRepository:
         Keeping it out of the comparison is `COMPARABLE`'s job, not the schema's — which
         is also why this needs no schema change and no migration of the collected corpus.
         """
+        return self._texts_for_substance(substance_id, appearance.SECTION_CODE)
+
+    def indications_for_substance(self, substance_id: str) -> dict[str, str]:
+        """Every document's §4.1 text for one substance, keyed by sha."""
+        return self._texts_for_substance(substance_id, INDICATIONS_CODE)
+
+    def _texts_for_substance(self, substance_id: str, code: str) -> dict[str, str]:
+        """One short section's text across a substance's documents.
+
+        Private, and reached only through the narrow methods above. Exposing it on the port
+        would invite reading §4.4 this way, and that section runs to kilobytes per label —
+        the read-the-whole-corpus-per-navigation shape `counts_by_substance` exists to undo.
+        """
         rows = self._conn.execute(
             "SELECT s.document_sha256 AS sha, s.text FROM sections s "
             "JOIN documents d ON d.sha256 = s.document_sha256 "
             "JOIN products p ON p.source_id = d.source_id "
             "AND p.external_id = d.product_external_id "
             "WHERE p.substance_id = ? AND s.code = ?",
-            (substance_id, appearance.SECTION_CODE),
+            (substance_id, code),
         ).fetchall()
         return {row["sha"]: row["text"] for row in rows}
 
@@ -148,12 +191,9 @@ class SqliteRepository:
         """
         rows = self._conn.execute(
             """
-            WITH current AS (
-              SELECT d.sha256, d.product_external_id, p.substance_id
-              FROM documents d
-              JOIN products p
-                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            ),
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """),
             placed AS (
               SELECT c.substance_id, c.product_external_id, o.concept,
                      MIN(o.section_code) AS code
@@ -169,7 +209,7 @@ class SqliteRepository:
               SELECT substance_id, concept,
                      COUNT(DISTINCT code) AS variants,
                      COUNT(DISTINCT product_external_id) AS seen
-              FROM placed GROUP BY substance_id, concept
+              FROM placed WHERE concept != ? GROUP BY substance_id, concept
             )
             SELECT t.substance_id,
                    t.products,
@@ -178,7 +218,8 @@ class SqliteRepository:
             FROM totals t
             LEFT JOIN per_concept pc ON pc.substance_id = t.substance_id
             GROUP BY t.substance_id, t.products
-            """
+            """,
+            (UNCLASSIFIED,),
         ).fetchall()
         return {
             r["substance_id"]: SubstanceCounts(
@@ -196,14 +237,15 @@ class SqliteRepository:
         """
         row = self._conn.execute(
             """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
             SELECT
               COALESCE(SUM(o.concept != ?), 0) AS classified,
               COALESCE(SUM(o.concept = ?), 0) AS unclassified
             FROM occurrences o
-            JOIN documents d ON d.sha256 = o.document_sha256
-            JOIN products p
-              ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            WHERE p.substance_id = ?
+            JOIN current c ON c.sha256 = o.document_sha256
+            WHERE c.substance_id = ?
             """,
             (UNCLASSIFIED, UNCLASSIFIED, substance_id),
         ).fetchone()
@@ -221,12 +263,9 @@ class SqliteRepository:
         """
         rows = self._conn.execute(
             """
-            WITH current AS (
-              SELECT d.sha256, d.product_external_id, p.substance_id
-              FROM documents d
-              JOIN products p
-                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            ),
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """),
             placed AS (
               SELECT c.substance_id, c.product_external_id, o.concept,
                      MIN(o.section_code) AS code
@@ -244,10 +283,12 @@ class SqliteRepository:
                    t.products
             FROM placed p
             JOIN totals t ON t.substance_id = p.substance_id
+            WHERE p.concept != ?
             GROUP BY p.substance_id, p.concept
             HAVING COUNT(DISTINCT p.code) > 1 OR COUNT(DISTINCT p.product_external_id) < t.products
             ORDER BY p.substance_id, p.concept
-            """
+            """,
+            (UNCLASSIFIED,),
         ).fetchall()
 
         found: dict[str, list[ConceptDivergence]] = {}
@@ -324,11 +365,18 @@ class SqliteRepository:
             "active_substance, last_updated, fetched_at, listing_updated, holder_id, "
             "ingredient_id, atc_code, legal_status, ma_number, discontinued) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?) "
+            # COALESCE, not assignment: these columns are the source's current answer, and
+            # a re-fetch whose row failed validation arrives with them nulled. Overwriting
+            # a recorded `discontinued = 1` with NULL turns "known discontinued" into
+            # "nothing is known", which is the one collapse this column must never make.
             "ON CONFLICT(sha256) DO UPDATE SET "
-            "listing_updated = excluded.listing_updated, holder_id = excluded.holder_id, "
-            "ingredient_id = excluded.ingredient_id, atc_code = excluded.atc_code, "
-            "legal_status = excluded.legal_status, ma_number = excluded.ma_number, "
-            "discontinued = excluded.discontinued",
+            "listing_updated = COALESCE(excluded.listing_updated, listing_updated), "
+            "holder_id = COALESCE(excluded.holder_id, holder_id), "
+            "ingredient_id = COALESCE(excluded.ingredient_id, ingredient_id), "
+            "atc_code = COALESCE(excluded.atc_code, atc_code), "
+            "legal_status = COALESCE(excluded.legal_status, legal_status), "
+            "ma_number = COALESCE(excluded.ma_number, ma_number), "
+            "discontinued = COALESCE(excluded.discontinued, discontinued)",
             (
                 document.sha256,
                 document.source_id,

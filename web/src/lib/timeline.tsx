@@ -33,13 +33,13 @@ export function RevisionTimeline({ products }: { products: ProductColumn[] }) {
   return (
     <figure className="space-y-4">
       <div className="space-y-2">
-        {sorted.map(({ product, year }) => (
+        {sorted.map(({ product, year }, order) => (
           <div key={product.external_id} className="grid grid-cols-[1fr_auto] items-center gap-4">
             <div className="relative h-7">
               <div className="absolute inset-x-0 top-1/2 border-t border-rule" />
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent"
-                style={{ left: `${((year - earliest) / span) * 100}%` }}
+                className="animate-land absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent"
+                style={{ left: `${((year - earliest) / span) * 100}%`, animationDelay: `${order * 110}ms` }}
               />
             </div>
             <p className="w-64 text-meta">

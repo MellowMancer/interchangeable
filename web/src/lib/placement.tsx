@@ -102,14 +102,18 @@ export const SECTION_PLACEMENTS: Placement[] = (Object.keys(STYLES) as Placement
 export function PlacementBadge({
   placement,
   className = "",
+  delayMs,
 }: {
   placement: string;
   className?: string;
+  /** Entrance delay, so a row of badges lands in the order the table reads. */
+  delayMs?: number;
 }) {
   const style = placementStyle(placement);
   return (
     <span
       title={style.detail}
+      style={delayMs === undefined ? undefined : { animationDelay: `${delayMs}ms` }}
       className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className} ${className}`}
     >
       {style.label}

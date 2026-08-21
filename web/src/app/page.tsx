@@ -1,217 +1,222 @@
 import Link from "next/link";
-import {
-  conceptLabel,
-  getMatrix,
-  getSubstances,
-  manufacturer,
-  type Matrix,
-} from "@/lib/api";
+import { conceptLabel, getMatrix, getSubstances, type Matrix, type Row, type SubstanceSummary } from "@/lib/api";
 import { AppearanceStrip } from "@/lib/appearance";
-import {
-  featuredRow,
-  featuredSubstance,
-  groupEvidence,
-  listNames,
-  placementSummary,
-  sharedScanned,
-  type EvidenceGroup,
-} from "@/lib/finding";
-import { PlacementBadge } from "@/lib/placement";
-import { SectionCoverage } from "@/lib/scope";
+import { featuredSubstance, rankedDivergences, rankedPreviews } from "@/lib/finding";
 import { PlacementSpectrum } from "@/lib/spectrum";
+import { PlacementBadge } from "@/lib/placement";
+
+/** How many disagreements a card advertises before it defers to the comparison itself. */
+const PREVIEW_LIMIT = 3;
 
 /**
- * Land on a finding, not a search box.
+ * The roster, and what a comparison of each substance would show.
  *
- * Judges look for about thirty seconds, and an empty search box spends all of it. Which
- * substance and which concept appear here are both derived from the corpus, so this page
- * follows the strongest disagreement as the roster grows rather than freezing on the one
- * that happened to be collected first.
+ * A card carries its strongest disagreements rather than only a count, so the choice of
+ * what to open is made on the finding rather than on the name.
+ *
+ * Search is a plain GET form read from the query string, not a client component: the
+ * whole application is server-rendered, and a filter over a list the server already holds
+ * does not need to become the first piece of client state in it.
  */
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const { q } = await searchParams;
+  const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
+
   const substances = await getSubstances();
   const featured = featuredSubstance(substances);
-  if (!featured) return <NothingCollected count={substances.length} />;
-
-  const matrix = await getMatrix(featured.id);
-  if (!matrix) return <NothingCollected count={substances.length} />;
-
-  const row = featuredRow(matrix);
-  if (!row) return <NoDisagreement matrix={matrix} />;
+  const matrix = featured ? await getMatrix(featured.id) : null;
+  const top = matrix ? (rankedDivergences(matrix.rows)[0] ?? null) : null;
+  const matching = substances.filter((substance) => matches(substance, query));
+  const collected = matching.filter((substance) => substance.products > 0);
+  const uncollected = matching.filter((substance) => substance.products === 0);
 
   return (
-    <article className="space-y-12">
-      <header className="space-y-6">
-        <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-          Finding · {matrix.substance_name} · {conceptLabel(row.concept)}
-        </p>
-
-        <h1 className="max-w-3xl font-serif text-display font-normal tracking-tight text-balance">
+    <div className="space-y-12">
+      <header className="space-y-5">
+        {/* Its own measure: inside the prose column a display size wraps to three uneven
+            lines, and the strapline is the one thing on the page that must land cleanly. */}
+        <h1 className="max-w-3xl font-serif text-display font-normal text-balance">
           Same drug. Different manufacturer. Different label.
         </h1>
-
         <p className="max-w-prose text-ink-muted">
-          {placementSummary(row, matrix.products)}
+          When a pharmacy dispenses a generic it substitutes whichever manufacturer&apos;s
+          version is on the shelf, and everyone assumes same drug, same information.{" "}
+          <span className="text-ink">Interchangeable?</span> compares the UK Summaries of
+          Product Characteristics of every authorised product sharing an active substance
+          and shows where the manufacturers disagree — with the quoted text behind every
+          claim.
+        </p>
+        <p className="max-w-prose text-meta text-ink-muted">
+          The question mark is deliberate. This asks whether these products really are
+          interchangeable; it does not assert that they are not.
         </p>
       </header>
 
-      <AppearanceStrip products={matrix.products} />
+      {matrix && top && <Hero matrix={matrix} row={top} />}
 
-      <PlacementSpectrum cells={row.cells} products={matrix.products} />
+      <Search query={query} total={substances.length} />
 
-      <section className="divide-y divide-rule border-y border-rule">
-        {groupEvidence(row, matrix.products).map((group) => (
-          <Position key={`${group.placement}-${group.cells[0].product_external_id}`} group={group} />
-        ))}
-      </section>
-
-      <Provenance matrix={matrix} />
-
-      <section className="max-w-prose space-y-4 border-t border-rule pt-8">
-        <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-          What this does not say
-        </h2>
-        <p className="text-ink-muted">
-          One finding, not a rate — a rate needs a far larger run than has been done.
-        </p>
-        <p className="text-ink-muted">
-          A concept not found is reported against the sections actually read for that
-          label, never as an omission from the label.
-        </p>
-      </section>
-    </article>
-  );
-}
-
-/**
- * One position, and the label text behind it.
- *
- * Manufacturers whose labels carry byte-identical wording share a block. Generic SmPCs
- * are frequently copied verbatim between holders, so printing each in full repeats
- * hundreds of characters and buries the one label that differs.
- */
-function Position({ group }: { group: EvidenceGroup }) {
-  const names = group.products.length
-    ? group.products.map(manufacturer)
-    : group.cells.map((cell) => cell.product_external_id);
-  const scanned = group.products[0]?.scanned ?? [];
-
-  return (
-    <div className="space-y-3 py-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="font-medium">{listNames(names)}</h2>
-          {group.shared && (
-            <p className="text-kicker text-ink-muted">
-              identical wording on {names.length} labels
-            </p>
-          )}
-        </div>
-        <PlacementBadge placement={group.placement} />
-      </header>
-
-      {group.evidence ? (
-        <>
-          <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote">
-            &ldquo;{group.evidence.quote}&rdquo;
-          </blockquote>
-          <p className="font-mono text-meta text-ink-muted">
-            §{group.evidence.section_code} · chars {group.evidence.char_start}&ndash;
-            {group.evidence.char_end}
-          </p>
-        </>
-      ) : (
-        <p className="max-w-prose border-l-2 border-dashed border-rule pl-6 text-ink-muted">
-          Not found in {scanned.length ? `sections ${scanned.join(", ")}` : "any section"} as
-          read for {names.length === 1 ? "this label" : "these labels"}. There is no quote
-          because there was no match in what was read — which is not the same as the label
-          being silent.
-        </p>
+      {collected.length > 0 && (
+        <section className="space-y-6">
+          <Kicker>
+            {query ? `Collected — ${collected.length} matching` : `Collected — ${collected.length}`}
+          </Kicker>
+          <ul className="grid border-t border-rule md:grid-cols-2">
+            {collected.map((substance) => (
+              <li
+                key={substance.id}
+                className="border-b border-rule md:odd:border-r md:odd:last:border-r-0"
+              >
+                <Card substance={substance} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      <ul className="flex flex-wrap gap-x-5 gap-y-1">
-        {group.products.map((product) =>
-          product.source_url ? (
-            <li key={product.external_id}>
-              <a
-                href={product.source_url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="font-mono text-meta text-accent underline underline-offset-4"
-              >
-                {manufacturer(product)} SmPC ↗
-              </a>
-            </li>
-          ) : null,
-        )}
-      </ul>
+      {uncollected.length > 0 && (
+        <section className="space-y-4 border-t border-rule pt-10">
+          <Kicker>On the roster, not yet collected — {uncollected.length}</Kicker>
+          <p className="max-w-prose text-meta text-ink-muted">
+            Configured but not yet fetched, so there is nothing to compare. Not a finding
+            of agreement.
+          </p>
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-meta text-ink-muted">
+            {uncollected.map((substance) => (
+              <li key={substance.id}>{substance.name}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {matching.length === 0 && (
+        <p className="max-w-prose text-ink-muted">
+          Nothing on the roster matches <span className="text-ink">{query}</span>. Search
+          runs over substance names and the concepts their manufacturers disagree about.
+        </p>
+      )}
     </div>
   );
 }
 
 /**
- * The scanned sections are part of the claim, not a caption.
+ * The sharpest disagreement in the corpus, shown rather than described.
  *
- * Every absence is only meaningful against this list, so it sits with the finding rather
- * than in a footnote.
+ * Derived — most divergent substance, then its strongest-ranked concept — so the landing
+ * screen follows the corpus instead of freezing on whatever was collected first. It is
+ * the finding itself, not a link to it: a reader who never scrolls has still seen the
+ * thing the project exists to show.
  */
-function Provenance({ matrix }: { matrix: Matrix }) {
-  const shared = sharedScanned(matrix.products);
+function Hero({ matrix, row }: { matrix: Matrix; row: Row }) {
   return (
-    <section className="flex flex-wrap items-baseline justify-between gap-4 border-b border-rule pb-8">
-      <div className="max-w-prose space-y-2">
-        {shared ? (
-          <SectionCoverage scanned={shared} />
-        ) : (
-          <p className="text-meta text-ink-muted">Sections read differ by manufacturer.</p>
-        )}
-        <p className="text-meta text-ink-muted">
-          Sections read. An absence means not found in these — never that the label omits
-          it. Every quote is sliced from the stored text at the offsets shown, so any claim
-          here can be checked against its source.
+    <section className="space-y-8 border-y border-rule py-10">
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+          {matrix.substance_name} · {conceptLabel(row.concept)}
         </p>
+        <Link
+          href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
+          className="text-meta text-accent underline underline-offset-4"
+        >
+          Read the quoted text behind this →
+        </Link>
       </div>
-      <Link
-        href={`/substances/${matrix.substance_id}`}
-        className="text-accent underline underline-offset-4"
-      >
-        See all {matrix.rows.length} concepts compared →
-      </Link>
+
+      <PlacementSpectrum cells={row.cells} products={matrix.products} />
+
+      <AppearanceStrip products={matrix.products} />
     </section>
   );
 }
 
-function NoDisagreement({ matrix }: { matrix: Matrix }) {
+/**
+ * Matches a substance name or any concept its manufacturers disagree about.
+ *
+ * Searching a symptom is the question a reader actually has — "where do these labels
+ * disagree about pregnancy?" — and matching only names would answer it with nothing.
+ */
+function matches(substance: SubstanceSummary, query: string): boolean {
+  if (!query) return true;
+  const needle = query.toLowerCase();
   return (
-    <div className="max-w-prose space-y-4">
-      <h1 className="font-serif text-title font-normal">
-        {matrix.substance_name}: no disagreement found
-      </h1>
-      <p className="text-ink-muted">
-        Across {matrix.products.length} manufacturers and {matrix.rows.length} concepts,
-        every label places each concept in the same section — in the sections that were
-        read. That is a finding too.
-      </p>
-      <Link
-        href={`/substances/${matrix.substance_id}`}
-        className="inline-block text-accent underline underline-offset-4"
-      >
-        See the comparison →
-      </Link>
-    </div>
+    substance.name.toLowerCase().includes(needle) ||
+    substance.divergences.some((d) => conceptLabel(d.concept).toLowerCase().includes(needle))
   );
 }
 
-function NothingCollected({ count }: { count: number }) {
+function Search({ query, total }: { query: string; total: number }) {
   return (
-    <div className="max-w-prose space-y-4">
-      <h1 className="font-serif text-title font-normal">Nothing collected yet</h1>
-      <p className="text-ink-muted">
-        The roster lists {count} substances, but no labels have been fetched. Run{" "}
-        <code className="font-mono text-meta text-ink">ixq init</code> then{" "}
-        <code className="font-mono text-meta text-ink">ixq run</code> to populate the
-        comparison.
+    <form action="/" className="max-w-prose space-y-2">
+      <label htmlFor="q" className="block font-mono text-kicker tracking-widest text-ink-muted uppercase">
+        Search {total} substances
+      </label>
+      <div className="flex gap-3">
+        <input
+          id="q"
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="a substance, or a concept they disagree about"
+          className="w-full rounded-sheet border border-rule bg-paper px-3 py-2 text-body text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
+        />
+        <button
+          type="submit"
+          className="rounded-sheet border border-rule px-4 py-2 font-mono text-kicker tracking-widest uppercase hover:border-accent hover:text-accent"
+        >
+          Search
+        </button>
+      </div>
+      {query && (
+        <Link href="/" className="inline-block text-meta text-accent underline underline-offset-4">
+          Clear
+        </Link>
+      )}
+    </form>
+  );
+}
+
+const Kicker = ({ children }: { children: React.ReactNode }) => (
+  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
+);
+
+function Card({ substance }: { substance: SubstanceSummary }) {
+  const previews = rankedPreviews(substance);
+  const shown = previews.slice(0, PREVIEW_LIMIT);
+  const remaining = previews.length - shown.length;
+
+  return (
+    <Link
+      href={`/substances/${substance.id}`}
+      className="flex h-full flex-col gap-4 p-6 transition-transform hover:-translate-y-0.5 hover:bg-rule/30"
+    >
+      <header className="space-y-1">
+        <h3 className="font-serif text-quote">{substance.name}</h3>
+        <p className="font-mono text-meta text-ink-muted">
+          {substance.products} manufacturers · {substance.concepts} concepts ·{" "}
+          {substance.divergent === 0 ? "none disagree" : `${substance.divergent} disagree`}
+        </p>
+      </header>
+
+      {shown.length > 0 ? (
+        <ul className="space-y-2">
+          {shown.map((preview) => (
+            <li key={preview.concept} className="flex flex-wrap items-center gap-2">
+              <span className="min-w-40 text-meta">{conceptLabel(preview.concept)}</span>
+              {preview.placements.map((placement) => (
+                <PlacementBadge key={placement} placement={placement} />
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-meta text-ink-muted">Agrees everywhere that was read.</p>
+      )}
+
+      <p className="mt-auto text-meta text-accent">
+        {remaining > 0
+          ? `Compare all ${substance.concepts} concepts — ${remaining} more disagreement${remaining === 1 ? "" : "s"} →`
+          : `Compare all ${substance.concepts} concepts →`}
       </p>
-    </div>
+    </Link>
   );
 }

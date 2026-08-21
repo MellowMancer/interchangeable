@@ -297,3 +297,24 @@ def test_the_appearance_section_is_not_a_placement() -> None:
     cannot be filed in a description of a capsule's colour."""
     assert appearance.SECTION_CODE not in COMPARABLE
     assert appearance.SECTION_CODE not in {p.value for p in Placement}
+
+
+def test_an_outline_adjective_does_not_turn_a_capsule_into_a_tablet() -> None:
+    """"Oval hard capsules" is a capsule with an oval outline, not an oblong tablet.
+
+    `SHAPE_WORDS` is scanned in order regardless of position, so with `capsule` last every
+    adjective that can precede it won and the glyph drew the wrong dosage form.
+    """
+    assert described_in("Oval hard capsules, size 2.").shape is Shape.CAPSULE
+    assert described_in("Capsule-shaped tablet.").shape is Shape.OBLONG
+
+
+def test_a_comma_after_the_colour_does_not_break_the_cap_body_binding() -> None:
+    """Labels write "White, opaque body" as readily as "red opaque body".
+
+    Requiring whitespace straight after the colour lost the binding silently, and the
+    colours then fell back to stated order — drawing the capsule inside out.
+    """
+    described = described_in("White, opaque body and yellow, opaque cap printed 'X'.")
+
+    assert described.colours == ("yellow", "white"), "cap first, whatever order it is stated in"

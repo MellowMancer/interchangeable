@@ -52,11 +52,14 @@ class ProductRow(_Row):
     active_substance: str | None = None
     ma_holder: str | None = None
     section_3_pharmaceutical_form: str | None = None
+    section_4_1_indications: str | None = None
     section_4_3_contraindications: str | None = None
     section_4_4_warnings: str | None = None
     section_4_5_interactions: str | None = None
     section_4_6_pregnancy_lactation: str | None = None
     section_6_1_excipients: str | None = None
+    section_6_3_shelf_life: str | None = None
+    section_6_4_storage: str | None = None
     last_updated: str | None = None
     emc_last_updated: str | None = None
     company_id: int | None = None

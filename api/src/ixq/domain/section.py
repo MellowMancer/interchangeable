@@ -65,7 +65,8 @@ Zentiva's §4.4 held one 730-character clause spanning eight bullets and every c
 it quoted all eight. Measured across the corpus before adding it: all seven em spaces
 introduce a list marker and none occurs mid-sentence, so it cannot cut a sentence in half
 and strand a pattern across the join. It is whitespace, so consuming it drops no content
-— unlike the hyphen beside it, which is why `-` is still not a splitter.
+— unlike a hyphen, which carries meaning inside words. A hyphen does now open a clause,
+but only where an item begins; see `SEGMENT`.
 """
 
 BULLET = re.compile(rf"^[\s ]*(?:[{re.escape(SPLITTING_GLYPHS)}\-–—]|o(?=\s))[\s ]*")
@@ -80,7 +81,9 @@ CROSS_REFERENCE = re.compile(r"\(\s*see (?:also )?sections?[^)]*\)?", re.I)
 WHITESPACE = re.compile(r"\s+")
 HAS_WORD = re.compile(r"[A-Za-z]{3,}")
 
-LEAD_IN = re.compile(r"^general contraindications|^contraindicat\w*$", re.I)
+LEAD_IN = re.compile(
+    r"^general contraindications(?:\s*\([^)]*\))?:?\s*$|^contraindicat\w*$", re.I
+)
 """A restatement of the section's own heading, asserting nothing the heading did not.
 
 **A trailing colon is deliberately not a lead-in.** It was, and it destroyed content: EMC
@@ -96,17 +99,22 @@ Dropping them is a correctness one: an unclassified clause is a visible gap, a d
 clause is an invisible false absence.
 """
 
-SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]")
-"""Where one clause ends and the next begins.
+SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]|(?:(?<=[.;:)])\s|^)-(?=\s+[A-Za-z])")
+"""Newline, a bullet glyph, or a hyphen being used as one.
 
-Newlines alone are not enough. Publishers differ: Zentiva's §4.3 arrives as a single line
-carrying eight `•` bullets, so splitting on newlines yielded one 912-character clause for
-the whole section — every concept in it quoted the entire section as its evidence, and a
-concept from one bullet was reported against the placement of another.
+The hyphen arm was added 2026-08-21 after §4.1 tripped
+`test_no_section_collapses_into_a_single_clause`: EMC writes top-level indications as
+`- Treatment of hypertension. - Cardiovascular prevention: ...` on a single line, with
+sub-bullets in EM SPACE glyphs beneath. Without it those merge, and the same style was
+found in five comparable §4.4 sections carrying 29 such bullets — so this was mis-splitting
+real safety content, not only the new section that exposed it.
 
-Only `SPLITTING_GLYPHS` split mid-line. `-`, `–`, `—` and `o` do not: they occur inside
-words and as ranges, so `BULLET` removes them only at the start of a segment.
-"""
+It is deliberately narrow, and was narrowed again after review. A hyphen splits only
+where an item *opens* — after sentence-ending punctuation, or at the very start — so the
+compounds and ranges these labels are full of are untouched: `2-8°C`, `6-17`,
+`non-diabetic`, `cardio-protective`. An earlier form split on any spaced hyphen and broke
+prose dashes apart, turning `hepatic impairment - including cirrhosis - or biliary
+obstruction` into three fragments and stranding the negation."""
 
 
 def prepared(text: str) -> str:

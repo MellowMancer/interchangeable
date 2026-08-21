@@ -6,7 +6,8 @@ import pytest
 
 from ixq.domain import COMPARABLE, Product, Source, Substance
 from ixq.pipeline.collect import collect, is_combination
-from ixq.pipeline.fetch import APPEARANCE, SECTIONS, fetch
+from ixq.domain.sections import STORED_ONLY
+from ixq.pipeline.fetch import SECTIONS, fetch
 from ixq.pipeline.ports import Repository
 from conftest import SOURCE_ID, SUBSTANCE_ID
 
@@ -282,6 +283,8 @@ def test_a_presentation_is_not_a_combination(name: str, combination: bool) -> No
     assert is_combination(name) is combination
 
 
+_APPEARANCE_CODE = next(s.code for s in STORED_ONLY if s.field == "section_3_pharmaceutical_form")
+
 APPEARANCE_ROW = dict(
     PRODUCT_ROW, section_3_pharmaceutical_form="Pale red oblong tablet, 8 x 4 mm."
 )
@@ -295,8 +298,8 @@ def test_fetch_stores_the_appearance_as_its_own_section(repository: Repository) 
 
     assert document is not None
     sections = {s.code: s.text for s in repository.sections_for_document(document.sha256)}
-    assert sections[APPEARANCE[1]] == APPEARANCE_ROW["section_3_pharmaceutical_form"]
-    assert APPEARANCE[1] not in COMPARABLE
+    assert sections[_APPEARANCE_CODE] == APPEARANCE_ROW["section_3_pharmaceutical_form"]
+    assert _APPEARANCE_CODE not in COMPARABLE
 
 
 def test_an_appearance_without_any_scanned_section_is_still_a_break(
@@ -318,7 +321,7 @@ def test_a_label_with_no_appearance_stores_none(repository: Repository) -> None:
 
     assert document is not None
     codes = {s.code for s in repository.sections_for_document(document.sha256)}
-    assert APPEARANCE[1] not in codes
+    assert _APPEARANCE_CODE not in codes
 
 
 def test_an_undeclared_appearance_field_survives_the_row_model() -> None:
@@ -429,3 +432,46 @@ def test_a_missing_discontinued_flag_is_not_a_live_product(repository: Repositor
     fetch(product, SOURCE, "c_product", StubLabels([PRODUCT_ROW]), repository)
 
     assert repository.documents_for_substance(SUBSTANCE_ID)[0].discontinued is None
+
+
+STORED_ONLY_ROW = dict(
+    PRODUCT_ROW,
+    section_4_1_indications="Treatment of hypertension.",
+    section_6_3_shelf_life="2 years",
+    section_6_4_storage="Do not store above 25°C.",
+)
+
+
+def test_fetch_stores_the_sections_that_are_not_placements(repository: Repository) -> None:
+    """§4.1, §6.3 and §6.4 are collected and kept — they describe rather than file."""
+    product = _seed(repository)
+
+    document = fetch(product, SOURCE, "c_product", StubLabels([STORED_ONLY_ROW]), repository)
+
+    stored = {s.code: s.text for s in repository.sections_for_document(document.sha256)}
+    assert stored["4.1"] == "Treatment of hypertension."
+    assert stored["6.3"] == "2 years"
+    assert stored["6.4"] == "Do not store above 25°C."
+
+
+def test_none_of_the_stored_only_sections_is_comparable(repository: Repository) -> None:
+    """The invariant every absence claim rests on: only placements enter the comparison.
+
+    If one of these ever became a `Placement`, `compare()` would file a shelf life as
+    though it were a safety section, and `scanned` would claim it was read for concepts.
+    """
+    for spec in STORED_ONLY:
+        assert spec.code not in COMPARABLE
+
+
+def test_a_row_of_only_stored_only_sections_is_still_a_break(repository: Repository) -> None:
+    """A collector returning descriptions but no clinical section has moved, not gone quiet."""
+    product = _seed(repository)
+    row = {
+        "product_name": "X",
+        "section_4_1_indications": "Treatment of hypertension.",
+        "section_6_3_shelf_life": "2 years",
+    }
+
+    with pytest.raises(ValueError, match="no clinical section content"):
+        fetch(product, SOURCE, "c_product", StubLabels([row]), repository)

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -8,7 +9,8 @@ import {
   type ContextWindow,
   type ProductColumn,
 } from "@/lib/api";
-import { UNCLASSIFIED } from "@/lib/finding";
+import { AppearanceStrip } from "@/lib/appearance";
+import { identicalWording, UNCLASSIFIED } from "@/lib/finding";
 import { PlacementBadge } from "@/lib/placement";
 import { QuotePosition, SectionCoverage } from "@/lib/scope";
 import { PlacementSpectrum } from "@/lib/spectrum";
@@ -24,16 +26,25 @@ import { PlacementSpectrum } from "@/lib/spectrum";
  * Stacked full width rather than tiled: these are clinical sentences, and a three-column
  * grid squeezes them to a measure nobody can read.
  */
+export async function generateMetadata({
+  params,
+}: PageProps<"/substances/[id]/concepts/[concept]">): Promise<Metadata> {
+  const { id, concept } = await params;
+  const detail = await getConceptDetail(id, concept);
+  if (!detail) return { title: "Not found" };
+  return { title: `${conceptLabel(detail.concept)} · ${detail.substance_name}` };
+}
+
 export default async function ConceptPage({
   params,
 }: PageProps<"/substances/[id]/concepts/[concept]">) {
   const { id, concept } = await params;
-  const decoded = decodeURIComponent(concept);
-  const detail = await getConceptDetail(id, decoded);
+  const detail = await getConceptDetail(id, concept);
   if (!detail) notFound();
 
   const byProduct = new Map(detail.products.map((p) => [p.external_id, p]));
-  const isRecallGap = decoded === UNCLASSIFIED;
+  const isRecallGap = concept === UNCLASSIFIED;
+  const shared = identicalWording(detail.cells, detail.products);
 
   return (
     <article className="space-y-10">
@@ -58,12 +69,15 @@ export default async function ConceptPage({
 
       <PlacementSpectrum cells={detail.cells} products={detail.products} />
 
+      <AppearanceStrip products={detail.products} />
+
       <div className="divide-y divide-rule border-y border-rule">
         {detail.cells.map((cell) => (
           <Manufacturer
             key={cell.product_external_id}
             cell={cell}
             product={byProduct.get(cell.product_external_id)}
+            sharedWith={shared.get(cell.product_external_id) ?? []}
           />
         ))}
       </div>
@@ -74,9 +88,11 @@ export default async function ConceptPage({
 function Manufacturer({
   cell,
   product,
+  sharedWith,
 }: {
   cell: ConceptCell;
   product: ProductColumn | undefined;
+  sharedWith: string[];
 }) {
   const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
   const name = product ? manufacturer(product) : cell.product_external_id;
@@ -86,6 +102,11 @@ function Manufacturer({
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="space-y-1">
           <h2 className="font-medium">{name}</h2>
+          {sharedWith.length > 0 && (
+            <p className="text-kicker text-ink-muted">
+              identical wording to {sharedWith.join(", ")}
+            </p>
+          )}
           <p className="font-mono text-meta text-ink-muted">
             {product?.variant ?? product?.name}
             {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}
@@ -152,7 +173,7 @@ function InContext({ context }: { context: ContextWindow }) {
     <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote text-ink-muted">
       {context.truncated_start && <span aria-hidden>… </span>}
       {before}
-      <mark className="bg-accent/15 text-ink decoration-accent/40 underline-offset-4">
+      <mark className="animate-sweep bg-transparent text-ink decoration-accent/40 underline-offset-4">
         {match}
       </mark>
       {after}

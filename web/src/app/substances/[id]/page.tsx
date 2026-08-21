@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -5,6 +6,7 @@ import {
   getMatrix,
   manufacturer,
   type ClauseCoverage,
+  type IndicationGroup,
   type Matrix,
   type ProductColumn,
   type Row,
@@ -25,6 +27,15 @@ import { RevisionTimeline } from "@/lib/timeline";
  * list. Both are present and both are reachable — collapsing the agreeing rows into a
  * count would hide the evidence that the comparison works at all.
  */
+/** The substance names the tab, so several open comparisons stay tellable apart. */
+export async function generateMetadata({
+  params,
+}: PageProps<"/substances/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const matrix = await getMatrix(id);
+  return { title: matrix?.substance_name ?? "Not found" };
+}
+
 export default async function SubstancePage({ params }: PageProps<"/substances/[id]">) {
   const { id } = await params;
   const matrix = await getMatrix(id);
@@ -44,12 +55,13 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
         <Link
-          href="/substances"
+          href="/"
           className="inline-block font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
         >
           ← All substances
         </Link>
         <Classification products={matrix.products} />
+        <Indications groups={matrix.indications} total={matrix.products.length} />
       </header>
 
       {divergent.length > 0 ? (
@@ -106,7 +118,12 @@ const Kicker = ({ children }: { children: React.ReactNode }) => (
 
 function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-2">
+      {/* A cut-off table on a phone reads as broken rather than as scrollable. */}
+      <p className="font-mono text-kicker text-ink-muted md:hidden">
+        scroll for all {matrix.products.length} manufacturers →
+      </p>
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-rule">
@@ -143,15 +160,20 @@ function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
                   {conceptLabel(row.concept)}
                 </Link>
               </th>
-              {row.cells.map((cell) => (
+              {row.cells.map((cell, order) => (
                 <td key={cell.product_external_id} className="p-3">
-                  <PlacementBadge placement={cell.placement} />
+                  <PlacementBadge
+                    placement={cell.placement}
+                    className="animate-land"
+                    delayMs={order * 70}
+                  />
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -178,7 +200,7 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
 
       <div className="flex h-6 overflow-hidden rounded-sheet border border-rule">
         <div
-          className="bg-p45"
+          className="animate-grow-x bg-p45"
           style={{ width: `${(clauses.classified / total) * 100}%` }}
           title={`${clauses.classified} clauses matched a concept`}
         />
@@ -207,12 +229,61 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
         could not parse.
       </p>
 
-      <Link
-        href={`/substances/${substanceId}/concepts/${encodeURIComponent(UNCLASSIFIED)}`}
-        className="inline-block text-meta text-accent underline underline-offset-4"
-      >
-        Inspect what went unmatched →
-      </Link>
+      {/* The API only builds a row for concepts that matched, so with nothing unmatched
+          this link would lead to a 404 — an invitation to inspect an empty gap. */}
+      {clauses.unclassified > 0 && (
+        <Link
+          href={`/substances/${substanceId}/concepts/${encodeURIComponent(UNCLASSIFIED)}`}
+          className="inline-block text-meta text-accent underline underline-offset-4"
+        >
+          Inspect what went unmatched →
+        </Link>
+      )}
+    </section>
+  );
+}
+
+/**
+ * What the labels say this substance is for.
+ *
+ * Shown, never diffed. §4.1 describes the substance rather than naming a section a safety
+ * concept is filed in, so a difference here is different wording — not a divergence, and
+ * not something the comparison's vocabulary reaches.
+ *
+ * When every label states the same indications this reads as the substance's own
+ * description. When they do not, each wording is shown with the manufacturers carrying it
+ * rather than one being picked to stand for the rest.
+ */
+function Indications({ groups, total }: { groups: IndicationGroup[]; total: number }) {
+  if (groups.length === 0) return null;
+  const carrying = groups.reduce((n, g) => n + g.manufacturers.length, 0);
+  const agreed = groups.length === 1;
+
+  return (
+    <section className="max-w-prose space-y-3">
+      <Kicker>{agreed ? "What it is for" : "What it is for — the labels differ"}</Kicker>
+      {groups.map((group) => (
+        <div key={group.manufacturers.join("|")} className="space-y-2">
+          {!agreed && (
+            <p className="font-mono text-kicker text-ink-muted">
+              as stated by {group.manufacturers.join(", ")}
+            </p>
+          )}
+          <ul className="space-y-1">
+            {group.statements.map((statement) => (
+              <li key={statement} className="border-l-2 border-rule pl-4 text-meta">
+                {statement}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p className="text-kicker text-ink-muted">
+        Section 4.1, verbatim, collected for {carrying} of {total} labels.{" "}
+        {agreed
+          ? "Every one of those states these."
+          : "Those labels do not state the same set."}
+      </p>
     </section>
   );
 }

@@ -104,6 +104,15 @@ class Repository(Protocol):
         """
         ...
 
+    def indications_for_substance(self, substance_id: str) -> dict[str, str]:
+        """Per document sha, its §4.1 text — what the label says the substance is for.
+
+        Narrow for the same reason as `appearances_for_substance`: §4.1 is a line or two,
+        and a general "any section's text" method here would invite reading §4.4 the same
+        way, which is kilobytes per label on every navigation.
+        """
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 

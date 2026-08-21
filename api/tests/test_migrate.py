@@ -128,3 +128,35 @@ def test_a_missing_database_is_not_created(tmp_path: Path) -> None:
     """Creating one here would produce an empty file that looks like a migrated corpus."""
     with pytest.raises(FileNotFoundError):
         migrate(tmp_path / "absent.db", SCHEMA_VERSION)
+
+
+def test_an_interrupted_migration_leaves_the_file_on_its_old_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The promise the docstring makes, and the one the corpus depends on.
+
+    `with conn:` did not keep it: sqlite3 opens an implicit transaction only before DML,
+    so each ALTER and the version stamp committed alone. An interrupted upgrade then left
+    columns added at the old version, and every retry died on `duplicate column name` —
+    unrecoverable, against a file holding hundreds of billable fetches.
+    """
+    db = tmp_path / "corpus.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE documents (sha256 TEXT PRIMARY KEY)")
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    conn.close()
+
+    boom = ("ALTER TABLE documents ADD COLUMN one TEXT", "THIS IS NOT SQL")
+    monkeypatch.setitem(ADDED, 4, boom)
+
+    with pytest.raises(sqlite3.Error):
+        migrate(db, 4)
+
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(documents)")}
+        assert "one" not in columns, "a half-applied column makes every retry fail"
+    finally:
+        conn.close()

@@ -72,7 +72,7 @@ export function QuotePosition({
     <figure className="max-w-prose space-y-1">
       <div className="relative h-2 rounded-sheet border border-rule">
         <div
-          className="absolute inset-y-0 rounded-sheet bg-accent"
+          className="animate-grow-x absolute inset-y-0 rounded-sheet bg-accent"
           style={{ left: `${left}%`, width: `${width}%`, minWidth: "2px" }}
         />
       </div>

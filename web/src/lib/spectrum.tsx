@@ -28,6 +28,9 @@ export function PlacementSpectrum({
 
   return (
     <figure className={`space-y-3 ${className}`}>
+      <p className="font-mono text-kicker text-ink-muted sm:hidden">
+        scroll for every section →
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-lg border-collapse">
           <caption className="sr-only">
@@ -52,8 +55,13 @@ export function PlacementSpectrum({
             </tr>
           </thead>
           <tbody>
-            {cells.map((cell) => (
-              <SpectrumRow key={cell.product_external_id} cell={cell} product={byId.get(cell.product_external_id)} />
+            {cells.map((cell, order) => (
+              <SpectrumRow
+                key={cell.product_external_id}
+                cell={cell}
+                product={byId.get(cell.product_external_id)}
+                order={order}
+              />
             ))}
           </tbody>
         </table>
@@ -62,7 +70,15 @@ export function PlacementSpectrum({
   );
 }
 
-function SpectrumRow({ cell, product }: { cell: Cell; product: ProductColumn | undefined }) {
+function SpectrumRow({
+  cell,
+  product,
+  order,
+}: {
+  cell: Cell;
+  product: ProductColumn | undefined;
+  order: number;
+}) {
   const name = product ? manufacturer(product) : cell.product_external_id;
   const scanned = product?.scanned ?? [];
 
@@ -77,7 +93,8 @@ function SpectrumRow({ cell, product }: { cell: Cell; product: ProductColumn | u
               {here && (
                 <span
                   title={style.detail}
-                  className={`h-7 w-full max-w-24 rounded-sheet border ${style.className}`}
+                  style={{ animationDelay: `${order * 90}ms` }}
+                  className={`animate-land h-7 w-full max-w-24 rounded-sheet border ${style.className}`}
                 >
                   <span className="sr-only">{style.label}</span>
                 </span>
