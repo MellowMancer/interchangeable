@@ -41,15 +41,19 @@ class Shape(StrEnum):
 SHAPE_WORDS: tuple[tuple[str, Shape], ...] = (
     ("capsule-shaped", Shape.OBLONG),
     ("capsule shaped", Shape.OBLONG),
+    ("capsule", Shape.CAPSULE),
     ("oblong", Shape.OBLONG),
     ("oval", Shape.OBLONG),
     ("elliptical", Shape.OBLONG),
     ("caplet", Shape.OBLONG),
     ("round", Shape.ROUND),
     ("circular", Shape.ROUND),
-    ("capsule", Shape.CAPSULE),
 )
 """Outline words, most specific first — the order is load-bearing.
+
+`capsule` sits above the outline adjectives, below only the two hyphenated forms that mean
+the opposite. A label writing "Oval hard capsules" is describing a capsule with an oval
+outline; scanned in the other order the adjective won and the glyph drew a tablet.
 
 A "capsule-shaped tablet" is an oblong tablet, not a capsule, so it has to be recognised
 before the bare word `capsule` can claim it. Scanned in list order rather than by
@@ -74,10 +78,12 @@ COLOUR = re.compile(
     rf"\b(?:({'|'.join(MODIFIERS)})[\s-]+)?({'|'.join(COLOUR_WORDS)})\b", re.I
 )
 
-HALF = re.compile(r"(?:\s+\w+){0,2}\s+(cap|body)\b", re.I)
+HALF = re.compile(r"(?:[,\s]+\w+){0,2}[,\s]+(cap|body)\b", re.I)
 """What follows a colour when the label binds it to one half of a capsule.
 
-Up to two words may intervene: labels write "red opaque body", not "red body". The bound
+Up to two words may intervene, separated by whitespace or a comma: labels write "red
+opaque body" and also "White, opaque body", and requiring whitespace alone silently lost
+the binding on the second — drawing that capsule inside out. The bound
 reading is preferred over the stated order because the two disagree — 7142 opens
 "Orange/White" (cap first) and 14717 opens "Red opaque body" (body first), so reading
 either as cap-then-body by position would draw one of them inside out.

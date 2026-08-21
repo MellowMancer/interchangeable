@@ -351,11 +351,18 @@ class SqliteRepository:
             "active_substance, last_updated, fetched_at, listing_updated, holder_id, "
             "ingredient_id, atc_code, legal_status, ma_number, discontinued) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?) "
+            # COALESCE, not assignment: these columns are the source's current answer, and
+            # a re-fetch whose row failed validation arrives with them nulled. Overwriting
+            # a recorded `discontinued = 1` with NULL turns "known discontinued" into
+            # "nothing is known", which is the one collapse this column must never make.
             "ON CONFLICT(sha256) DO UPDATE SET "
-            "listing_updated = excluded.listing_updated, holder_id = excluded.holder_id, "
-            "ingredient_id = excluded.ingredient_id, atc_code = excluded.atc_code, "
-            "legal_status = excluded.legal_status, ma_number = excluded.ma_number, "
-            "discontinued = excluded.discontinued",
+            "listing_updated = COALESCE(excluded.listing_updated, listing_updated), "
+            "holder_id = COALESCE(excluded.holder_id, holder_id), "
+            "ingredient_id = COALESCE(excluded.ingredient_id, ingredient_id), "
+            "atc_code = COALESCE(excluded.atc_code, atc_code), "
+            "legal_status = COALESCE(excluded.legal_status, legal_status), "
+            "ma_number = COALESCE(excluded.ma_number, ma_number), "
+            "discontinued = COALESCE(excluded.discontinued, discontinued)",
             (
                 document.sha256,
                 document.source_id,
