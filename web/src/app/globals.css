@@ -1,6 +1,128 @@
 @import "tailwindcss";
 
+/**
+ * The theme layer. Every colour and type step in the application is declared here and
+ * nowhere else, so repainting the whole interface is an edit to this file alone.
+ *
+ * `light-dark()` carries both palettes in one declaration, which is why there is no
+ * duplicated dark block to keep in step — a drift that is otherwise invisible until
+ * someone opens the app in the other scheme. `color-scheme` chooses between them, so
+ * `data-theme` overrides the system preference without restating a single value.
+ */
+:root {
+  color-scheme: light dark;
+
+  --paper: light-dark(#fbfaf8, #14110f);
+  --ink: light-dark(#1a1714, #f0ede8);
+  --ink-muted: light-dark(#6b635b, #a39a90);
+  --rule: light-dark(#e2ddd6, #2e2a26);
+  --accent: light-dark(#8c1d18, #e0685f);
+
+  /* One pair per Placement member. `-on` is the text colour that sits on the fill. */
+  --p-43: light-dark(#8c1d18, #c0362f);
+  --p-43-on: light-dark(#fbfaf8, #14110f);
+  --p-44: light-dark(#9a6a15, #c99328);
+  --p-44-on: light-dark(#fbfaf8, #14110f);
+  --p-45: light-dark(#1f4e79, #4a87c4);
+  --p-45-on: light-dark(#fbfaf8, #14110f);
+  --p-46: light-dark(#5b3a6e, #9268ae);
+  --p-46-on: light-dark(#fbfaf8, #14110f);
+  --p-unknown: light-dark(#a21caf, #e879f9);
+  --p-unknown-on: light-dark(#fbfaf8, #14110f);
+}
+
+/**
+ * Absence is never filled, in any theme. It is a product rule rather than a style: a
+ * reader who cannot tell "this manufacturer warns about it" from "we did not find it in
+ * the sections we read" is being told something the data does not support. A theme that
+ * gave this a colour would make the interface assert an omission it has not checked.
+ */
+:root {
+  --p-absent: transparent;
+}
+
+/**
+ * Product colours — the colour of the medicine, never of the interface.
+ *
+ * Every value above describes this application and is therefore a `light-dark()` pair.
+ * These describe a physical object that a manufacturer's own section 3 text names, so
+ * they are deliberately fixed: a pale red tablet is pale red whichever theme the reader
+ * has chosen, and repainting it with the interface would make the drawing disagree with
+ * the label quoted beside it.
+ *
+ * The `--pc-` prefix keeps them out of the interface palette, and nothing in `@theme`
+ * exposes them as utility classes — they are reachable only from the glyph, by the colour
+ * word the label used. A word with no token here yields no fill at all, and the product
+ * is published as described-but-not-drawn rather than given a default colour it never
+ * claimed.
+ *
+ * `--pc-tint` and `--pc-shade` are what "pale" and "dark" mix towards, so a modifier is
+ * one entry rather than a token per combination.
+ */
+:root {
+  --pc-tint: #ffffff;
+  --pc-shade: #241f1b;
+
+  --pc-white: #f5f3ef;
+  --pc-ivory: #f4ecd8;
+  --pc-cream: #f6e9c9;
+  --pc-beige: #e5d5b8;
+  --pc-yellow: #e8c33a;
+  --pc-orange: #e2802c;
+  --pc-red: #b8352c;
+  --pc-pink: #e8a0ad;
+  --pc-brown: #8a5a35;
+  --pc-green: #3f7d4e;
+  --pc-blue: #2f6191;
+  --pc-purple: #6b4a86;
+  --pc-violet: #7c5bb0;
+  --pc-grey: #9a948d;
+  --pc-black: #2a2724;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-source-serif);
   --font-mono: var(--font-geist-mono);
+
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+
+  --color-p43: var(--p-43);
+  --color-p43-on: var(--p-43-on);
+  --color-p44: var(--p-44);
+  --color-p44-on: var(--p-44-on);
+  --color-p45: var(--p-45);
+  --color-p45-on: var(--p-45-on);
+  --color-p46: var(--p-46);
+  --color-p46-on: var(--p-46-on);
+  --color-p-absent: var(--p-absent);
+  --color-p-unknown: var(--p-unknown);
+  --color-p-unknown-on: var(--p-unknown-on);
+
+  --text-display: 3rem;
+  --text-display--line-height: 1.05;
+  --text-title: 2.25rem;
+  --text-title--line-height: 1.1;
+  --text-quote: 1.1875rem;
+  --text-quote--line-height: 1.6;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.5;
+  --text-kicker: 0.75rem;
+  --text-kicker--line-height: 1.4;
+
+  --radius-sheet: 2px;
 }

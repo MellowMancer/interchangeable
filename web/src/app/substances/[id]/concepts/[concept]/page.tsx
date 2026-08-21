@@ -1,105 +1,202 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { columnLabel, conceptLabel, getMatrix } from "@/lib/api";
+import {
+  conceptLabel,
+  getConceptDetail,
+  manufacturer,
+  type ConceptCell,
+  type ContextWindow,
+  type ProductColumn,
+} from "@/lib/api";
+import { UNCLASSIFIED } from "@/lib/finding";
 import { PlacementBadge } from "@/lib/placement";
+import { QuotePosition, SectionCoverage } from "@/lib/scope";
+import { PlacementSpectrum } from "@/lib/spectrum";
 
 /**
- * Why each manufacturer's cell says what it says, side by side.
+ * Why each manufacturer's cell says what it says, in the label's own words.
  *
- * The offsets are shown because they are the guarantee: the quote is a slice of the
- * stored section text at exactly those indices, so a reader can check it rather than
- * trust it.
+ * The quote is shown inside the text that surrounds it, with the matched span marked.
+ * That is the difference between asserting a quote was sliced from the section at those
+ * offsets and letting a reader see that it was — which is the claim the whole project
+ * rests on.
+ *
+ * Stacked full width rather than tiled: these are clinical sentences, and a three-column
+ * grid squeezes them to a measure nobody can read.
  */
 export default async function ConceptPage({
   params,
 }: PageProps<"/substances/[id]/concepts/[concept]">) {
   const { id, concept } = await params;
   const decoded = decodeURIComponent(concept);
-  // Only the matrix: the roster endpoint recomputes every substance's comparison, which
-  // is the whole corpus read to render one back-link.
-  const matrix = await getMatrix(id);
-  if (!matrix) notFound();
+  const detail = await getConceptDetail(id, decoded);
+  if (!detail) notFound();
 
-  const row = matrix.rows.find((r) => r.concept === decoded);
-  if (!row) notFound();
-
-  const byProduct = new Map(matrix.products.map((p) => [p.external_id, p]));
+  const byProduct = new Map(detail.products.map((p) => [p.external_id, p]));
+  const isRecallGap = decoded === UNCLASSIFIED;
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
+    <article className="space-y-10">
+      <header className="space-y-4">
         <Link
           href={`/substances/${id}`}
-          className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+          className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
         >
-          ← {matrix.substance_name}
+          ← {detail.substance_name}
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {conceptLabel(decoded)}
+        <h1 className="font-serif text-title font-normal tracking-tight">
+          {conceptLabel(detail.concept)}
         </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          {row.diverges
-            ? "These manufacturers do not place this the same way."
-            : "Every manufacturer places this the same way."}
+        <p className="max-w-prose text-ink-muted">
+          {isRecallGap
+            ? "Clauses that matched no concept in the lexicon — recorded and shown rather than dropped."
+            : detail.diverges
+              ? "These manufacturers do not place this the same way."
+              : "Every manufacturer places this the same way."}
         </p>
+      </header>
+
+      <PlacementSpectrum cells={detail.cells} products={detail.products} />
+
+      <div className="divide-y divide-rule border-y border-rule">
+        {detail.cells.map((cell) => (
+          <Manufacturer
+            key={cell.product_external_id}
+            cell={cell}
+            product={byProduct.get(cell.product_external_id)}
+          />
+        ))}
       </div>
+    </article>
+  );
+}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {row.cells.map((cell) => {
-          const product = byProduct.get(cell.product_external_id);
-          const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
-          return (
-            <article
-              key={cell.product_external_id}
-              className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4 dark:border-slate-800"
-            >
-              <header className="space-y-1">
-                <h2 className="font-medium">
-                  {product ? columnLabel(product) : cell.product_external_id}
-                </h2>
-                <PlacementBadge placement={cell.placement} />
-              </header>
+function Manufacturer({
+  cell,
+  product,
+}: {
+  cell: ConceptCell;
+  product: ProductColumn | undefined;
+}) {
+  const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
+  const name = product ? manufacturer(product) : cell.product_external_id;
 
-              {cell.evidence ? (
-                <>
-                  <blockquote className="border-l-2 border-slate-300 pl-3 text-sm italic dark:border-slate-700">
-                    {cell.evidence.quote}
-                  </blockquote>
-                  <dl className="text-xs text-slate-500">
-                    <div className="flex gap-2">
-                      <dt>Section</dt>
-                      <dd className="font-mono">{cell.evidence.section_code}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt>Characters</dt>
-                      <dd className="font-mono">
-                        {cell.evidence.char_start}–{cell.evidence.char_end}
-                      </dd>
-                    </div>
-                  </dl>
-                </>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  Not found in {product?.scanned.join(", ") || "any section read"}. There
-                  is no quote because there was no match in what was read for this
-                  label — which is not the same as the label being silent.
-                </p>
-              )}
+  return (
+    <section className="space-y-4 py-8">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="font-medium">{name}</h2>
+          <p className="font-mono text-meta text-ink-muted">
+            {product?.variant ?? product?.name}
+            {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}
+          </p>
+        </div>
+        <PlacementBadge placement={cell.placement} />
+      </header>
 
-              {sourceUrl && (
+      {cell.evidence ? (
+        <>
+          {cell.context ? (
+            <InContext context={cell.context} />
+          ) : (
+            <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote">
+              &ldquo;{cell.evidence.quote}&rdquo;
+            </blockquote>
+          )}
+          {cell.context && (
+            <QuotePosition
+              charStart={cell.evidence.char_start}
+              charEnd={cell.evidence.char_end}
+              sectionLength={cell.context.section_length}
+              sectionCode={cell.evidence.section_code}
+            />
+          )}
+          <p className="font-mono text-meta text-ink-muted">
+            {sourceUrl && (
+              <>
                 <a
                   href={sourceUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="mt-auto text-sm text-sky-700 hover:underline dark:text-sky-400"
+                  className="text-accent underline underline-offset-4"
                 >
                   Source SmPC ↗
                 </a>
-              )}
-            </article>
-          );
-        })}
-      </div>
-    </div>
+              </>
+            )}
+          </p>
+        </>
+      ) : (
+        <Absence product={product} sourceUrl={sourceUrl} />
+      )}
+    </section>
+  );
+}
+
+/**
+ * The matched clause, marked inside the text it was sliced from.
+ *
+ * The span is taken at the offsets the API reports rather than by searching for the quote:
+ * a clause that appears twice in a section would otherwise be highlighted in the wrong
+ * place, which would misrepresent the very thing being demonstrated.
+ *
+ * An ellipsis is shown only on an end the window actually cut, so a reader can tell the
+ * difference between text continuing and a section genuinely starting there.
+ */
+function InContext({ context }: { context: ContextWindow }) {
+  const before = context.text.slice(0, context.quote_start);
+  const match = context.text.slice(context.quote_start, context.quote_end);
+  const after = context.text.slice(context.quote_end);
+
+  return (
+    <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote text-ink-muted">
+      {context.truncated_start && <span aria-hidden>… </span>}
+      {before}
+      <mark className="bg-accent/15 text-ink decoration-accent/40 underline-offset-4">
+        {match}
+      </mark>
+      {after}
+      {context.truncated_end && <span aria-hidden> …</span>}
+    </blockquote>
+  );
+}
+
+/**
+ * No quote, and no fill.
+ *
+ * The sections read are named inside the sentence rather than beneath it: without them
+ * the claim reads as an omission from the label, which is a claim this project has not
+ * checked and does not make.
+ */
+function Absence({
+  product,
+  sourceUrl,
+}: {
+  product: ProductColumn | undefined;
+  sourceUrl: string | undefined;
+}) {
+  const scanned = product?.scanned ?? [];
+  return (
+    <>
+      <p className="max-w-prose border-l-2 border-dashed border-rule pl-6 text-ink-muted">
+        No match in {scanned.length ? `sections ${scanned.join(", ")}` : "any section"} as
+        read for this label. Not the same as the label being silent.
+      </p>
+      <SectionCoverage scanned={scanned} />
+      <p className="font-mono text-meta text-ink-muted">
+        {sourceUrl && (
+          <>
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-accent underline underline-offset-4"
+            >
+              Source SmPC ↗
+            </a>
+          </>
+        )}
+      </p>
+    </>
   );
 }

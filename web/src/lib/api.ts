@@ -20,6 +20,28 @@ export type Cell = {
 
 export type Row = { concept: string; diverges: boolean; cells: Cell[] };
 
+/**
+ * What one manufacturer says its product looks like, from section 3 of its own label.
+ *
+ * No photograph of any product in this corpus exists, so this is the only description
+ * there is. `source_text` is the section verbatim and is always present: a description
+ * the parser could not read is still published, never dropped.
+ *
+ * `length_mm` and `width_mm` are `null` on a label stating no dimensions — unknown, and
+ * never a size borrowed from a product that does state one.
+ */
+export type Appearance = {
+  source_text: string;
+  shape: string | null;
+  /** Colour words as the label writes them, cap first where it binds one. */
+  colours: string[];
+  length_mm: number | null;
+  width_mm: number | null;
+  imprints: string[];
+  /** What could not be read, named. Empty means fully parsed, not nothing to say. */
+  unparsed: string[];
+};
+
 export type ProductColumn = {
   external_id: string;
   name: string;
@@ -30,14 +52,23 @@ export type ProductColumn = {
   source_url: string | null;
   /** Sections read for THIS label. An absence in this column means absent from these. */
   scanned: string[];
+  /** Section 3, when one has been collected. Never in `scanned` — it is not a placement. */
+  appearance: Appearance | null;
 };
+
+/** The recall gap as two counts. Never a ratio — one substance cannot support one. */
+export type ClauseCoverage = { classified: number; unclassified: number };
 
 export type Matrix = {
   substance_id: string;
   substance_name: string;
   products: ProductColumn[];
   rows: Row[];
+  clauses: ClauseCoverage;
 };
+
+/** One disagreement, named but not evidenced — enough to preview a comparison. */
+export type DivergencePreview = { concept: string; placements: string[] };
 
 export type SubstanceSummary = {
   id: string;
@@ -45,6 +76,7 @@ export type SubstanceSummary = {
   products: number;
   concepts: number;
   divergent: number;
+  divergences: DivergencePreview[];
 };
 
 export type Heal = {
@@ -65,6 +97,57 @@ export type CollectorHealth = {
   heals: Heal[];
 };
 
+/**
+ * One mutation case on the controlled fixture site.
+ *
+ * A case that was never scored carries `null` for `field_accuracy` and
+ * `non_regression_passed` — which is not the same as scoring zero, and the screen must
+ * not render the two alike.
+ */
+export type BenchCase = {
+  case_id: string;
+  mutation: string;
+  expected_signals: string[];
+  caught_by: string | null;
+  fired_kinds: string[];
+  healed: boolean;
+  field_accuracy: number | null;
+  non_regression_passed: boolean | null;
+  attempts: number;
+  elapsed_s: number;
+  completed_at: string | null;
+};
+
+export type BenchRun = { run_id: string; cases: BenchCase[] };
+
+/**
+ * A window of the stored section text with the quote's position inside it.
+ *
+ * `quote_start` and `quote_end` index into `text`, not into the section — so the span can
+ * be marked without searching for it, and a quote that appears twice cannot be highlighted
+ * in the wrong place.
+ */
+export type ContextWindow = {
+  text: string;
+  quote_start: number;
+  quote_end: number;
+  truncated_start: boolean;
+  truncated_end: boolean;
+  /** The whole section's length, so a quote can be placed within it rather than only shown. */
+  section_length: number;
+};
+
+export type ConceptCell = Cell & { context: ContextWindow | null };
+
+export type ConceptDetail = {
+  substance_id: string;
+  substance_name: string;
+  concept: string;
+  diverges: boolean;
+  products: ProductColumn[];
+  cells: ConceptCell[];
+};
+
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE}${path}`);
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
@@ -73,6 +156,19 @@ async function get<T>(path: string): Promise<T> {
 
 export const getSubstances = () => get<SubstanceSummary[]>("/substances");
 export const getCollectors = () => get<CollectorHealth[]>("/collectors");
+export const getBenchmark = () => get<BenchRun[]>("/benchmark");
+
+/** `null` rather than a throw: an unmatched concept is a 404 the page renders. */
+export async function getConceptDetail(
+  id: string,
+  concept: string,
+): Promise<ConceptDetail | null> {
+  const path = `/substances/${encodeURIComponent(id)}/concepts/${encodeURIComponent(concept)}`;
+  const response = await fetch(`${BASE}${path}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`${path} responded ${response.status}`);
+  return response.json() as Promise<ConceptDetail>;
+}
 
 /**
  * `null` rather than a throw: an uncollected substance is a 404 the page renders.
