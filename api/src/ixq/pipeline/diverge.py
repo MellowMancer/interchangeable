@@ -10,11 +10,17 @@ PRECEDENCE = (
     Placement.WARNING,
     Placement.INTERACTION,
     Placement.PREGNANCY,
+    Placement.EXCIPIENT,
 )
 """Which placement to show when a concept appears in more than one section.
 
 An absolute contraindication outranks a warning, which outranks the sections that qualify
 rather than bar. Showing the weakest would understate what a label actually says.
+
+§6.1 ranks last because it states composition rather than a restriction: a concept named
+in both 4.3 and 6.1 is a contraindication that happens to name an ingredient. The order is
+also load-bearing in SQL — `counts_by_substance` reproduces it with `MIN(section_code)`,
+which holds only while these codes sort lexicographically in rank order. A test asserts it.
 """
 
 

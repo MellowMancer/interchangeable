@@ -39,6 +39,13 @@ Absence from §4.3 does not prove absence from the label: a warning missing ther
 present in §4.4 or §4.6. So the system reports **placement**, never omission it has not
 checked, and every claim names the sections that were actually scanned.
 
+The scanned sections are §4.3 contraindications, §4.4 warnings, §4.5 interactions, §4.6
+pregnancy and lactation, and §6.1 excipients. §6.1 is there because it is where two
+otherwise identical generics genuinely differ — one contains lactose or an azo colourant
+and the other does not — which is an interchangeability finding in its own right. It ranks
+below the clinical sections: a concept named in both is a restriction that happens to name
+an ingredient, not the reverse.
+
 Divergence is reported as individual findings, not as a rate. Establishing a rate needs a
 far larger run than has been done.
 
@@ -174,6 +181,21 @@ docker compose down    # stop
 
 - API — http://localhost:8000 (`/health`, `/docs`)
 - Web — http://localhost:3000
+
+### Upgrading an existing database
+
+The schema is create-only and `connect()` refuses a file it does not recognise, so a
+database collected under an earlier build has to be moved forward before the API will
+open it:
+
+```bash
+ixq upgrade
+```
+
+It only ever adds columns, and it leaves them NULL — a document fetched before a field
+existed has no value for it, and inventing one would state something about a page nobody
+looked at. Deleting the database instead is not a free recovery: it holds hundreds of
+billable fetches that `ixq init` does not restore.
 
 `docker compose watch` copies changed files into the running containers rather
 than bind-mounting the working tree, so build artifacts (`.next`,

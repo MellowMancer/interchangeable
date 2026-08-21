@@ -220,7 +220,7 @@ def test_a_heal_that_renames_the_section_fields_is_a_break_not_an_empty_label(
 
     assert all(field in renamed for field in SECTIONS), "the shape the old guard passed"
 
-    with pytest.raises(ValueError, match="no section content"):
+    with pytest.raises(ValueError, match="no clinical section content"):
         fetch(product, SOURCE, "c_product", StubLabels([renamed]), repository)
 
 
@@ -280,3 +280,100 @@ def test_a_presentation_is_not_a_combination(name: str, combination: bool) -> No
     mono-substance ones.
     """
     assert is_combination(name) is combination
+
+
+RECORD_ROW = PRODUCT_ROW | {
+    "section_6_1_excipients": "Lactose monohydrate\nMaize starch",
+    "emc_last_updated": "10 Jul 2026",
+    "company_id": 3006,
+    "ingredient_id": 1065,
+    "atc_code": "C09AA05",
+    "legal_status": "Prescription only medicine",
+    "section_8_ma_number": "PL 16363/0356",
+    "discontinued": False,
+}
+"""A row in the shape the healed collector actually returns, values from product 7142."""
+
+
+def test_the_source_record_is_stored_beside_the_label(repository: Repository) -> None:
+    """The fields exist to be read back, not merely accepted by the row model."""
+    product = _seed(repository)
+    fetch(product, SOURCE, "c_product", StubLabels([RECORD_ROW]), repository)
+
+    stored = repository.documents_for_substance(SUBSTANCE_ID)[0]
+    assert stored.holder_id == 3006
+    assert stored.ingredient_id == 1065
+    assert stored.atc_code == "C09AA05"
+    assert stored.legal_status == "Prescription only medicine"
+    assert stored.ma_number == "PL 16363/0356"
+    assert stored.listing_updated == "10 Jul 2026"
+    assert stored.discontinued is False
+
+
+def test_excipients_are_stored_as_a_section_and_widen_what_was_scanned(
+    repository: Repository,
+) -> None:
+    """Section 6.1 is a section like any other, so it is classified and enters `scanned`.
+
+    Storing it without it reaching `scanned` would be the worse of both worlds: the text
+    would be read but every absence would still be claimed against 4.3-4.6 alone.
+    """
+    product = _seed(repository)
+    document = fetch(product, SOURCE, "c_product", StubLabels([RECORD_ROW]), repository)
+
+    assert document is not None
+    codes = [s.code for s in repository.sections_for_document(document.sha256)]
+    assert "6.1" in codes
+    scanned = repository.section_codes_for_substance(SUBSTANCE_ID)[document.sha256]
+    assert "6.1" in scanned
+
+
+def test_a_row_carrying_only_excipients_is_a_break(repository: Repository) -> None:
+    """Section 6.1 alone must not satisfy the guard.
+
+    It is the newest field in the mapping, so a partial rename that leaves it standing is
+    exactly the case that would otherwise store a document with no comparable content.
+    """
+    product = _seed(repository)
+    only_excipients = {"product_name": "X", "section_6_1_excipients": "Lactose monohydrate"}
+
+    with pytest.raises(ValueError, match="no clinical section content"):
+        fetch(product, SOURCE, "c_product", StubLabels([only_excipients]), repository)
+
+
+def test_the_record_is_refreshed_on_re_fetch_without_forking_the_document(
+    repository: Repository,
+) -> None:
+    """A product going discontinued must be recorded, not discarded as a duplicate.
+
+    The listing columns are deliberately outside the content address, so an unchanged
+    label keeps one document - but `ON CONFLICT DO NOTHING` would then throw the new
+    status away, which is how a comparison keeps claiming a product is still sold.
+    """
+    product = _seed(repository)
+    first = fetch(product, SOURCE, "c_product", StubLabels([RECORD_ROW]), repository)
+    later = fetch(
+        product,
+        SOURCE,
+        "c_product",
+        StubLabels([RECORD_ROW | {"discontinued": True}]),
+        repository,
+    )
+
+    assert first is not None and later is not None
+    assert first.sha256 == later.sha256, "the label did not change, nor did its address"
+    documents = repository.documents_for_substance(SUBSTANCE_ID)
+    assert len(documents) == 1, "a status badge must not manufacture a revision"
+    assert documents[0].discontinued is True
+
+
+def test_a_missing_discontinued_flag_is_not_a_live_product(repository: Repository) -> None:
+    """None and False are different claims: unknown versus observed-absent.
+
+    Every document fetched before the field existed has None, and collapsing that to False
+    would assert those products were actively marketed on evidence nobody collected.
+    """
+    product = _seed(repository)
+    fetch(product, SOURCE, "c_product", StubLabels([PRODUCT_ROW]), repository)
+
+    assert repository.documents_for_substance(SUBSTANCE_ID)[0].discontinued is None

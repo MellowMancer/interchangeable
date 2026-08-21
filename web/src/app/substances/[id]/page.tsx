@@ -39,6 +39,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           )}
         </p>
         <Scanned products={matrix.products} />
+        <Classification products={matrix.products} />
       </header>
 
       <Switcher substances={substances} current={id} />
@@ -56,9 +57,19 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
                   <div className="font-normal text-xs text-slate-500">
                     {manufacturer(product)}
                   </div>
+                  {product.discontinued && (
+                    <div className="font-medium text-xs text-amber-700 dark:text-amber-500">
+                      discontinued
+                    </div>
+                  )}
                   <div className="font-normal text-xs text-slate-500">
                     {product.revised ? `revised ${product.revised}` : "revision unknown"}
                   </div>
+                  {product.ma_number && (
+                    <div className="font-normal font-mono text-xs text-slate-500">
+                      {product.ma_number}
+                    </div>
+                  )}
                   <div className="font-normal text-xs text-slate-500">
                     read {product.scanned.join(", ") || "nothing"}
                   </div>
@@ -125,6 +136,27 @@ function Scanned({ products }: { products: ProductColumn[] }) {
       )}
       A cell saying <em>{ABSENT.label.toLowerCase()}</em> means the concept was not found
       in the sections read <em>for that manufacturer</em> — not that the label omits it.
+    </p>
+  );
+}
+
+/**
+ * Whether these columns are the same medicine at all.
+ *
+ * The comparison assumes its columns are interchangeable candidates. Two different ATC
+ * codes under one substance mean they are not, and that is worth saying out loud rather
+ * than letting a reader infer agreement from a table that should never have been built.
+ * Silent when every column agrees and nothing is in doubt.
+ */
+function Classification({ products }: { products: ProductColumn[] }) {
+  const codes = [...new Set(products.map((p) => p.atc_code).filter(Boolean))];
+  if (codes.length < 2) return null;
+  return (
+    <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+      These products carry <strong>different ATC codes</strong> (
+      <span className="font-mono">{codes.join(", ")}</span>). They may not be
+      alternatives to one another, and a divergence below may be that rather than a
+      disagreement.
     </p>
   );
 }

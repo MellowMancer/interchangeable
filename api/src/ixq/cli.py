@@ -11,7 +11,7 @@ from ixq.adapters.config import (
     load_sources,
     load_substances,
 )
-from ixq.adapters.sqlite import SqliteRepository, connect
+from ixq.adapters.sqlite import SCHEMA_VERSION, SqliteRepository, connect, migrate
 from ixq.domain import Collector, CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
@@ -50,6 +50,25 @@ def init() -> None:
     typer.echo(
         f"initialised {db_path} with {len(sources)} sources, "
         f"{len(substances)} substances and {len(collectors)} collectors"
+    )
+
+
+@app.command()
+def upgrade() -> None:
+    """Add the columns a newer build expects to an existing database, in place.
+
+    The alternative `connect()` offers is refusing to open the file at all, and deleting
+    it costs the whole corpus — hundreds of billable fetches this command does not spend.
+    Only ever adds columns; anything else refuses and says why.
+    """
+    db_path = database_path()
+    was = migrate(db_path, SCHEMA_VERSION)
+    if was == SCHEMA_VERSION:
+        typer.echo(f"{db_path} is already at schema version {SCHEMA_VERSION}")
+        return
+    typer.echo(
+        f"{db_path} migrated from schema version {was} to {SCHEMA_VERSION}. "
+        "Columns added by this step are NULL until the labels are re-fetched."
     )
 
 

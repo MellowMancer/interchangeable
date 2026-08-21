@@ -33,8 +33,17 @@ concepts:
                        fibrillation, sick sinus, sinoatrial, sinu-atrial]
   serotonin:          [serotonin, ssri, triptan]
   thyroid:            [thyroid, thyrotoxic, myxoedema, myxedema]
+  # `potassium` was bare, which matched "Potassium hydroxide" in the excipient list of
+  # every label carrying it — a clinical disorder claimed from an ingredient. It also
+  # matched the standard "contains less than 1mmol potassium" excipient statement in 4.4.
+  # Measured on the corpus: the tighter phrasings keep all 15 genuinely clinical clauses
+  # and drop exactly the three that were about composition, which `mineral_content` below
+  # now takes. Verified before changing, because tightening a pattern is how a false
+  # absence gets introduced.
   electrolyte:        [kalaem, kalem, natraem, natrem, calcaem, calcem, magnesaem,
-                       sodium level, potassium]
+                       sodium level, potassium-sparing, potassium sparing,
+                       serum potassium, potassium level, potassium supplement,
+                       potassium salt, potassium-containing, potassium intake]
   endocrine:          [addison, adrenal, cushing, phaeochromocytoma, pheochromocytoma]
   diabetes_type:      [type 1 diabetes, type i diabetes, insulin-dependent]
   vascular:           [peripheral arterial, raynaud, occlusive disease, ischaem, ischem,
@@ -84,3 +93,29 @@ concepts:
   fertility:          [infertility, fertility]
   obstruction:        [obstruction, stenosis, perforation, ileus]
   excipient_intolerance: [galactose, lactase, fructose, sucrase, intoleran]
+
+  # --- excipients (section 6.1) ---
+  #
+  # These name a substance rather than a patient state, which is why the clinical concepts
+  # above do not reach them. They exist because §6.1 is where two otherwise identical
+  # generics genuinely differ: same active substance, same clinical sections, one contains
+  # lactose or an azo colourant and the other does not. That is an interchangeability
+  # finding, and without these the section is stored, scanned, and entirely unclassified.
+  #
+  # `lactose` also matches the standard galactose-intolerance warning in §4.4. That is not
+  # a false positive: that warning *is* the lactose warning, and 4.4 outranking 6.1 shows
+  # the label warning about it rather than merely listing it.
+  lactose:            [lactose]
+  polyol:             [sorbitol, maltitol, mannitol, xylitol]
+  soya:               [soya, soybean, lecithin]
+  peanut:             [arachis, peanut]
+  wheat_starch:       [wheat starch, gluten]
+  azo_colourant:      [tartrazine, sunset yellow, ponceau, carmoisine, allura red,
+                       e102, e110, e122, e124, e129]
+  benzyl_alcohol:     [benzyl alcohol, benzoic, benzoate]
+  propylene_glycol:   [propylene glycol]
+  # The EU standard excipient statement, which is composition rather than a disorder —
+  # and it matters clinically: sodium content is a real constraint for the very patients
+  # an antihypertensive is prescribed to.
+  mineral_content:    [mmol potassium, mmol sodium, essentially sodium-free,
+                       essentially potassium-free, sodium free, potassium free]
