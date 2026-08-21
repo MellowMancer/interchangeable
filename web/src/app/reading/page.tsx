@@ -140,7 +140,7 @@ export default function ReadingPage() {
 
       <footer className="border-t border-rule pt-8">
         <Link
-          href="/substances"
+          href="/"
           className="font-mono text-kicker tracking-widest text-accent uppercase hover:underline"
         >
           Browse the substances &rarr;

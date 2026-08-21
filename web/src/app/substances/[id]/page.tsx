@@ -227,12 +227,16 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
         could not parse.
       </p>
 
-      <Link
-        href={`/substances/${substanceId}/concepts/${encodeURIComponent(UNCLASSIFIED)}`}
-        className="inline-block text-meta text-accent underline underline-offset-4"
-      >
-        Inspect what went unmatched →
-      </Link>
+      {/* The API only builds a row for concepts that matched, so with nothing unmatched
+          this link would lead to a 404 — an invitation to inspect an empty gap. */}
+      {clauses.unclassified > 0 && (
+        <Link
+          href={`/substances/${substanceId}/concepts/${encodeURIComponent(UNCLASSIFIED)}`}
+          className="inline-block text-meta text-accent underline underline-offset-4"
+        >
+          Inspect what went unmatched →
+        </Link>
+      )}
     </section>
   );
 }

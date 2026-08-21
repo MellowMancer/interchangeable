@@ -394,3 +394,66 @@ def test_the_appearance_query_reads_no_other_section(
     _describe(repository, "Red tablet.")
 
     assert list(repository.appearances_for_substance(SUBSTANCE_ID).values()) == ["Red tablet."]
+
+
+def _revision(repository: Repository, sha: str, fetched_at: str, concept: str) -> None:
+    """A revision of the seeded product, carrying one concept of its own.
+
+    `fetched_at` is stamped by SQL, so every revision written inside one test shares a
+    second and the ordering would fall to the sha tiebreak. Setting it explicitly makes
+    which revision is current a property of the test rather than of its literals.
+    """
+    repository.save_document(
+        Document(
+            sha256=sha,
+            source_id=SOURCE_ID,
+            product_external_id=PRODUCT_EXTERNAL_ID,
+            source_url="https://example.test/product/1001",
+        )
+    )
+    repository._conn.execute(  # noqa: SLF001 — the column is stamped in SQL, not by the entity
+        "UPDATE documents SET fetched_at = ? WHERE sha256 = ?", (fetched_at, sha)
+    )
+    repository.save_section(sha, SECTION)
+    repository.save_occurrence(found_in(SECTION, sha, concept, 0, 20))
+
+
+def test_the_roster_reads_the_current_revision_not_every_one(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """The roster must describe the comparison it links to, not the history behind it.
+
+    One URL yields a new document every time its label is revised, and that history is
+    kept on purpose. `compare()` reduces it to the newest per product; a count that joined
+    every revision advertised concepts the matrix does not show — and agreed only while
+    newer revisions happened to be supersets of older ones.
+    """
+    # The fixture's own document is stamped `now`, so it would outrank any date written
+    # here. Ordering all three explicitly is what makes "current" mean the newest.
+    repository._conn.execute(  # noqa: SLF001
+        "UPDATE documents SET fetched_at = ? WHERE sha256 = ?", ("2026-01-01 00:00:00", DOC_SHA)
+    )
+    _revision(repository, "b" * 64, "2026-02-01 00:00:00", "renal")
+    _revision(repository, "c" * 64, "2026-03-01 00:00:00", "hepatic")
+
+    counted = repository.counts_by_substance()[SUBSTANCE_ID]
+    clauses = repository.clause_counts(SUBSTANCE_ID)
+
+    assert counted.concepts == 1, "the superseded revision's concept must not be counted"
+    assert clauses.classified == 1, "the recall gap must describe the current revision only"
+
+
+def test_the_roster_leaves_the_recall_gap_out_of_its_divergence_count(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """`unclassified` is a parser gap, and the screen holds it out of the concept list.
+
+    Counting it as divergent made the card's header exceed the list printed beneath it.
+    """
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, UNCLASSIFIED, 0, 20))
+
+    counted = repository.counts_by_substance()[SUBSTANCE_ID]
+    previews = repository.divergences_by_substance().get(SUBSTANCE_ID, ())
+
+    assert all(p.concept != UNCLASSIFIED for p in previews)
+    assert counted.divergent == len(previews), "header and body must describe one set"

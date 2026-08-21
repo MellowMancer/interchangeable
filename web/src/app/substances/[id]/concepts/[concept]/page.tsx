@@ -30,7 +30,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/substances/[id]/concepts/[concept]">): Promise<Metadata> {
   const { id, concept } = await params;
-  const detail = await getConceptDetail(id, decodeURIComponent(concept));
+  const detail = await getConceptDetail(id, concept);
   if (!detail) return { title: "Not found" };
   return { title: `${conceptLabel(detail.concept)} · ${detail.substance_name}` };
 }
@@ -39,12 +39,11 @@ export default async function ConceptPage({
   params,
 }: PageProps<"/substances/[id]/concepts/[concept]">) {
   const { id, concept } = await params;
-  const decoded = decodeURIComponent(concept);
-  const detail = await getConceptDetail(id, decoded);
+  const detail = await getConceptDetail(id, concept);
   if (!detail) notFound();
 
   const byProduct = new Map(detail.products.map((p) => [p.external_id, p]));
-  const isRecallGap = decoded === UNCLASSIFIED;
+  const isRecallGap = concept === UNCLASSIFIED;
   const shared = identicalWording(detail.cells, detail.products);
 
   return (

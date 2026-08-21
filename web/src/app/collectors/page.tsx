@@ -123,13 +123,15 @@ const Kicker = ({ children }: { children: React.ReactNode }) => (
 function Run({ run }: { run: BenchRun }) {
   const detected = run.cases.filter((c) => c.caught_by !== null).length;
   const repaired = run.cases.filter((c) => c.healed).length;
+  const verified = run.cases.filter((c) => c.non_regression_passed === true).length;
 
   return (
     <article className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-rule pb-2">
         <h3 className="font-mono text-meta tracking-widest uppercase">run {run.run_id}</h3>
         <p className="font-mono text-meta text-ink-muted">
-          {run.cases.length} cases · {detected} detected · {repaired} repaired and verified
+          {run.cases.length} cases · {detected} detected · {repaired} repaired ·{" "}
+          {verified} verified against the old layout
         </p>
       </div>
 
@@ -146,7 +148,14 @@ function Run({ run }: { run: BenchRun }) {
           <tbody>
             {run.cases.map((benchCase) => (
               <tr key={benchCase.case_id} className="border-b border-rule align-top">
-                <td className="py-3 pr-4 font-mono">{benchCase.case_id}</td>
+                <td className="py-3 pr-4">
+                  <span className="block font-mono">{benchCase.mutation}</span>
+                  {benchCase.case_id !== benchCase.mutation && (
+                    <span className="block font-mono text-kicker text-ink-muted">
+                      case {benchCase.case_id}
+                    </span>
+                  )}
+                </td>
                 <td className="py-3 pr-4">
                   <Signals
                     expected={benchCase.expected_signals}

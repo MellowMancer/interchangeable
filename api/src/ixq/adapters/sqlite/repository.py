@@ -75,6 +75,35 @@ def _check_version(conn: sqlite3.Connection, db_path: Path) -> None:
         )
 
 
+_CURRENT_DOCUMENTS = """
+            SELECT d.sha256, d.product_external_id, p.substance_id
+            FROM documents d
+            JOIN products p
+              ON p.source_id = d.source_id AND p.external_id = d.product_external_id
+            WHERE d.sha256 = (
+              SELECT d2.sha256 FROM documents d2
+              WHERE d2.source_id = d.source_id
+                AND d2.product_external_id = d.product_external_id
+              ORDER BY d2.fetched_at DESC, d2.sha256 DESC
+              LIMIT 1
+            )
+"""
+"""The newest revision of each product's label, and only that one.
+
+One URL yields a new document every time its label is revised, and that history is kept
+deliberately. `compare()` reduces it with a last-write-wins pass over `fetched_at`; every
+query that counts or previews the comparison has to agree with it, or the roster
+advertises findings the matrix does not have.
+
+Held here once rather than pasted into each query. Three of them had drifted into joining
+every revision, which agreed with `compare()` only for as long as newer revisions happened
+to be supersets of older ones.
+
+The `sha256` tiebreak makes it deterministic where two revisions share a `fetched_at`,
+which the caller-side reduction cannot promise.
+"""
+
+
 class SqliteRepository:
     """Persistence backed by a single SQLite file.
 
@@ -148,12 +177,9 @@ class SqliteRepository:
         """
         rows = self._conn.execute(
             """
-            WITH current AS (
-              SELECT d.sha256, d.product_external_id, p.substance_id
-              FROM documents d
-              JOIN products p
-                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            ),
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """),
             placed AS (
               SELECT c.substance_id, c.product_external_id, o.concept,
                      MIN(o.section_code) AS code
@@ -169,7 +195,7 @@ class SqliteRepository:
               SELECT substance_id, concept,
                      COUNT(DISTINCT code) AS variants,
                      COUNT(DISTINCT product_external_id) AS seen
-              FROM placed GROUP BY substance_id, concept
+              FROM placed WHERE concept != ? GROUP BY substance_id, concept
             )
             SELECT t.substance_id,
                    t.products,
@@ -178,7 +204,8 @@ class SqliteRepository:
             FROM totals t
             LEFT JOIN per_concept pc ON pc.substance_id = t.substance_id
             GROUP BY t.substance_id, t.products
-            """
+            """,
+            (UNCLASSIFIED,),
         ).fetchall()
         return {
             r["substance_id"]: SubstanceCounts(
@@ -196,14 +223,15 @@ class SqliteRepository:
         """
         row = self._conn.execute(
             """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
             SELECT
               COALESCE(SUM(o.concept != ?), 0) AS classified,
               COALESCE(SUM(o.concept = ?), 0) AS unclassified
             FROM occurrences o
-            JOIN documents d ON d.sha256 = o.document_sha256
-            JOIN products p
-              ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            WHERE p.substance_id = ?
+            JOIN current c ON c.sha256 = o.document_sha256
+            WHERE c.substance_id = ?
             """,
             (UNCLASSIFIED, UNCLASSIFIED, substance_id),
         ).fetchone()
@@ -221,12 +249,9 @@ class SqliteRepository:
         """
         rows = self._conn.execute(
             """
-            WITH current AS (
-              SELECT d.sha256, d.product_external_id, p.substance_id
-              FROM documents d
-              JOIN products p
-                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
-            ),
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """),
             placed AS (
               SELECT c.substance_id, c.product_external_id, o.concept,
                      MIN(o.section_code) AS code
@@ -244,10 +269,12 @@ class SqliteRepository:
                    t.products
             FROM placed p
             JOIN totals t ON t.substance_id = p.substance_id
+            WHERE p.concept != ?
             GROUP BY p.substance_id, p.concept
             HAVING COUNT(DISTINCT p.code) > 1 OR COUNT(DISTINCT p.product_external_id) < t.products
             ORDER BY p.substance_id, p.concept
-            """
+            """,
+            (UNCLASSIFIED,),
         ).fetchall()
 
         found: dict[str, list[ConceptDivergence]] = {}
