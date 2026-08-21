@@ -28,11 +28,11 @@ Clean Architecture. Before creating a file, identify its layer: Entities → Use
 
 Project-specific: FastAPI is the seam between pipeline and UI — the frontend never opens SQLite. Tier cues, lexicon, and agency config are data (`config/*.yaml`), not code.
 
-`docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface, not `docs/superseded-municipal-agendas.md`.
+`docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface. Every warning in it was paid for in billable calls; do not rediscover them.
 
 `docs/EMC_FIELDS.md` is the authority on what an EMC product page exposes — check it before assuming a field must be derived or is unavailable.
 
-`docs/interchangeable.md` is the live implementation plan. `docs/superseded-municipal-agendas.md` is retained only as the record of the government-host block and the `bdheal` package split.
+`docs/SITE_GAPS.md` records what the corpus holds and the UI does not show. `docs/ARCHITECTURE.md` covers `bdheal`; `docs/GOLDEN_BENCHMARK.md` covers how self-healing is measured.
 
 ## Commits
 

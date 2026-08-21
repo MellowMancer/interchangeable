@@ -88,7 +88,7 @@ be read as a stale label rather than a real disagreement.
 ## Status
 
 Working end to end for the ramipril corpus: collection, section splitting, concept
-classification, comparison, an HTTP API, an MCP server and the three UI screens.
+classification, comparison, an HTTP API, an MCP server and the UI.
 
 The self-healing loop has been driven through a full cycle against a controlled fixture
 site. On a real layout mutation it detected the break, named the signal, repaired the

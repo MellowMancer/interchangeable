@@ -42,7 +42,10 @@ section_4_5_interactions · section_4_6_pregnancy_lactation
 
 ## Available and worth adding
 
-Ordered by what they change about what the product can claim.
+**All eight are now collected** — this section is kept for the DOM hooks, not as a to-do.
+When a heal breaks a field, the location recorded here is what the repair prompt needs, and
+re-deriving it costs a page investigation. Ordered by what they change about what the
+product can claim.
 
 ### 1. Canonical MA-holder identity — the important one
 
@@ -234,17 +237,20 @@ harder to break — and makes adding §6.1 cheap.
 **A collector change is not sufficient on its own.** Adding fields has three downstream
 consequences:
 
-1. **Schema.** `adapters/sqlite/schema.sql` is `PRAGMA user_version = 3`, create-only,
-   with **no migration runner**. Company id, ATC code, PL number, legal status and
-   marketing status all need columns on `products` or `documents`, which means a schema
-   version bump and a decision about existing databases.
-2. **`bdheal` drift detection.** A changed collector schema is exactly what the detector is
-   built to notice. §4.5 was added by heal with the collector id unchanged (see M12 in
-   `docs/interchangeable.md`), so there is precedent — but note a heal is only persisted
-   with `--auto-save`.
+1. **Schema.** `adapters/sqlite/schema.sql` is create-only. A new column needs a version
+   bump *and* an entry in `adapters/sqlite/migrate.py`, which is additive-only by
+   construction — `ixq upgrade` adds columns to an existing file and refuses anything else,
+   because deleting the database costs the whole corpus of billable fetches.
+2. **`bdheal` drift detection.** A changed collector schema is what the detector is built
+   to notice, and a heal is only persisted with `--auto-save`. Note also that null-rate
+   monitoring covers only the fields **declared** on `ProductRow`: a field the collector
+   returns but the model does not name is invisible to every signal, so add it there in
+   the same change.
 3. **`scanned` semantics.** Every absence claim in the UI is scoped to the sections
-   actually read. Adding §6.1 widens that scope, which is correct, but it changes what
-   `absent` means for every previously stored document until they are re-fetched.
+   actually read. A new *comparable* section widens that scope, which is correct, but it
+   changes what `absent` means for every previously stored document until they are
+   re-fetched. A section that should be stored without entering the comparison goes in
+   `domain/sections.py` instead, where it is excluded from `scanned` and from classifying.
 
 ## Licensing — escalate before this is more than a demo
 

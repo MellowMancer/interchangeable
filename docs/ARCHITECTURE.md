@@ -112,7 +112,7 @@ Signatures are frozen here. A change happens here first, updating every stub in
 
 ```python
 class StudioClient(Protocol):
-    def create(self, url: str, description: str) -> str: ...
+    def create(self, url: str, description: str, name: str | None = None) -> str: ...
     def run(self, spec: CollectorSpec, urls: Sequence[str]) -> RunResult: ...
     def heal(self, spec: CollectorSpec, prompt: str, *, auto_approve: bool = False) -> HealEvent: ...
     def approve(self, spec: CollectorSpec, url: str, *, reject: bool = False) -> HealEvent: ...
@@ -126,6 +126,7 @@ class HealStore(Protocol):
     def save_bench_case(self, case: BenchCase) -> None: ...
     def completed_case_ids(self, run_id: str) -> list[str]: ...
     def bench_cases(self, run_id: str) -> list[BenchCase]: ...
+    def bench_runs(self) -> list[str]: ...
 
 class Clock(Protocol):
     def now(self) -> datetime: ...
@@ -162,19 +163,23 @@ and must produce structured per-field errors.
 
 | Model | Carries | Notes |
 |---|---|---|
-| `CollectorSpec` | `collector_id`, `name`, `anchor_urls`, `row_schema: type[BaseModel]` | The caller's whole input |
+| `CollectorSpec` | `collector_id`, `name`, `anchor_urls`, `row_schema: type[BaseModel]`, `rows_key` | The caller's whole input. `rows_key` drives descent into the response envelope |
 | `RowError` | `index`, `message`, `error_code`, `field_errors` | Target-side *and* schema-side failure, one shape |
 | `RunResult` | `collector_id`, `fetched_at`, `rows`, `errors`, `error_codes` | `error_codes` is a list, never `None` |
 | `Signal` | `kind`, `outcome`, `detail` | One detector's reading |
-| `DetectVerdict` | `broken`, `signals`, `incomplete`, `retry_requested`, `reason` | `incomplete` covers every target-side refusal, not only throttling |
-| `HealEvent` | ids, `status`, `created_at`, `prompt`, `preview_result`, `promoted`, `failure_class`, `template_id`, `attempts`, `error` | `preview_result` is `PreviewResult` — an object **or an array**. Bright Data returns an array when the preview carries several rows, and typing it as an object alone discarded a completed repair |
+| `DetectVerdict` | `broken`, `signals`, `incomplete`, `retry_requested`, `reason`, `ambiguous_codes` | `incomplete` covers every target-side refusal, not only throttling |
+| `HealEvent` | `id`, other ids, `status`, `created_at`, `prompt`, `preview_result`, `promoted`, `failure_class`, `template_id`, `attempts`, `error` | `preview_result` is `PreviewResult` — an object **or an array**. Bright Data returns an array when the preview carries several rows, and typing it as an object alone discarded a completed repair |
 | `VerifyReport` | `field_accuracy`, `non_regression_passed`, `attempts`, `elapsed_s` | |
 | `Baseline` | `collector_id`, `captured_at`, `row_count`, `null_rates`, `skeleton_hash` | Crosses `HealStore`, so Pydantic |
-| `BenchCase` | run/case ids, `mutation`, `expected_signals`, `caught_by`, outcome fields | Crosses `HealStore` |
+| `BenchCase` | run/case ids, `mutation`, `expected_signals`, `caught_by`, `fired_kinds`, outcome fields | Crosses `HealStore`. `fired_kinds` is what makes an unexpected signal visible rather than a pass |
 
 - `RunResult.rows` is `list[dict[str, Any]]` — validated row *data*, not `row_schema`
   instances, so `RunResult` round-trips through `model_dump()`. A caller wanting instances
   re-validates in one line and buys serialisability.
+- **`rows` and `errors` do not partition.** A row the schema rejects is kept in `rows` with
+  the offending fields nulled *and* named in `errors`. Dropping it would hide the shape of
+  the break from `null_rate`, which is the signal built to see exactly that — a field that
+  stopped arriving. Anything treating the two lists as disjoint double-counts.
 - `__all__` is exactly ten names. `Baseline` and `BenchCase` are exported because they
   cross `HealStore` and rule 5 invites the app to supply its own implementation; a port
   whose vocabulary is only reachable via `bdheal.models` is a half-public contract. Enums
@@ -190,16 +195,24 @@ and must produce structured per-field errors.
 **The governing principle: extraction problems justify a heal; target-side problems justify
 a retry; neither justifies silence.**
 
-The discriminator is one line — an error carrying an `error_code` is target-side; an error
-carrying none is an extraction fault. A row that is not an object at all fires the schema
-signal: a collector that returned objects and now returns strings is broken.
+The discriminator is **set membership, not the presence of a code**: an error is target-side
+when its `error_code` is in `UNTRUSTWORTHY_SAMPLE_CODES`, and an extraction fault otherwise.
+The collector-fault codes carry an `error_code` too, so "has a code ⇒ target-side" is false
+and reintroduces exactly the false negative recorded below. A row that is not an object at
+all fires the schema signal: a collector that returned objects and now returns strings is
+broken.
 
 **Incomplete samples.** `error_code` is data, never an exception. **Any** row carrying a
-target-side or ambiguous code — `rate_limit`, `blocked`, `captcha`, `timeout`,
-`dead_page`, `crawl_error`, `ajax_request_error` — makes the sample incomplete, so
-`row_count` and `null_rate` record `SignalOutcome.INCONCLUSIVE` and `retry_requested` is
-set. Codes the vendor attributes to the scraper (`parse_error`, `bad_input`,
-`wait_element_timeout`) are extraction evidence and do fire the schema signal.
+target-side or ambiguous code — `rate_limit`, `global_rate_limit`, `bucket_rate_limit`,
+`blocked`, `captcha_timeout`, `timeout`, `dead_page`, `crawl_error`, `ajax_request_error`,
+`unspecified` — makes the sample incomplete, so `row_count` and `null_rate` record
+`SignalOutcome.INCONCLUSIVE` and `retry_requested` is set. Codes the vendor attributes to
+the scraper (`parse_error`, `bad_input`, `wait_element_timeout`) are extraction evidence and
+do fire the schema signal.
+
+`vocabulary.py` is the only place these names are correct. A hand-written copy of this list
+already got four of five names wrong once, which is why the sets live there and not here —
+treat the names above as a reading aid, never as the source.
 
 Such a run never heals on volume grounds, may still report a schema break, and always asks
 for a retry.
@@ -219,6 +232,8 @@ wrong in.
 **Thresholds and precedence.**
 
 - `NULL_RATE_SPIKE = 0.5` — absolute rise above baseline.
+- `ROW_COUNT_DROP = 0.4` — `row_count` fires on a 40% shortfall against the baseline, not
+  only on collapse to zero. A partial drop is the common shape of a break.
 - Signal precedence, pinned by test: **`skeleton > schema > row_count > null_rate`**. A
   moved tag-and-class tree is *why* the others fired; naming a symptom would send the heal
   hunting for a field on a page whose rows it can no longer find.
@@ -239,10 +254,14 @@ designed up front.
 then the terminal outcome); auto-approve and a failed call emit one. Anything counting rows
 per cycle must select the **terminal-most** row, never treat row count as cycle count.
 
-**A failed gate call raises; it does not return a `failed` event.** `heal.heal` and
-`heal.approve` write the row and re-raise `StudioError`. That is asymmetric with the
-value-based `VerifyReport.non_regression_passed=False`, so the caller cannot branch on
-`event.status` for this failure mode.
+**Where a failed gate call raises, and where it does not.** The use cases `heal.heal` and
+`heal.approve` write the row and re-raise `StudioError`. The **facade does not**:
+`Healer.heal` catches it and returns the recorded event with `status=failed`, which is what
+the benchmark branches on (`if not loop.heal(...).promoted`) and what the healer tests pin.
+
+Both halves matter. A caller of the facade who writes `try/except StudioError` around it has
+written a branch that never fires and will not inspect the event it did get back; a caller
+of the use case who inspects `event.status` instead of catching never receives one.
 
 **A gate that opens must be answered, even on the way out.** Bright Data completes the whole
 repair and then waits at `user_approval`. If anything raises between opening the heal and
@@ -311,7 +330,7 @@ Extend these. Do not clone a near-copy beside them.
 | `BdhealError` and subclasses | `errors.py` | Every raise |
 | `skeleton()`, `skeleton_hash()` | `skeleton.py` | Any structural comparison |
 | `null_rates()`, `capture_baseline()` | `detect.py` | Baseline maths, used by detect and the facade |
-| `TEMPLATE_IDS`, `Diagnosis` | `diagnose.py` | Prompt selection. A new failure class adds a row |
+| `TEMPLATES`, `Diagnosis` | `diagnose.py` | Prompt selection. A new failure class adds a row |
 | `heal()`, `approve()`, `release_gate()`, `PROMOTED_STATUS` | `heal.py` | The approval gate. `release_gate` answers a gate with no `HealEvent` to describe it — the state the incident above left behind |
 | `PreviewResult` | `models.py` | The preview's two shapes. Annotate rather than re-spelling the union |
 | `BDATA_ARGV`, `DEFAULT_TIMEOUT_S`, `BATCH_TIMEOUT_S` | `studio.py` | Every `bdata` invocation |
