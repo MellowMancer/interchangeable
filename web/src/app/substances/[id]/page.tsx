@@ -6,6 +6,7 @@ import {
   manufacturer,
   type ClauseCoverage,
   type Matrix,
+  type ProductColumn,
   type Row,
 } from "@/lib/api";
 import {
@@ -48,6 +49,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         >
           ← All substances
         </Link>
+        <Classification products={matrix.products} />
       </header>
 
       {divergent.length > 0 ? (
@@ -120,6 +122,12 @@ function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
                 <div className="font-mono text-meta text-ink-muted">
                   {product.revised ? `revised ${product.revised}` : "revision unknown"}
                 </div>
+                {product.discontinued && (
+                  <div className="font-mono text-meta text-accent">discontinued</div>
+                )}
+                {product.ma_number && (
+                  <div className="font-mono text-meta text-ink-muted">{product.ma_number}</div>
+                )}
               </th>
             ))}
           </tr>
@@ -163,6 +171,7 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
   const total = clauses.classified + clauses.unclassified;
   if (total === 0) return null;
 
+
   return (
     <section className="max-w-prose space-y-3 border-t border-rule pt-10">
       <Kicker>Recall gap</Kicker>
@@ -205,6 +214,27 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
         Inspect what went unmatched →
       </Link>
     </section>
+  );
+}
+
+/**
+ * Whether these columns are the same medicine at all.
+ *
+ * The comparison assumes its columns are interchangeable candidates. Two different ATC
+ * codes under one substance mean they are not, and that is worth saying out loud rather
+ * than letting a reader infer agreement from a table that should never have been built.
+ * Silent when every column agrees and nothing is in doubt.
+ */
+function Classification({ products }: { products: ProductColumn[] }) {
+  const codes = [...new Set(products.map((p) => p.atc_code).filter(Boolean))];
+  if (codes.length < 2) return null;
+  return (
+    <p className="max-w-prose border-l-2 border-accent pl-4 text-meta text-ink-muted">
+      These products carry <span className="text-ink">different ATC codes</span> (
+      <span className="font-mono">{codes.join(", ")}</span>), so they may not be
+      alternatives to one another. A divergence below may be that rather than a
+      disagreement.
+    </p>
   );
 }
 

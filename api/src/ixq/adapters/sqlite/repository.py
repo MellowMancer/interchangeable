@@ -22,7 +22,7 @@ from ixq.domain import (
 from ixq.pipeline.ports import ClauseCounts, ConceptDivergence, SubstanceCounts
 
 _SCHEMA = "schema.sql"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 """Must match `PRAGMA user_version` in schema.sql.
 
 The schema is create-only — `IF NOT EXISTS` will not apply a changed column to an
@@ -311,12 +311,24 @@ class SqliteRepository:
         )
 
     def save_document(self, document: Document) -> None:
+        """Insert a label, or refresh the source's record around one already stored.
+
+        `sha256` addresses the label, so the same bytes are the same document and nothing
+        about the text is rewritten. The listing columns are another matter: they are the
+        source's current answer, not part of what is compared, so a re-fetch that finds a
+        product newly discontinued must record that rather than discard it as a duplicate.
+        """
         self._conn.execute(
             "INSERT INTO documents "
             "(sha256, source_id, product_external_id, source_url, title, "
-            "active_substance, last_updated, fetched_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) "
-            "ON CONFLICT(sha256) DO NOTHING",  # same bytes, same document
+            "active_substance, last_updated, fetched_at, listing_updated, holder_id, "
+            "ingredient_id, atc_code, legal_status, ma_number, discontinued) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(sha256) DO UPDATE SET "
+            "listing_updated = excluded.listing_updated, holder_id = excluded.holder_id, "
+            "ingredient_id = excluded.ingredient_id, atc_code = excluded.atc_code, "
+            "legal_status = excluded.legal_status, ma_number = excluded.ma_number, "
+            "discontinued = excluded.discontinued",
             (
                 document.sha256,
                 document.source_id,
@@ -325,6 +337,13 @@ class SqliteRepository:
                 document.title,
                 document.active_substance,
                 document.last_updated,
+                document.listing_updated,
+                document.holder_id,
+                document.ingredient_id,
+                document.atc_code,
+                document.legal_status,
+                document.ma_number,
+                document.discontinued,
             ),
         )
 
@@ -369,18 +388,7 @@ class SqliteRepository:
             "WHERE p.substance_id = ? ORDER BY p.name, d.fetched_at",
             (substance_id,),
         ).fetchall()
-        return [
-            Document(
-                sha256=r["sha256"],
-                source_id=r["source_id"],
-                product_external_id=r["product_external_id"],
-                source_url=r["source_url"],
-                title=r["title"],
-                active_substance=r["active_substance"],
-                last_updated=r["last_updated"],
-            )
-            for r in rows
-        ]
+        return [_to_document(r) for r in rows]
 
     def sections_for_document(self, document_sha256: str) -> list[Section]:
         rows = self._conn.execute(
@@ -412,6 +420,27 @@ class SqliteRepository:
             (substance_id,),
         ).fetchall()
         return [_to_occurrence(row) for row in rows]
+
+
+def _to_document(row: sqlite3.Row) -> Document:
+    """`discontinued` is rebuilt as a tri-state: SQLite stores it as 0/1/NULL."""
+    flag = row["discontinued"]
+    return Document(
+        sha256=row["sha256"],
+        source_id=row["source_id"],
+        product_external_id=row["product_external_id"],
+        source_url=row["source_url"],
+        title=row["title"],
+        active_substance=row["active_substance"],
+        last_updated=row["last_updated"],
+        listing_updated=row["listing_updated"],
+        holder_id=row["holder_id"],
+        ingredient_id=row["ingredient_id"],
+        atc_code=row["atc_code"],
+        legal_status=row["legal_status"],
+        ma_number=row["ma_number"],
+        discontinued=None if flag is None else bool(flag),
+    )
 
 
 def _to_product(row: sqlite3.Row) -> Product:

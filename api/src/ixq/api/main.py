@@ -4,7 +4,7 @@ The UI never opens SQLite: every shape it renders is a response model declared h
 the domain can change without breaking a screen and vice versa.
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
@@ -16,7 +16,15 @@ from bdheal.store import connect as heal_connect
 
 from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.domain import Document, Occurrence, Placement, described_in, in_context, variant
+from ixq.domain import (
+    Document,
+    Occurrence,
+    Placement,
+    Product,
+    described_in,
+    in_context,
+    variant,
+)
 from ixq.pipeline.diverge import Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
@@ -141,7 +149,26 @@ class ProductColumn(BaseModel):
     """
 
     ma_holder: str | None = None
+    holder_id: int | None = None
+    """The source's own id for the holder. Two spellings of one company share one id."""
+
     revised: str | None = None
+    listing_updated: str | None = None
+    """When the source last touched its record — not when the publisher revised the text.
+
+    Both are shown because they disagree by years, and a reader told only one of them
+    cannot know which question the staleness they are looking at answers.
+    """
+
+    atc_code: str | None = None
+    """Two products with different ATC codes are not the same medicine, and the comparison
+    should be able to say so rather than let the reader assume otherwise."""
+
+    legal_status: str | None = None
+    ma_number: str | None = None
+    discontinued: bool | None = None
+    """`None` means the label was fetched before this was collected — not that it is live."""
+
     source_url: str | None = None
     scanned: list[str] = []
     """Sections read for *this* label. An absence in this column means absent from these.
@@ -339,6 +366,36 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
     )
 
 
+def _column(
+    product: Product,
+    document: Document | None,
+    scanned: Sequence[str],
+    described: str | None,
+) -> ProductColumn:
+    """One column of the matrix: the product, and what the current label says about it.
+
+    `document` is optional because a product can be collected before its label is fetched.
+    Every field it supplies is then None — the column still appears, because a product
+    with no label is a gap the reader should see rather than a row to hide.
+    """
+    return ProductColumn(
+        external_id=product.external_id,
+        name=product.name,
+        variant=variant(product.name),
+        ma_holder=product.ma_holder,
+        holder_id=document.holder_id if document else None,
+        revised=document.last_updated if document else None,
+        listing_updated=document.listing_updated if document else None,
+        atc_code=document.atc_code if document else None,
+        legal_status=document.legal_status if document else None,
+        ma_number=document.ma_number if document else None,
+        discontinued=document.discontinued if document else None,
+        source_url=document.source_url if document else None,
+        scanned=list(scanned),
+        appearance=_appearance(described),
+    )
+
+
 def _evidence(occurrence: Occurrence | None, document: Document | None) -> Evidence | None:
     """The quote behind one cell.
 
@@ -367,21 +424,17 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
     looking at a picture of a product the current label no longer describes.
     """
     by_product = {d.product_external_id: d for d in result.documents}
-    return [
-        ProductColumn(
-            external_id=p.external_id,
-            name=p.name,
-            variant=variant(p.name),
-            ma_holder=p.ma_holder,
-            revised=(d.last_updated if (d := by_product.get(p.external_id)) else None),
-            source_url=(d.source_url if (d := by_product.get(p.external_id)) else None),
-            scanned=list(result.scanned.get(p.external_id, ())),
-            appearance=_appearance(
-                described.get(d.sha256) if (d := by_product.get(p.external_id)) else None
-            ),
+
+    def column(product: Product) -> ProductColumn:
+        document = by_product.get(product.external_id)
+        return _column(
+            product,
+            document,
+            result.scanned.get(product.external_id, ()),
+            described.get(document.sha256) if document else None,
         )
-        for p in result.products
-    ]
+
+    return [column(product) for product in result.products]
 
 
 def _appearance(section_text: str | None) -> AppearanceView | None:

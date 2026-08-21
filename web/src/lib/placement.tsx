@@ -16,7 +16,7 @@
  */
 
 /** Mirrors `Placement` in `ixq.domain.concept`. Adding a case there must break the build here. */
-export type Placement = "4.3" | "4.4" | "4.5" | "4.6" | "absent";
+export type Placement = "4.3" | "4.4" | "4.5" | "4.6" | "6.1" | "absent";
 
 export type PlacementStyle = {
   label: string;
@@ -51,6 +51,12 @@ const STYLES: Record<Placement, PlacementStyle> = {
     section: "§4.6",
     detail: "Section 4.6 — pregnancy and lactation",
     className: "bg-p46 text-p46-on border-p46",
+  },
+  "6.1": {
+    label: "Excipient",
+    section: "§6.1",
+    detail: "Section 6.1 — listed as an ingredient, not a clinical restriction",
+    className: "bg-p61 text-p61-on border-p61",
   },
   absent: {
     label: "Not in scanned sections",

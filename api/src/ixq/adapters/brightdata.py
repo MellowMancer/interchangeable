@@ -40,16 +40,31 @@ class SearchRow(_Row):
 
 
 class ProductRow(_Row):
-    """One label, as the product collector returns it."""
+    """One label, as the product collector returns it.
+
+    Every field the collector returns is declared here, including ones no pipeline stage
+    reads. `bdheal` computes its null rates over `model_fields`, so a field left to
+    `extra="allow"` is outside drift monitoring entirely — it could go null across the
+    whole corpus without a signal firing. Declaring it is what puts it under watch.
+    """
 
     product_name: str | None = None
     active_substance: str | None = None
     ma_holder: str | None = None
+    section_3_pharmaceutical_form: str | None = None
     section_4_3_contraindications: str | None = None
     section_4_4_warnings: str | None = None
     section_4_5_interactions: str | None = None
     section_4_6_pregnancy_lactation: str | None = None
+    section_6_1_excipients: str | None = None
     last_updated: str | None = None
+    emc_last_updated: str | None = None
+    company_id: int | None = None
+    ingredient_id: int | None = None
+    atc_code: str | None = None
+    legal_status: str | None = None
+    section_8_ma_number: str | None = None
+    discontinued: bool | None = None
 
 
 SCHEMAS: dict[CollectorKind, type[BaseModel]] = {

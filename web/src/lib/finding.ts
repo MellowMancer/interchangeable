@@ -32,7 +32,8 @@ const BINDING_ORDER: Record<Placement, number> = {
   "4.4": 1,
   "4.5": 2,
   "4.6": 3,
-  absent: 4,
+  "6.1": 4,
+  absent: 5,
 };
 
 const rank = (placement: string) => BINDING_ORDER[placement as Placement] ?? BINDING_ORDER.absent;

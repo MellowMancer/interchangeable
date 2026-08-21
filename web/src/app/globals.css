@@ -27,6 +27,8 @@
   --p-45-on: light-dark(#fbfaf8, #14110f);
   --p-46: light-dark(#5b3a6e, #9268ae);
   --p-46-on: light-dark(#fbfaf8, #14110f);
+  --p-61: light-dark(#0f766e, #2dd4bf);
+  --p-61-on: light-dark(#fbfaf8, #14110f);
   --p-unknown: light-dark(#a21caf, #e879f9);
   --p-unknown-on: light-dark(#fbfaf8, #14110f);
 }
@@ -107,6 +109,8 @@
   --color-p45-on: var(--p-45-on);
   --color-p46: var(--p-46);
   --color-p46-on: var(--p-46-on);
+  --color-p61: var(--p-61);
+  --color-p61-on: var(--p-61-on);
   --color-p-absent: var(--p-absent);
   --color-p-unknown: var(--p-unknown);
   --color-p-unknown-on: var(--p-unknown-on);

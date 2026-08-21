@@ -48,7 +48,17 @@ export type ProductColumn = {
   /** Strength and form, e.g. "2.5mg Capsules"; null when the name does not carry both. */
   variant: string | null;
   ma_holder: string | null;
+  /** The source's own id for the holder. Two spellings of one company share one id. */
+  holder_id: number | null;
+  /** The publisher's own revision date, from section 10 of the label. */
   revised: string | null;
+  /** When the source last touched its record — a different question from `revised`. */
+  listing_updated: string | null;
+  atc_code: string | null;
+  legal_status: string | null;
+  ma_number: string | null;
+  /** `null` means the label predates this field — not that the product is live. */
+  discontinued: boolean | null;
   source_url: string | null;
   /** Sections read for THIS label. An absence in this column means absent from these. */
   scanned: string[];

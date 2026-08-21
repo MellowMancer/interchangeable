@@ -124,6 +124,7 @@ def _meaning(placement: Placement) -> str:
         Placement.WARNING: "warning or precaution (section 4.4)",
         Placement.INTERACTION: "interaction (section 4.5)",
         Placement.PREGNANCY: "pregnancy or lactation (section 4.6)",
+        Placement.EXCIPIENT: "present as an excipient (section 6.1)",
         Placement.ABSENT: "not found in any scanned section",
     }[placement]
 

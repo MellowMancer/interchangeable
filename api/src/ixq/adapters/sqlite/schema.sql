@@ -21,7 +21,7 @@ PRAGMA foreign_keys = ON;
 -- Bumped whenever a column changes. `connect()` reads it BEFORE applying this file and
 -- refuses a database it does not recognise. Applying the schema first would rewrite the
 -- stamp to the expected value and make the check unfalsifiable, which is what it did.
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 
 CREATE TABLE IF NOT EXISTS sources (
     id       TEXT PRIMARY KEY,              -- slug
@@ -69,8 +69,18 @@ CREATE TABLE IF NOT EXISTS documents (
     source_url          TEXT NOT NULL,
     title               TEXT,
     active_substance    TEXT,               -- as the label states it, not as we filed it
-    last_updated        TEXT,               -- month precision, as published
+    last_updated        TEXT,               -- month precision, as published (section 10)
     fetched_at          TEXT NOT NULL,
+    -- Below: the source's own record around the label, not the label. Updated in place on
+    -- re-fetch rather than addressed by `sha256`, because a listing has one current state
+    -- and putting a status badge in a content address forks a revision out of nothing.
+    listing_updated     TEXT,               -- when the source touched its record
+    holder_id           INTEGER,            -- the source's id for the holder; ma_holder is free text
+    ingredient_id       INTEGER,            -- the source's id for the active ingredient
+    atc_code            TEXT,
+    legal_status        TEXT,
+    ma_number           TEXT,               -- the regulator's id, unlike product_external_id
+    discontinued        INTEGER,            -- 0/1; NULL means the fetch predates the field
     -- A document must belong to a product that exists. Without this a fetch could store a
     -- label against an id no product carries, and the comparison would silently omit it.
     FOREIGN KEY (source_id, product_external_id) REFERENCES products(source_id, external_id)

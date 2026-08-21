@@ -21,6 +21,16 @@ class Placement(StrEnum):
     WARNING = "4.4"
     INTERACTION = "4.5"
     PREGNANCY = "4.6"
+    EXCIPIENT = "6.1"
+    """Composition, not a clinical judgement — and the whole point of comparing generics.
+
+    Two products that agree on every clinical section can still differ on lactose, soya or
+    an azo colourant, which is a real reason one is not interchangeable for one patient.
+    It ranks last because §6.1 states what is *in* the product rather than who must avoid
+    it: a concept named in both 4.3 and 6.1 is a contraindication that happens to have an
+    ingredient, not an ingredient that happens to be contraindicated.
+    """
+
     ABSENT = "absent"
 
 
