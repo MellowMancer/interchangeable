@@ -51,6 +51,7 @@ class ProductRow(_Row):
     product_name: str | None = None
     active_substance: str | None = None
     ma_holder: str | None = None
+    section_3_pharmaceutical_form: str | None = None
     section_4_3_contraindications: str | None = None
     section_4_4_warnings: str | None = None
     section_4_5_interactions: str | None = None
