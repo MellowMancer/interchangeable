@@ -5,7 +5,14 @@ from enum import StrEnum
 
 
 class CollectorKind(StrEnum):
-    """What a collector is for. One per role, not one per target page."""
+    """What a collector is for. One per role, not one per target page.
+
+    `SITEMAP` and `DISCOVERY` are declared but not yet built — enumerating the publisher's
+    catalogue, and telling added products from withdrawn ones between runs. They carry no
+    row schema, so `ensure_healthy` reports them as not checked rather than failing, and
+    nothing constructs one today. They are roadmap, not leftovers: a grep makes them look
+    unused and they should not be deleted on that basis.
+    """
 
     PRODUCT = "product"
     SEARCH = "search"
