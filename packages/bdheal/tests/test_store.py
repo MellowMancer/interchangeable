@@ -224,3 +224,20 @@ def test_completed_case_ids_are_scoped_to_their_run(sqlite_store: SqliteHealStor
     sqlite_store.save_bench_case(_bench_case())
 
     assert sqlite_store.completed_case_ids("run_0002") == []
+
+
+def test_every_bench_run_is_enumerated_oldest_first(sqlite_store: SqliteHealStore) -> None:
+    """A reader that must name a run in advance can only report the run it already knew about."""
+    from datetime import UTC, datetime
+
+    for run_id, day in (("later", 2), ("earlier", 1)):
+        sqlite_store.save_bench_case(
+            bench_case(run_id=run_id, completed_at=datetime(2026, 8, day, tzinfo=UTC))
+        )
+
+    assert sqlite_store.bench_runs() == ["earlier", "later"]
+
+
+def test_bench_runs_is_empty_before_any_case_is_recorded(sqlite_store: SqliteHealStore) -> None:
+    """Nothing measured is not the same as nothing having failed."""
+    assert sqlite_store.bench_runs() == []
