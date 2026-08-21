@@ -39,9 +39,15 @@ def connect(db_path: Path) -> sqlite3.Connection:
     Creating only when the stamp is 0 also takes the schema out of the request path. The
     pragma write is a header fsync — measured at ~95% of this function's cost, and it
     cannot run while another connection holds a read transaction.
+
+    `check_same_thread=False` because FastAPI runs a sync generator dependency's setup in
+    one threadpool worker and the endpoint body in another, so a per-request connection
+    still crosses threads and raised under concurrent load. It is safe here only because
+    the connection is never shared between requests and the three phases that touch it —
+    setup, endpoint, teardown — run in sequence, never at once.
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     if conn.execute("PRAGMA user_version").fetchone()[0] == 0:

@@ -24,11 +24,13 @@ from ixq.settings import config_dir, database_path, heal_database_path
 app = FastAPI(title="Interchangeable?")
 
 def repository() -> Iterator[Repository]:
-    """A repository per request, because a SQLite connection belongs to one thread.
+    """A repository per request, so no two requests share a connection.
 
     FastAPI runs sync endpoints in a threadpool, so a connection cached for the process
     is used from whichever worker picks up the request and raises. Opening per request
-    costs well under a millisecond and keeps each one thread-confined.
+    costs well under a millisecond and confines each connection to one request — not to
+    one thread: this dependency's setup and the endpoint body run in different workers,
+    which is why `connect` passes `check_same_thread=False`.
     """
     conn = connect(database_path())
     try:

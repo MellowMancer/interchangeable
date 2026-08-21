@@ -18,9 +18,15 @@ SCHEMA_FILE = "schema.sql"
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
-    """Open a connection with foreign keys enforced and the packaged schema applied."""
+    """Open a connection with foreign keys enforced and the packaged schema applied.
+
+    `check_same_thread=False` because a caller may open the connection on one thread and
+    use it on another — as FastAPI does, running a dependency's setup and its endpoint in
+    different threadpool workers. Safe only while one connection serves one request at a
+    time, which is how the connection is scoped.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_schema_sql())
