@@ -28,7 +28,7 @@ from ixq.domain import (
     in_context,
     variant,
 )
-from ixq.domain.sections import INDICATIONS_CODE
+from ixq.domain.sections import INDICATIONS_CODE, VALUE_SECTIONS
 from ixq.pipeline.diverge import Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
@@ -219,6 +219,35 @@ class IndicationGroup(BaseModel):
     manufacturers: list[str]
 
 
+class ValueGroup(BaseModel):
+    """One wording of a value section, and the manufacturers whose labels carry it."""
+
+    text: str
+    manufacturers: list[str]
+
+
+class ValueSection(BaseModel):
+    """One value section across a substance's labels, grouped by the exact words used.
+
+    Byte-identical grouping, and no interpretation on top of it. "Do not store above 25°C"
+    and "Store below 25°C" state the same requirement, so a system that called that a
+    divergence would be asserting something false about a medicine — while "24 months"
+    beside "3 years" is a real difference any reader can see unaided. So every distinct
+    text is published verbatim and the reader judges it.
+
+    What this reports is therefore how many ways these labels word a section, never that
+    they require different things. `collected` against `total` is carried for the same
+    reason absence is everywhere else here: a section only three labels state is not a
+    section the other four are silent about.
+    """
+
+    code: str
+    heading: str
+    groups: list[ValueGroup]
+    collected: int
+    total: int
+
+
 class Matrix(BaseModel):
     """The comparison for one substance.
 
@@ -243,6 +272,15 @@ class Matrix(BaseModel):
     Shown, never diffed. §4.1 is a description of the substance rather than a place a
     safety concept is filed, so a difference here is reported as different wording and
     never as a divergence — the comparison's vocabulary does not reach it.
+    """
+
+    values: list[ValueSection]
+    """§6.3 and §6.4, grouped by wording rather than placed.
+
+    A shelf life is a value a label states once, not a place a concept can be filed, so it
+    is never given a `Placement` and never enters the divergence matrix. Reported beside
+    it instead, because two labels for the same substance disagreeing on whether it needs
+    refrigerating is an interchangeability finding in its own right.
     """
 
     clauses: ClauseCoverage
@@ -369,6 +407,7 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
         substance_name=_substance_name(substance_id),
         products=_columns(result, repo.appearances_for_substance(substance_id)),
         indications=_indications(result, repo.indications_for_substance(substance_id)),
+        values=_value_sections(result, repo.value_sections_for_substance(substance_id)),
         clauses=ClauseCoverage(
             classified=counted.classified, unclassified=counted.unclassified
         ),
@@ -497,6 +536,50 @@ def _indications(result: Comparison, stated: Mapping[str, str]) -> list[Indicati
         IndicationGroup(statements=statements, manufacturers=manufacturers)
         for statements, manufacturers in groups.values()
     ]
+
+
+def _value_sections(
+    result: Comparison, stated: Mapping[str, Mapping[str, str]]
+) -> list[ValueSection]:
+    """§6.3 and §6.4 across a substance's current labels, grouped by exact wording.
+
+    Byte-exact, unlike `_indications`, and the difference is deliberate. An indication set
+    is a claim about meaning, so normalising punctuation before comparing is right there.
+    A shelf life is a stated value, and normalising it would mean deciding that "24 months"
+    and "2 years" are the same — a units judgement this makes no attempt at, because the
+    confounds are real: values are given in months or years, some labels state one figure
+    per pack type, and §6.4 sometimes defers back to §6.3.
+
+    Leading and trailing whitespace is stripped, which cannot merge two different
+    statements, and nothing else is touched.
+    """
+    by_product = {d.product_external_id: d for d in result.documents}
+    sections: list[ValueSection] = []
+
+    for spec in VALUE_SECTIONS:
+        groups: dict[str, list[str]] = {}
+        for product in result.products:
+            document = by_product.get(product.external_id)
+            text = stated.get(document.sha256, {}).get(spec.code) if document else None
+            if not text or not text.strip():
+                continue
+            groups.setdefault(text.strip(), []).append(product.ma_holder or product.external_id)
+
+        if not groups:
+            continue
+        sections.append(
+            ValueSection(
+                code=spec.code,
+                heading=spec.heading,
+                groups=[
+                    ValueGroup(text=text, manufacturers=manufacturers)
+                    for text, manufacturers in groups.items()
+                ],
+                collected=sum(len(m) for m in groups.values()),
+                total=len(result.products),
+            )
+        )
+    return sections
 
 
 def _appearance(section_text: str | None) -> AppearanceView | None:

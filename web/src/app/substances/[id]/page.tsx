@@ -11,6 +11,7 @@ import {
   type Matrix,
   type ProductColumn,
   type Row,
+  type ValueSection,
 } from "@/lib/api";
 import {
   partition,
@@ -92,6 +93,8 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         </section>
       )}
 
+      <ValueSections sections={matrix.values} />
+
       <section className="space-y-6 border-t border-rule pt-10">
         <Kicker>When each label was last revised</Kicker>
         <RevisionTimeline products={matrix.products} />
@@ -128,6 +131,66 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
 const Kicker = ({ children }: { children: React.ReactNode }) => (
   <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
 );
+
+/**
+ * §6.3 and §6.4, quoted rather than judged.
+ *
+ * These sections state a value instead of filing a concept, so they never enter the
+ * placement matrix — a shelf life is not a place a warning can live. They are shown
+ * because two labels for one substance disagreeing on whether it needs refrigerating is
+ * an interchangeability finding in its own right, and one a reader can evaluate directly.
+ *
+ * Every distinct wording is printed verbatim and attributed. Nothing here says the labels
+ * require different things: "Do not store above 25°C" and "Store below 25°C" are the same
+ * instruction, and only the reader can tell that apart from a real difference.
+ */
+function ValueSections({ sections }: { sections: ValueSection[] }) {
+  if (sections.length === 0) return null;
+
+  return (
+    <section className="space-y-6 border-t border-rule pt-10">
+      <Kicker>What the labels state, in their own words</Kicker>
+      <div className="grid gap-10 lg:grid-cols-2">
+        {sections.map((section) => (
+          <article key={section.code} className="space-y-3">
+            <h3 className="flex items-baseline gap-3">
+              <span className="font-mono text-meta text-ink-muted">§{section.code}</span>
+              <span>{section.heading}</span>
+            </h3>
+            <ul className="divide-y divide-rule border-y border-rule">
+              {section.groups.map((group) => (
+                <li key={group.text} className="flex flex-col gap-1 py-3">
+                  {/* Serif, because these are the label's words and not ours. Blank lines
+                      between the label's own lines are closed up — a paragraph break is
+                      formatting, and left as-is it reads as two separate statements. */}
+                  <div className="space-y-1 font-serif text-body">
+                    {group.text
+                      .split(/\n+/)
+                      .map((line) => line.trim())
+                      .filter(Boolean)
+                      .map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                  </div>
+                  <p className="font-mono text-kicker text-ink-muted">
+                    {group.manufacturers.join(" · ")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            {/* Stated rather than implied: a section three labels carry is not a section
+                the other four contradict. */}
+            <p className="text-kicker text-ink-muted">
+              {section.collected === section.total
+                ? `Stated by all ${section.total} labels.`
+                : `Stated by ${section.collected} of ${section.total} labels; the rest have none collected.`}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /** Above this many columns a badge no longer fits, and the cells become chips. */
 const COMPACT_ABOVE = 5;

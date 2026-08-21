@@ -78,11 +78,26 @@ export type Matrix = {
   products: ProductColumn[];
   rows: Row[];
   indications: IndicationGroup[];
+  values: ValueSection[];
   clauses: ClauseCoverage;
 };
 
 /** One disagreement, named but not evidenced — enough to preview a comparison. */
 export type DivergencePreview = { concept: string; placements: string[] };
+
+export type ValueGroup = {
+  text: string;
+  manufacturers: string[];
+};
+
+/** One value section across a substance's labels, grouped by the exact words used. */
+export type ValueSection = {
+  code: string;
+  heading: string;
+  groups: ValueGroup[];
+  collected: number;
+  total: number;
+};
 
 export type SubstanceSummary = {
   id: string;

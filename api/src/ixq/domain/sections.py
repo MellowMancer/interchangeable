@@ -29,6 +29,9 @@ class SectionSpec:
             raise ValueError("a section spec needs a collector field and a section code")
 
 
+SHELF_LIFE_CODE = "6.3"
+STORAGE_CODE = "6.4"
+
 INDICATIONS_CODE = "4.1"
 """§4.1, the section that says what the substance is authorised to treat.
 
@@ -50,12 +53,12 @@ STORED_ONLY: tuple[SectionSpec, ...] = (
     ),
     SectionSpec(
         field="section_6_3_shelf_life",
-        code="6.3",
+        code=SHELF_LIFE_CODE,
         heading="Shelf life",
     ),
     SectionSpec(
         field="section_6_4_storage",
-        code="6.4",
+        code=STORAGE_CODE,
         heading="Special precautions for storage",
     ),
 )
@@ -72,3 +75,18 @@ then read as a healthy label.
 # means something, where an absence from §4.3 does not — a warning missing there may sit
 # in §4.4. Whatever compares them will need that distinction; it belongs on this spec when
 # it has a consumer, not before.
+
+
+VALUE_SECTIONS: tuple[SectionSpec, ...] = tuple(
+    spec for spec in STORED_ONLY if spec.code in (SHELF_LIFE_CODE, STORAGE_CODE)
+)
+"""The stored sections that state one value rather than file a concept.
+
+A label states its shelf life once and its storage conditions once, so these are read by
+grouping the labels that word them the same way — never by asking which section a concept
+landed in. Derived from `STORED_ONLY` rather than listed again, so a section cannot be
+declared in one place and forgotten in the other.
+"""
+
+VALUE_CODES: tuple[str, ...] = tuple(spec.code for spec in VALUE_SECTIONS)
+"""The codes of `VALUE_SECTIONS`, for the one query that reads them together."""

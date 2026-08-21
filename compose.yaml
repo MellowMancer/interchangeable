@@ -38,6 +38,14 @@ services:
         - action: sync
           path: ./packages/bdheal/src
           target: /app/packages/bdheal/src
+        # The suites too: without these, `compose exec api pytest` runs whatever tests
+        # were baked into the image and reports green on a file it has never seen.
+        - action: sync
+          path: ./api/tests
+          target: /app/api/tests
+        - action: sync
+          path: ./packages/bdheal/tests
+          target: /app/packages/bdheal/tests
         - action: rebuild
           path: ./api/pyproject.toml
         - action: rebuild

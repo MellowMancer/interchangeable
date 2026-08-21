@@ -113,6 +113,22 @@ class Repository(Protocol):
         """
         ...
 
+    def value_sections_for_substance(
+        self, substance_id: str
+    ) -> dict[str, dict[str, str]]:
+        """Per document sha, its §6.3 and §6.4 text, keyed by section code.
+
+        Both codes in one method and one query because both are a single short line and a
+        screen that shows one shows the other. Narrow for the same reason as the two
+        methods above: a general "any section" reader here would invite pulling §4.4,
+        which is kilobytes per label on every navigation.
+
+        A document with neither section stored is absent rather than empty-valued, and a
+        document with only one carries only that key — a label nobody collected a shelf
+        life for has not stated it has none.
+        """
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 
