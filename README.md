@@ -126,11 +126,19 @@ taken from the service's Settings tab; an image-backed service never redeploys i
 when a tag is pushed. Keep the hook URL in the environment, not in a file: it is a
 secret that triggers a deploy for anyone holding it.
 
-A free Render service spins down after 15 minutes idle and takes about a minute to come
-back, which is long enough to stall a Server Component render. Point an external pinger
-at `/health` every 10 minutes to keep it warm. The free allowance is 750 instance hours
-per workspace per month against the 730 a continuously running service uses, so one
-always-warm service fits — but only one.
+A free Render service spins down after 15 minutes idle, and every page is a Server
+Component, so a sleeping API does not degrade a page — it stalls it. `.github/workflows/
+keep-warm.yml` pings `/health` every 13 minutes to stay inside that window.
+
+GitHub delays scheduled workflows under load, sometimes past the 15-minute threshold, so
+treat the workflow as best-effort: a lapsed ping costs one ~12s cold start, not an
+outage. A dedicated pinger (cron-job.org, UptimeRobot) holds the interval more reliably
+if the demo must never wait.
+
+Uptime is the binding constraint on the free plan, not memory or image size. The
+allowance is 750 instance hours per workspace per calendar month against the 744 a
+service running continuously uses in a 31-day month — six hours of margin, and only for
+one service. Which is why the web half lives on Vercel.
 
 The same image runs unmodified on Cloud Run (`--port 8000 --allow-unauthenticated`) if a
 Google billing account is ever available; Render is the default because it needs no card.
