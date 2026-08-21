@@ -90,6 +90,13 @@ class SubstanceSummary(BaseModel):
     concepts: int
     divergent: int
     divergences: list[DivergencePreview] = []
+    labels: list[str] = []
+    """Product names and MA holders on this substance's current labels.
+
+    Carried so the roster can be searched by the thing a reader actually holds — a box
+    saying Zentiva or Ramipril 5mg Tablets — rather than only by the active substance.
+    Names, not counts: the search is over what is written on a label.
+    """
 
 
 class Evidence(BaseModel):
@@ -375,6 +382,7 @@ def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]
     """
     counted = repo.counts_by_substance()
     diverging = repo.divergences_by_substance()
+    named = repo.labels_by_substance()
     empty = SubstanceCounts(products=0, concepts=0, divergent=0)
     return [
         SubstanceSummary(
@@ -387,6 +395,7 @@ def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]
                 DivergencePreview(concept=d.concept, placements=list(d.placements))
                 for d in diverging.get(substance.id, ())
             ],
+            labels=list(named.get(substance.id, ())),
         )
         for substance in load_substances(config_dir() / "substances.yaml")
     ]

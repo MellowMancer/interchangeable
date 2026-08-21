@@ -106,6 +106,8 @@ export type SubstanceSummary = {
   concepts: number;
   divergent: number;
   divergences: DivergencePreview[];
+  /** Product names and MA holders on this substance's current labels, for searching. */
+  labels: string[];
 };
 
 export type Heal = {

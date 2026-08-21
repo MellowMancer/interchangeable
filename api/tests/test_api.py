@@ -54,6 +54,7 @@ def test_the_roster_reports_how_much_has_been_collected(
             "concepts": 2,
             "divergent": 1,
             "divergences": [{"concept": "renal", "placements": ["4.3", "absent"]}],
+            "labels": ["Ex 1", "Alpha Ltd", "Ex 2", "Beta Ltd"],
         }
     ]
 
@@ -636,3 +637,20 @@ def test_a_value_section_is_never_a_placement(
         for row in body["rows"]
         for cell in row["cells"]
     )
+
+
+def test_the_roster_carries_the_names_on_a_box(
+    client: TestClient, repository: Repository
+) -> None:
+    """A reader searches for what they were handed, which is rarely the substance name.
+
+    The product and its holder are what a box says, so the roster carries both. Current
+    revisions only — a name from a superseded revision is one nobody would recognise.
+    """
+    divergent_corpus(repository)
+
+    roster = client.get("/substances").json()
+    found = next(row for row in roster if row["id"] == SUBSTANCE_ID)
+
+    assert found["labels"], "a collected substance must be searchable by its labels"
+    assert len(found["labels"]) >= found["products"]

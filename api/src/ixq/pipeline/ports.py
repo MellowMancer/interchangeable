@@ -129,6 +129,19 @@ class Repository(Protocol):
         """
         ...
 
+    def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
+        """Per substance, the names a reader might search for: products and their holders.
+
+        Counted alongside the roster's numbers rather than by building comparisons, for
+        the same reason `counts_by_substance` exists: the index screen covers every
+        substance, and reading each one's documents to list a few names would read the
+        whole corpus on every navigation.
+
+        Only current revisions, so a product renamed between revisions is searchable by
+        the name its label carries now and not by one nobody would recognise.
+        """
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 

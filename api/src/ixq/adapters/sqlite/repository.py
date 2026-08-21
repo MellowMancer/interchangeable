@@ -193,6 +193,30 @@ class SqliteRepository:
             found.setdefault(row["sha"], {})[row["code"]] = row["text"]
         return found
 
+    def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
+        """Each substance's current product names and MA holders, in one query."""
+        rows = self._conn.execute(
+            """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
+            SELECT DISTINCT c.substance_id AS substance_id, p.name AS name,
+                   p.ma_holder AS holder
+            FROM current c
+            JOIN products p
+              ON p.substance_id = c.substance_id
+             AND p.external_id = c.product_external_id
+            """
+        ).fetchall()
+
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            names = found.setdefault(row["substance_id"], [])
+            for value in (row["name"], row["holder"]):
+                if value and value not in names:
+                    names.append(value)
+        return {substance: tuple(names) for substance, names in found.items()}
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """The roster's three numbers per substance, counted in SQL.
 
