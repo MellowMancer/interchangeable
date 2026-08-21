@@ -39,6 +39,25 @@ function matches(substance: SubstanceSummary, query: string): boolean {
   );
 }
 
+type Order = "divergent" | "name";
+
+/**
+ * How the roster can be ordered.
+ *
+ * Most disagreements first by default: the list exists to be chosen from, and the number
+ * of concepts a substance's manufacturers file differently is the only thing on a card
+ * that says which is worth opening. Ties fall back to the name so the order is stable.
+ */
+const ORDERS: Record<Order, (a: SubstanceSummary, b: SubstanceSummary) => number> = {
+  divergent: (a, b) => b.divergent - a.divergent || a.name.localeCompare(b.name),
+  name: (a, b) => a.name.localeCompare(b.name),
+};
+
+const ORDER_LABELS: [Order, string][] = [
+  ["divergent", "Most disagreements"],
+  ["name", "Name"],
+];
+
 export function Roster({
   substances,
   query,
@@ -47,10 +66,17 @@ export function Roster({
   query: string;
 }) {
   const [typed, setTyped] = useState(query);
+  const [order, setOrder] = useState<Order>("divergent");
+  const [onlyDiverging, setOnlyDiverging] = useState(false);
   const term = typed.trim();
 
   const matching = substances.filter((substance) => matches(substance, term));
-  const collected = matching.filter((substance) => substance.products > 0);
+  const collected = matching
+    .filter((substance) => substance.products > 0)
+    .filter((substance) => !onlyDiverging || substance.divergent > 0)
+    .sort(ORDERS[order]);
+  // Never filtered by divergence: nothing has been collected for these, so hiding them
+  // for having no disagreements would report an unread label as an agreeing one.
   const uncollected = matching.filter((substance) => substance.products === 0);
 
   return (
@@ -91,6 +117,36 @@ export function Roster({
           </button>
         )}
       </form>
+
+      {/* Beside the search rather than inside it: these narrow and reorder a list, which
+          is a different act from looking something up, and the form still has to work
+          without scripting. */}
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-kicker tracking-widest text-ink-muted uppercase">
+        <span>Order by</span>
+        {ORDER_LABELS.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={order === value}
+            onClick={() => setOrder(value)}
+            // `uppercase` again: a button does not inherit text-transform from the row.
+            className={`uppercase ${
+              order === value ? "text-ink underline underline-offset-4" : "hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <label className="flex items-baseline gap-2">
+          <input
+            type="checkbox"
+            checked={onlyDiverging}
+            onChange={(event) => setOnlyDiverging(event.target.checked)}
+            className="accent-accent"
+          />
+          Only where they disagree
+        </label>
+      </div>
 
       {collected.length > 0 && (
         <section className="space-y-6">
