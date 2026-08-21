@@ -102,22 +102,22 @@ rate.
 
 ## Cost and resumption
 
-Nine collectors at roughly two minutes each to build, then several collector runs per case.
+Ten collectors — one per mutation class plus the unmutated control — at roughly two minutes
+each to build, then several collector runs per case.
 State is written per case, so re-running with the same `--run-id` executes only what is
 left, and collector ids are remembered in `fixtures/run/collectors.json` so a second run
 does not pay to build them again. Bright Data exposes no programmatic delete, so that file
 is written after every single build rather than at the end.
 
-## Before the first live run
+## Before a live run
 
-- **`bdata budget` currently returns 403**, "API key lacks the required permissions". There
-  is no read-only `scraper list` to probe with, so scraper permissions cannot be confirmed
+- **`bdata budget` returns 403**, "API key lacks the required permissions". There is no
+  read-only `scraper list` to probe with, so scraper permissions cannot be confirmed
   without spending a real `create`. Check the control panel first.
-- Every collector description must say **this page only, follow no links, no pagination**.
-  A probe collector built without it walked 1.05K pages and failed 999 of them to return a
-  single record.
-- `mean_attempts_to_heal` is `1.0` by construction until the runner has a retry budget. The
-  report says so where it prints the number; keep that caveat attached.
+
+The other two pre-flight items are now enforced rather than remembered: the single-page
+clause is a constant with a length guard in `fixtures/benchmark.py`, and the
+`mean_attempts_to_heal` caveat is printed beside the number by the report itself.
 
 See `docs/ARCHITECTURE.md` §14 for the coverage-matrix contract and `docs/BRIGHT_DATA.md`
 for the CLI surface.

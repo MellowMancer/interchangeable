@@ -209,19 +209,6 @@ in order and stop if a step fails:
 6. Run it again and confirm all fields come back.
 ```
 
-## Conflicts with `docs/superseded-municipal-agendas.md`
-
-Resolve before writing collector code. The plan is wrong where it disagrees with the vendor docs.
-
-| `superseded-municipal-agendas.md` says | Source says |
-|---|---|
-| `npm i -g @brightdata/cli`, then `brightdata login` | no global install; `npx -p @brightdata/cli bdata login` |
-| binary `brightdata` | binary `bdata` |
-| `brightdata scraper heal <id> "<prompt>" --auto-approve --json --timeout 900` | shape is right, binary is not: `bdata scraper heal`. `--auto-approve`, `--json` and `--timeout` all exist (verified v0.3.5) |
-| heal → verify → promote/rollback, hand-rolled | a native `awaiting_approval` + `preview_result` gate already exists to build on |
-
-The plan's promo code (`wemakedevs`) and the free-signup path are unaffected.
-
 ## `bdata scrape` is a different command with a different flag set
 
 Top-level `scrape` (Web Unlocker) is **not** one of the four `scraper` subcommands and
@@ -304,9 +291,6 @@ exposes no programmatic delete, so it must be removed in the web UI.
 Sanctioned path is KYC at `https://brightdata.com/cp/kyc`. Do not route around the
 classifier — no archive mirrors, no proxy indirection. This is a Bright Data–sponsored
 hackathon and the policy is theirs to enforce.
-
-Two host corrections to `superseded-municipal-agendas.md`: Bothell is `bothellwa.gov` (the plan's
-`ci.bothell.wa.us` resets the connection) and Lakehaven redirects to `lakehavenwsd.gov`.
 
 ## Operational timings
 
