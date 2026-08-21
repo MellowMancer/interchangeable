@@ -11,7 +11,7 @@ from datetime import datetime
 from importlib import resources
 from pathlib import Path
 
-from bdheal.models import Baseline, BenchCase, HealEvent
+from bdheal.models import Baseline, BenchCase, HealEvent, PreviewResult
 from bdheal.vocabulary import SignalKind
 
 SCHEMA_FILE = "schema.sql"
@@ -176,12 +176,12 @@ def _iso(moment: datetime | None) -> str | None:
     return moment.isoformat() if moment else None
 
 
-def _dump_json(payload: dict | None) -> str | None:
+def _dump_json(payload: PreviewResult | None) -> str | None:
     """A JSON column's value, keeping absence distinct from an empty object."""
     return json.dumps(payload) if payload is not None else None
 
 
-def _load_json(payload: str | None) -> dict | None:
+def _load_json(payload: str | None) -> PreviewResult | None:
     """The inverse of `_dump_json`."""
     return json.loads(payload) if payload is not None else None
 
