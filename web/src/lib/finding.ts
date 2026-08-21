@@ -8,10 +8,8 @@
 
 import {
   manufacturer,
-  type Cell,
   type DivergencePreview,
   type Evidence,
-  type Matrix,
   type ProductColumn,
   type Row,
   type SubstanceSummary,
@@ -38,11 +36,6 @@ const BINDING_ORDER: Record<Placement, number> = {
 
 const rank = (placement: string) => BINDING_ORDER[placement as Placement] ?? BINDING_ORDER.absent;
 
-/** "A", "A and B", "A, B and C" — an Oxford-comma-free list, as UK usage expects. */
-function joinNames(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
 
 /** The substance to land on: most disagreements first, then most manufacturers. */
 export const featuredSubstance = (substances: SubstanceSummary[]): SubstanceSummary | undefined =>
@@ -104,44 +97,6 @@ export function partition(rows: Row[]) {
   };
 }
 
-/**
- * Who placed this where, in one sentence.
- *
- * Section numbers rather than glosses: the spectrum beside this names what each section
- * is, so spelling out "an absolute contraindication" again only repeats the picture.
- *
- * Absence gets its own clause and never the verb "records" — a manufacturer did not
- * record an absence, we failed to find the concept in what we read. The sections that
- * were read are named in the spectrum row for that label, which sits directly below.
- */
-export function placementSummary(row: Row, products: ProductColumn[]): string {
-  const byId = new Map(products.map((product) => [product.external_id, product]));
-  const name = (cell: Cell) => {
-    const product = byId.get(cell.product_external_id);
-    return product ? manufacturer(product) : cell.product_external_id;
-  };
-
-  const placed = new Map<string, string[]>();
-  const missing: string[] = [];
-  for (const cell of row.cells) {
-    if (cell.placement === "absent") missing.push(name(cell));
-    else placed.set(cell.placement, [...(placed.get(cell.placement) ?? []), name(cell)]);
-  }
-
-  const clauses = Array.from(placed.entries())
-    .sort(([a], [b]) => rank(a) - rank(b))
-    .map(([placement, names], index) =>
-      index === 0
-        ? `${joinNames(names)} files this in §${placement}`
-        : `${joinNames(names)} in §${placement}`,
-    );
-
-  if (missing.length) {
-    clauses.push(`not found for ${joinNames(missing)} in the sections read`);
-  }
-  return `${clauses.join("; ")}.`;
-}
-
 /** The four-digit year a publisher's revision string ends in, when it carries one. */
 export const revisionYear = (revised: string | null): number | null => {
   const match = revised?.match(/\b(\d{4})\b/);
@@ -154,61 +109,87 @@ export function sharedScanned(products: ProductColumn[]): string[] | null {
   return scopes.size === 1 ? (products[0]?.scanned ?? []) : null;
 }
 
-/** The strongest finding in a matrix, or `null` when the manufacturers agree throughout. */
-export const featuredRow = (matrix: Matrix): Row | null => rankedDivergences(matrix.rows)[0] ?? null;
 
 
-/** One position, and every manufacturer whose label states it in exactly the same words. */
-export type EvidenceGroup = {
+/**
+ * Which other manufacturers state this in byte-identical words, per product.
+ *
+ * An annotation rather than a merge. Generic SmPCs are frequently copied verbatim between
+ * holders, and saying so is worth doing — but two labels carrying the same sentence carry
+ * it at their own offsets, in their own section, of their own length. Collapsing them into
+ * one block would show one label's provenance and silently drop the other's.
+ *
+ * Exact string equality, never similarity: "these two say the same thing" is only a safe
+ * claim when the bytes match, and a near-match is a difference worth reading.
+ */
+export function identicalWording(
+  cells: { product_external_id: string; evidence: Evidence | null }[],
+  products: ProductColumn[],
+): Map<string, string[]> {
+  const byId = new Map(products.map((product) => [product.external_id, product]));
+  const name = (id: string) => {
+    const product = byId.get(id);
+    return product ? manufacturer(product) : id;
+  };
+
+  const byQuote = new Map<string, string[]>();
+  for (const cell of cells) {
+    const quote = cell.evidence?.quote;
+    if (!quote) continue;
+    byQuote.set(quote, [...(byQuote.get(quote) ?? []), cell.product_external_id]);
+  }
+
+  const shared = new Map<string, string[]>();
+  for (const ids of byQuote.values()) {
+    if (ids.length < 2) continue;
+    for (const id of ids) shared.set(id, ids.filter((other) => other !== id).map(name));
+  }
+  return shared;
+}
+
+
+/** One distinct wording, and every product whose label carries it. */
+export type WordingGroup<T> = {
+  /** The shared quote, or `null` when this group is an absence. */
+  quote: string | null;
   placement: string;
-  cells: Cell[];
-  products: ProductColumn[];
-  /** The shared evidence, or `null` when this group is an absence. */
-  evidence: Evidence | null;
-  /** True when more than one manufacturer is here with byte-identical text. */
-  shared: boolean;
+  cells: T[];
 };
 
 /**
- * Manufacturers whose labels say the identical thing, shown once.
+ * Cells grouped by the exact words their labels use.
  *
- * Generic SmPCs are frequently copied verbatim between holders, so rendering each in
- * full repeats hundreds of characters and buries the one label that differs. Grouping is
- * on exact string equality, never similarity: "these two say the same thing" is only a
- * safe claim when the bytes match, and a near-match is a difference worth reading.
+ * At three manufacturers this is a footnote; at ten it is the only readable structure.
+ * Generics are frequently copied verbatim between holders, so ten labels are commonly two
+ * or three distinct texts, and printing ten near-identical blocks buries the one that
+ * differs.
  *
- * Absences are grouped by the sections actually read as well as by placement, because
+ * Grouping is exact string equality, never similarity — "these say the same thing" is only
+ * safe when the bytes match. Absences group by the sections actually read as well, because
  * two absences over different scanned sets are different claims.
+ *
+ * Each member keeps its own offsets: the same sentence sits at different indices in
+ * different labels, and a group that showed one member's provenance would drop the rest.
  */
-export function groupEvidence(row: Row, products: ProductColumn[]): EvidenceGroup[] {
-  const byId = new Map(products.map((product) => [product.external_id, product]));
-  const groups = new Map<string, EvidenceGroup>();
+export function groupByWording<
+  T extends { product_external_id: string; placement: string; evidence: Evidence | null },
+>(cells: T[], products: ProductColumn[]): WordingGroup<T>[] {
+  const scannedOf = new Map(products.map((p) => [p.external_id, p.scanned.join(",")]));
+  const groups = new Map<string, WordingGroup<T>>();
 
-  for (const cell of row.cells) {
-    const product = byId.get(cell.product_external_id);
+  for (const cell of cells) {
+    const quote = cell.evidence?.quote ?? null;
     const key =
-      cell.placement === "absent"
-        ? `absent|${(product?.scanned ?? []).join(",")}`
-        : `${cell.placement}|${cell.evidence?.quote ?? ""}`;
+      quote === null
+        ? `absent|${scannedOf.get(cell.product_external_id) ?? ""}`
+        : `${cell.placement}|${quote}`;
 
     const existing = groups.get(key);
-    if (existing) {
-      existing.cells.push(cell);
-      if (product) existing.products.push(product);
-      existing.shared = true;
-    } else {
-      groups.set(key, {
-        placement: cell.placement,
-        cells: [cell],
-        products: product ? [product] : [],
-        evidence: cell.evidence,
-        shared: false,
-      });
-    }
+    if (existing) existing.cells.push(cell);
+    else groups.set(key, { quote, placement: cell.placement, cells: [cell] });
   }
 
-  return Array.from(groups.values()).sort((a, b) => rank(a.placement) - rank(b.placement));
+  return Array.from(groups.values()).sort(
+    (a, b) => rank(a.placement) - rank(b.placement) || b.cells.length - a.cells.length,
+  );
 }
-
-/** "A", "A and B", "A, B and C" — exported so a group can name its manufacturers. */
-export const listNames = joinNames;

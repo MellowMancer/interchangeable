@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { currentTheme, ThemeToggle } from "@/lib/theme";
 import "./globals.css";
 
 /**
@@ -26,45 +27,55 @@ const sourceSerif = Source_Serif_4({
  */
 export const dynamic = "force-dynamic";
 
+const DESCRIPTION =
+  "Where the manufacturers of the same active substance disagree about its label — with the quoted text behind every claim.";
+
 export const metadata: Metadata = {
-  title: "Interchangeable?",
-  description:
-    "Where the manufacturers of the same active substance disagree about its label.",
+  title: {
+    default: "Interchangeable?",
+    template: "%s · Interchangeable?",
+  },
+  description: DESCRIPTION,
+  openGraph: {
+    title: "Interchangeable?",
+    description: DESCRIPTION,
+    siteName: "Interchangeable?",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "Interchangeable?", description: DESCRIPTION },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = await currentTheme();
+
   return (
     <html
       lang="en"
+      data-theme={theme === "system" ? undefined : theme}
       className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper font-sans text-body text-ink">
         <header className="border-b border-rule">
-          <nav className="mx-auto flex max-w-6xl items-baseline justify-between gap-6 px-6 py-5">
+          <nav className="mx-auto flex max-w-7xl flex-wrap items-baseline justify-between gap-x-6 gap-y-3 px-6 py-5">
             <Link href="/" className="text-lg font-medium tracking-tight">
               Interchangeable<span className="text-accent">?</span>
             </Link>
-            <div className="flex items-baseline gap-6">
-              <Link
-                href="/substances"
-                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
-              >
-                Substances
-              </Link>
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-3">
               <Link
                 href="/collectors"
                 className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
               >
                 Reliability
               </Link>
+              <ThemeToggle />
             </div>
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-12">{children}</main>
 
         <footer className="mt-16 border-t border-rule">
-          <p className="mx-auto max-w-6xl px-6 py-6 text-meta text-ink-muted">
+          <p className="mx-auto max-w-7xl px-6 py-6 text-meta text-ink-muted">
             Not medical advice. Every quote is sliced from the stored section text at the
             character offsets shown, so any claim here can be checked against its source.
           </p>

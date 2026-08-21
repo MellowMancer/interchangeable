@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -25,6 +26,15 @@ import { RevisionTimeline } from "@/lib/timeline";
  * list. Both are present and both are reachable — collapsing the agreeing rows into a
  * count would hide the evidence that the comparison works at all.
  */
+/** The substance names the tab, so several open comparisons stay tellable apart. */
+export async function generateMetadata({
+  params,
+}: PageProps<"/substances/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const matrix = await getMatrix(id);
+  return { title: matrix?.substance_name ?? "Not found" };
+}
+
 export default async function SubstancePage({ params }: PageProps<"/substances/[id]">) {
   const { id } = await params;
   const matrix = await getMatrix(id);
@@ -44,7 +54,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
         <Link
-          href="/substances"
+          href="/"
           className="inline-block font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
         >
           ← All substances
@@ -106,7 +116,12 @@ const Kicker = ({ children }: { children: React.ReactNode }) => (
 
 function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-2">
+      {/* A cut-off table on a phone reads as broken rather than as scrollable. */}
+      <p className="font-mono text-kicker text-ink-muted md:hidden">
+        scroll for all {matrix.products.length} manufacturers →
+      </p>
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-rule">
@@ -143,15 +158,20 @@ function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
                   {conceptLabel(row.concept)}
                 </Link>
               </th>
-              {row.cells.map((cell) => (
+              {row.cells.map((cell, order) => (
                 <td key={cell.product_external_id} className="p-3">
-                  <PlacementBadge placement={cell.placement} />
+                  <PlacementBadge
+                    placement={cell.placement}
+                    className="animate-land"
+                    delayMs={order * 70}
+                  />
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -178,7 +198,7 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
 
       <div className="flex h-6 overflow-hidden rounded-sheet border border-rule">
         <div
-          className="bg-p45"
+          className="animate-grow-x bg-p45"
           style={{ width: `${(clauses.classified / total) * 100}%` }}
           title={`${clauses.classified} clauses matched a concept`}
         />
