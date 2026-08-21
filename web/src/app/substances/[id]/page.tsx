@@ -152,12 +152,27 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
           <article key={section.code} className="space-y-3">
             {/* The app's voice, in the app's face: everything below is the label's own
                 words in serif, and a heading set like them reads as one of them. */}
-            <h3 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-              §{section.code} — {section.heading}
+            <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker tracking-widest text-ink-muted uppercase">
+              <span>
+                §{section.code} — {section.heading}
+              </span>
+              {/* Said at the top, not inferred from the bottom. Two statements stacked
+                  read as a list of properties unless something says they are rival
+                  answers to one question. */}
+              {section.groups.length > 1 && (
+                <span className="rounded-sheet border border-accent px-2 py-0.5 text-accent">
+                  {section.groups.length} different statements
+                </span>
+              )}
             </h3>
             <ul className="divide-y divide-rule border-y border-rule">
               {section.groups.map((group) => (
-                <li key={group.text} className="flex flex-col gap-1 py-3">
+                <li
+                  key={group.text}
+                  className={`flex flex-col gap-1 py-3 ${
+                    section.groups.length > 1 ? "border-l-2 border-accent pl-4" : ""
+                  }`}
+                >
                   {/* Serif, because these are the label's words and not ours. Blank lines
                       between the label's own lines are closed up — a paragraph break is
                       formatting, and left as-is it reads as two separate statements. */}
@@ -178,10 +193,15 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
             </ul>
             {/* Stated rather than implied: a section three labels carry is not a section
                 the other four contradict. */}
+            {/* "Stated by all 3 labels" meant all three state a shelf life; it read as
+                all three stating the same one. Coverage and agreement are different
+                claims and are now made separately. */}
             <p className="text-kicker text-ink-muted">
-              {section.collected === section.total
-                ? `Stated by all ${section.total} labels.`
-                : `Stated by ${section.collected} of ${section.total} labels; the rest have none collected.`}
+              {section.groups.length > 1
+                ? `These ${section.collected} labels do not word this the same way.`
+                : `All ${section.collected} labels word this the same way.`}
+              {section.collected < section.total &&
+                ` The other ${section.total - section.collected} have no ${section.heading.toLowerCase()} collected.`}
             </p>
           </article>
         ))}
