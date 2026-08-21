@@ -17,7 +17,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { conceptLabel, type SubstanceSummary } from "./api";
 import { rankedPreviews } from "./finding";
-import { PlacementBadge } from "./placement";
+import { PlacementPip } from "./placement";
 
 /** How many disagreements a card advertises before it defers to the comparison itself. */
 const PREVIEW_LIMIT = 3;
@@ -67,16 +67,12 @@ export function Roster({
 }) {
   const [typed, setTyped] = useState(query);
   const [order, setOrder] = useState<Order>("divergent");
-  const [onlyDiverging, setOnlyDiverging] = useState(false);
   const term = typed.trim();
 
   const matching = substances.filter((substance) => matches(substance, term));
   const collected = matching
     .filter((substance) => substance.products > 0)
-    .filter((substance) => !onlyDiverging || substance.divergent > 0)
     .sort(ORDERS[order]);
-  // Never filtered by divergence: nothing has been collected for these, so hiding them
-  // for having no disagreements would report an unread label as an agreeing one.
   const uncollected = matching.filter((substance) => substance.products === 0);
 
   return (
@@ -122,30 +118,24 @@ export function Roster({
           is a different act from looking something up, and the form still has to work
           without scripting. */}
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-kicker tracking-widest text-ink-muted uppercase">
-        <span>Order by</span>
-        {ORDER_LABELS.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={order === value}
-            onClick={() => setOrder(value)}
-            // `uppercase` again: a button does not inherit text-transform from the row.
-            className={`uppercase ${
-              order === value ? "text-ink underline underline-offset-4" : "hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        <label className="flex items-baseline gap-2">
-          <input
-            type="checkbox"
-            checked={onlyDiverging}
-            onChange={(event) => setOnlyDiverging(event.target.checked)}
-            className="accent-accent"
-          />
-          Only where they disagree
+        <label htmlFor="order" className="sr-only">
+          Order the roster
         </label>
+        <span aria-hidden>Order by</span>
+        {/* A select, not two buttons: it is one choice from a list, and browsers already
+            know how to say that — including on a phone, where a row of toggles is not it. */}
+        <select
+          id="order"
+          value={order}
+          onChange={(event) => setOrder(event.target.value as Order)}
+          className="rounded-sheet border border-rule bg-paper px-2 py-1 font-mono text-kicker tracking-widest text-ink uppercase hover:border-accent focus:border-accent focus:outline-none"
+        >
+          {ORDER_LABELS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {collected.length > 0 && (
@@ -205,22 +195,30 @@ function Card({ substance }: { substance: SubstanceSummary }) {
       href={`/substances/${substance.id}`}
       className="flex h-full flex-col gap-4 p-6 transition-transform hover:-translate-y-0.5 hover:bg-rule/30"
     >
-      <header className="space-y-1">
+      <header className="space-y-1.5">
         <h3 className="font-serif text-quote">{substance.name}</h3>
-        <p className="font-mono text-meta text-ink-muted">
-          {substance.products} manufacturers · {substance.concepts} concepts ·{" "}
-          {substance.divergent === 0 ? "none disagree" : `${substance.divergent} disagree`}
-        </p>
+        <dl className="flex flex-wrap items-center gap-x-4 font-mono text-meta text-ink-muted">
+          <Fact icon={<Makers />} term="manufacturers" value={substance.products} />
+          <Fact icon={<Concepts />} term="concepts read" value={substance.concepts} />
+          <Fact
+            icon={<Diverges />}
+            term="concepts they disagree about"
+            value={substance.divergent}
+            accent={substance.divergent > 0}
+          />
+        </dl>
       </header>
 
       {shown.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="space-y-1.5">
           {shown.map((preview) => (
-            <li key={preview.concept} className="flex flex-wrap items-center gap-2">
-              <span className="min-w-40 text-meta">{conceptLabel(preview.concept)}</span>
-              {preview.placements.map((placement) => (
-                <PlacementBadge key={placement} placement={placement} />
-              ))}
+            <li key={preview.concept} className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-meta">{conceptLabel(preview.concept)}</span>
+              <span className="flex shrink-0 gap-1">
+                {preview.placements.map((placement) => (
+                  <PlacementPip key={placement} placement={placement} />
+                ))}
+              </span>
             </li>
           ))}
         </ul>
@@ -236,3 +234,59 @@ function Card({ substance }: { substance: SubstanceSummary }) {
     </Link>
   );
 }
+
+
+/** One number about a substance, named for a screen reader and drawn for everyone else. */
+const Fact = ({
+  icon,
+  term,
+  value,
+  accent = false,
+}: {
+  icon: React.ReactNode;
+  term: string;
+  value: number;
+  accent?: boolean;
+}) => (
+  <div className="flex items-center gap-1.5">
+    <dt className="sr-only">{term}</dt>
+    <span aria-hidden className={accent ? "text-accent" : undefined}>
+      {icon}
+    </span>
+    <dd className={accent ? "text-accent" : undefined}>{value}</dd>
+  </div>
+);
+
+/** Inline, on `currentColor`, so an icon inherits whatever the row around it is doing. */
+const Glyph = ({ children }: { children: React.ReactNode }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {children}
+  </svg>
+);
+
+const Makers = () => (
+  <Glyph>
+    <path d="M3 21V9l6 3V9l6 3V9l6 3v9z" />
+  </Glyph>
+);
+
+const Concepts = () => (
+  <Glyph>
+    <path d="M4 6h16M4 12h16M4 18h10" />
+  </Glyph>
+);
+
+const Diverges = () => (
+  <Glyph>
+    <path d="M4 12h6M14 6l6 6-6 6M10 12l4-6M10 12l4 6" />
+  </Glyph>
+);

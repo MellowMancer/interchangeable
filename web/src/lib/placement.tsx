@@ -97,6 +97,28 @@ export const SECTION_PLACEMENTS: Placement[] = (Object.keys(STYLES) as Placement
 );
 
 /**
+ * A placement at card size: its colour, and its word on demand.
+ *
+ * The roster is scanned, not read. Three full badges a row across seventy cards makes
+ * CONTRAINDICATED and WARNING the loudest thing on the screen while saying nothing about
+ * which substance is worth opening — the concept beside them is the part that varies.
+ *
+ * Colour is never the only channel: the word is the accessible name and the tooltip, and
+ * the comparison this card links to spells every one of them out.
+ */
+export function PlacementPip({ placement }: { placement: string }) {
+  const style = placementStyle(placement);
+  return (
+    <span
+      title={style.detail}
+      className={`inline-block h-3 w-6 rounded-sheet border ${style.className}`}
+    >
+      <span className="sr-only">{style.label}</span>
+    </span>
+  );
+}
+
+/**
  * A placement at column width, for a matrix too wide to carry a full badge.
  *
  * The word without its section code, which is the opposite of the obvious trade. The row

@@ -125,9 +125,12 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
 /**
  * Which labels the comparison is over.
  *
- * Every label starts chosen, so the page opens on the whole picture and narrowing is the
- * reader's move rather than a default they have to undo. "Only these two" is one click
- * away because it is the common case, not because two is special.
+ * Folded away, because it is a control rather than content: it is touched once, and open
+ * it costs five rows between the description and the finding on every visit.
+ *
+ * Every label starts chosen. A default subset would mean the page chose what a reader is
+ * comparing — and the counts above it, which are measured over all of them, would then
+ * describe a different set from the grid below. Narrowing is the reader's move.
  */
 function Chooser({
   products,
@@ -139,11 +142,25 @@ function Chooser({
   onChange: (chosen: string[]) => void;
 }) {
   const all = products.map((product) => product.external_id);
+  const narrowed = chosen.length < products.length;
 
   return (
-    <section className="space-y-3 border-t border-rule pt-8">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <Kicker>Comparing {chosen.length} of {products.length} labels</Kicker>
+    <details className="group space-y-3 border-t border-rule pt-8">
+      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <span className="font-mono text-kicker tracking-widest uppercase">
+          <span className={narrowed ? "text-accent" : "text-ink-muted"}>
+            Comparing {chosen.length} of {products.length} labels
+          </span>
+        </span>
+        <span className="font-mono text-kicker tracking-widest text-ink-muted uppercase group-open:hidden">
+          choose ↓
+        </span>
+        <span className="hidden font-mono text-kicker tracking-widest text-ink-muted uppercase group-open:inline">
+          done ↑
+        </span>
+      </summary>
+
+      <div className="mt-3 space-y-3">
         <div className="flex gap-4 font-mono text-kicker tracking-widest uppercase">
           <button
             type="button"
@@ -160,38 +177,38 @@ function Chooser({
             None
           </button>
         </div>
-      </div>
 
-      <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-        {products.map((product) => {
-          const picked = chosen.includes(product.external_id);
-          return (
-            <li key={product.external_id}>
-              <label className="flex cursor-pointer items-baseline gap-3 border-b border-rule py-1.5">
-                <input
-                  type="checkbox"
-                  checked={picked}
-                  onChange={() =>
-                    onChange(
-                      picked
-                        ? chosen.filter((id) => id !== product.external_id)
-                        : [...chosen, product.external_id],
-                    )
-                  }
-                  className="accent-accent"
-                />
-                <span className="min-w-0">
-                  <span className="block truncate text-meta">{manufacturer(product)}</span>
-                  <span className="block truncate font-mono text-kicker text-ink-muted">
-                    {product.variant ?? product.name}
+        <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => {
+            const picked = chosen.includes(product.external_id);
+            return (
+              <li key={product.external_id}>
+                <label className="flex cursor-pointer items-baseline gap-3 border-b border-rule py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={picked}
+                    onChange={() =>
+                      onChange(
+                        picked
+                          ? chosen.filter((id) => id !== product.external_id)
+                          : [...chosen, product.external_id],
+                      )
+                    }
+                    className="accent-accent"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-meta">{manufacturer(product)}</span>
+                    <span className="block truncate font-mono text-kicker text-ink-muted">
+                      {product.variant ?? product.name}
+                    </span>
                   </span>
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </details>
   );
 }
 
