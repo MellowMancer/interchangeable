@@ -277,7 +277,13 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
                 {undrawn.length === 0 ? (
                   <DosageGlyph appearance={appearance} />
                 ) : (
-                  <span className="font-mono text-kicker text-ink-muted">not drawn</span>
+                  // The same mark an unfilled cell carries elsewhere. The reason stays
+                  // reachable rather than printed, so a rail of drawings is not broken up
+                  // by a sentence.
+                  <span title={undrawn.join(", ")} className="w-full text-center font-mono text-ink-muted">
+                    <span aria-hidden>&mdash;</span>
+                    <span className="sr-only">not drawn: {undrawn.join(", ")}</span>
+                  </span>
                 )}
               </span>
               <span className="text-meta">
@@ -292,11 +298,7 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
       </ul>
 
       <p className="text-kicker text-ink-muted">
-        Drawn from each label&apos;s section 3, never photographed — no photograph of any
-        product in this corpus exists.
-        {described.length < products.length && (
-          <> {described.length} of {products.length} labels have one collected.</>
-        )}
+        Drawn from each label&apos;s physical description. Actual tablet may vary.
       </p>
     </section>
   );
