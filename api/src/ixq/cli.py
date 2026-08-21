@@ -12,7 +12,7 @@ from ixq.adapters.config import (
     load_substances,
 )
 from ixq.adapters.sqlite import SqliteRepository, connect
-from ixq.domain import Collector, CollectorKind
+from ixq.domain import COMPARABLE, Collector, CollectorKind
 from ixq.pipeline.classify import classify
 from ixq.pipeline.collect import collect
 from ixq.pipeline.diverge import compare
@@ -171,6 +171,11 @@ def _one_label(product, source, by_kind, labels, concepts, repository) -> None:
             return
         found = 0
         for section in repository.sections_for_document(document.sha256):
+            # §3 describes the product, not a place a concept can be filed. Classifying it
+            # would mint occurrences whose section code is not a `Placement` — which the
+            # comparison cannot read, and which would put an appearance in the matrix.
+            if section.code not in COMPARABLE:
+                continue
             for occurrence in classify(section, document.sha256, concepts):
                 repository.save_occurrence(occurrence)
                 found += 1

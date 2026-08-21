@@ -7,16 +7,19 @@ from importlib import resources
 from pathlib import Path
 
 from ixq.domain import (
+    UNCLASSIFIED,
     Collector,
     CollectorKind,
     Document,
     Occurrence,
+    Placement,
     Product,
     Section,
     Source,
     Substance,
+    appearance,
 )
-from ixq.pipeline.ports import SubstanceCounts
+from ixq.pipeline.ports import ClauseCounts, ConceptDivergence, SubstanceCounts
 
 _SCHEMA = "schema.sql"
 SCHEMA_VERSION = 3
@@ -113,6 +116,24 @@ class SqliteRepository:
             codes.setdefault(row["sha"], []).append(row["code"])
         return {sha: tuple(found) for sha, found in codes.items()}
 
+    def appearances_for_substance(self, substance_id: str) -> dict[str, str]:
+        """Every document's §3 text for one substance, in one query.
+
+        Addressed by section code rather than by a column of its own: §3 is a section the
+        publisher numbers, and storing it anywhere else would fork how sections are read.
+        Keeping it out of the comparison is `COMPARABLE`'s job, not the schema's — which
+        is also why this needs no schema change and no migration of the collected corpus.
+        """
+        rows = self._conn.execute(
+            "SELECT s.document_sha256 AS sha, s.text FROM sections s "
+            "JOIN documents d ON d.sha256 = s.document_sha256 "
+            "JOIN products p ON p.source_id = d.source_id "
+            "AND p.external_id = d.product_external_id "
+            "WHERE p.substance_id = ? AND s.code = ?",
+            (substance_id, appearance.SECTION_CODE),
+        ).fetchall()
+        return {row["sha"]: row["text"] for row in rows}
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """The roster's three numbers per substance, counted in SQL.
 
@@ -165,6 +186,79 @@ class SqliteRepository:
             )
             for r in rows
         }
+
+    def clause_counts(self, substance_id: str) -> ClauseCounts:
+        """Occurrences split by whether the lexicon matched them, counted in SQL.
+
+        Counted over occurrences rather than concepts: the gap being published is how many
+        clauses fell through, and a single `unclassified` concept row says nothing about
+        whether that was one clause or a hundred.
+        """
+        row = self._conn.execute(
+            """
+            SELECT
+              COALESCE(SUM(o.concept != ?), 0) AS classified,
+              COALESCE(SUM(o.concept = ?), 0) AS unclassified
+            FROM occurrences o
+            JOIN documents d ON d.sha256 = o.document_sha256
+            JOIN products p
+              ON p.source_id = d.source_id AND p.external_id = d.product_external_id
+            WHERE p.substance_id = ?
+            """,
+            (UNCLASSIFIED, UNCLASSIFIED, substance_id),
+        ).fetchone()
+        return ClauseCounts(classified=row["classified"], unclassified=row["unclassified"])
+
+    def divergences_by_substance(self) -> dict[str, tuple[ConceptDivergence, ...]]:
+        """Which concepts diverge per substance, in SQL, with no section text read.
+
+        The same CTEs as `counts_by_substance` and the same `MIN(section_code)` coupling:
+        the placement codes sort lexicographically in the order they rank, and a test
+        asserts that directly.
+
+        `ABSENT` is appended when fewer products carry the concept than the substance has,
+        which is exactly the condition that makes the missing product's cell read absent.
+        """
+        rows = self._conn.execute(
+            """
+            WITH current AS (
+              SELECT d.sha256, d.product_external_id, p.substance_id
+              FROM documents d
+              JOIN products p
+                ON p.source_id = d.source_id AND p.external_id = d.product_external_id
+            ),
+            placed AS (
+              SELECT c.substance_id, c.product_external_id, o.concept,
+                     MIN(o.section_code) AS code
+              FROM occurrences o
+              JOIN current c ON c.sha256 = o.document_sha256
+              GROUP BY c.substance_id, c.product_external_id, o.concept
+            ),
+            totals AS (
+              SELECT substance_id, COUNT(DISTINCT product_external_id) AS products
+              FROM current GROUP BY substance_id
+            )
+            SELECT p.substance_id, p.concept,
+                   GROUP_CONCAT(DISTINCT p.code) AS codes,
+                   COUNT(DISTINCT p.product_external_id) AS seen,
+                   t.products
+            FROM placed p
+            JOIN totals t ON t.substance_id = p.substance_id
+            GROUP BY p.substance_id, p.concept
+            HAVING COUNT(DISTINCT p.code) > 1 OR COUNT(DISTINCT p.product_external_id) < t.products
+            ORDER BY p.substance_id, p.concept
+            """
+        ).fetchall()
+
+        found: dict[str, list[ConceptDivergence]] = {}
+        for row in rows:
+            codes = sorted((row["codes"] or "").split(","))
+            if row["seen"] < row["products"]:
+                codes.append(Placement.ABSENT.value)
+            found.setdefault(row["substance_id"], []).append(
+                ConceptDivergence(concept=row["concept"], placements=tuple(codes))
+            )
+        return {substance: tuple(items) for substance, items in found.items()}
 
     def save_source(self, source: Source) -> None:
         self._conn.execute(
@@ -294,6 +388,18 @@ class SqliteRepository:
             (document_sha256,),
         ).fetchall()
         return [Section(code=r["code"], heading=r["heading"], text=r["text"]) for r in rows]
+
+    def section_text(self, document_sha256: str, code: str) -> str | None:
+        """One section's body, addressed by the primary key, so at most one row is read.
+
+        Selects `text` alone and never joins: the caller already holds the document sha
+        from the occurrence it is showing, so there is nothing left to resolve.
+        """
+        row = self._conn.execute(
+            "SELECT text FROM sections WHERE document_sha256 = ? AND code = ?",
+            (document_sha256, code),
+        ).fetchone()
+        return row["text"] if row else None
 
     def occurrences_for_substance(self, substance_id: str) -> list[Occurrence]:
         rows = self._conn.execute(

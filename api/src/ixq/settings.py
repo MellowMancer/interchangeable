@@ -5,6 +5,7 @@ from pathlib import Path
 
 DB_NAME = "interchangeable.db"
 HEAL_DB_NAME = "bdheal.db"
+BENCH_DB_NAME = "bench.db"
 
 
 def data_dir() -> Path:
@@ -41,3 +42,14 @@ def config_dir() -> Path:
     there is no importable location to resolve it from.
     """
     return Path(os.environ.get("IXQ_CONFIG_DIR", "api/config"))
+
+
+def bench_database_path() -> Path:
+    """Where the mutation benchmark's results live — a third file, and not `bdheal.db`.
+
+    The two stores answer different questions and must never merge. `bdheal.db` records
+    what happened to the collectors that actually fetch the corpus; this records what
+    happened when a site we control was broken on cue. Writing both to one file would let
+    a benchmark case be read as a production incident, or a real heal as a rehearsal.
+    """
+    return data_dir() / BENCH_DB_NAME

@@ -225,3 +225,34 @@ def test_a_collector_that_cannot_be_checked_does_not_lose_the_run(
     assert result.exit_code == 0, result.output
     assert "health check failed" in result.output
     assert "target refused the anchor" in result.output
+
+
+def test_run_stores_the_appearance_without_classifying_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """§3 reaches storage and stops there.
+
+    Classifying it would mint occurrences whose section code is not a `Placement`, which
+    the comparison cannot read — and would put the description of a capsule into the
+    matrix as though a safety concept had been found in it.
+    """
+    import sqlite3
+
+    from ixq import cli
+
+    described = "Orange/White hard capsules imprinted with 'D' on the orange cap."
+    monkeypatch.setenv("IXQ_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("IXQ_CONFIG_DIR", str(_config(tmp_path)))
+    monkeypatch.setattr(cli, "label_source", lambda *a, **k: FakeLabels())
+    monkeypatch.setitem(PRODUCT_ROW, "section_3_pharmaceutical_form", described)
+
+    assert runner.invoke(app, ["init"]).exit_code == 0
+    assert runner.invoke(app, ["run"]).exit_code == 0
+
+    conn = sqlite3.connect(tmp_path / DB_NAME)
+    assert conn.execute("SELECT DISTINCT text FROM sections WHERE code = '3'").fetchall() == [
+        (described,)
+    ]
+    assert conn.execute("SELECT count(*) FROM occurrences WHERE section_code = '3'").fetchone() == (
+        0,
+    )

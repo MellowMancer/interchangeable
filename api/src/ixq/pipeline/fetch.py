@@ -4,8 +4,18 @@ import hashlib
 import json
 from typing import Any
 
-from ixq.domain import Document, Placement, Product, Section, Source, revision_date
+from ixq.domain import Document, Placement, Product, Section, Source, appearance, revision_date
 from ixq.pipeline.ports import LabelSource, Repository
+
+APPEARANCE = ("section_3_pharmaceutical_form", appearance.SECTION_CODE, "Pharmaceutical form")
+"""Collector field, section code and heading for §3 — stored, and deliberately not in
+`SECTIONS`.
+
+`SECTIONS` is keyed by `Placement`, and §3 is not one: it describes the object rather
+than naming a section a safety concept can be filed in. Kept apart so it cannot be
+iterated into the comparison by a later change, and left out of the missing-content guard
+below so a row carrying an appearance but no §4.x still reads as the break it is.
+"""
 
 SECTIONS: dict[str, tuple[Placement, str]] = {
     "section_4_3_contraindications": (Placement.CONTRAINDICATION, "Contraindications"),
@@ -87,6 +97,9 @@ def fetch(
         for field, (placement, heading) in SECTIONS.items()
         if row.get(field)
     ]
+    field, code, heading = APPEARANCE
+    if row.get(field):
+        sections.append(Section(code=code, heading=heading, text=row[field]))
     document = Document(
         sha256=digest(source.id, product.external_id, title, revised, sections),
         source_id=source.id,
