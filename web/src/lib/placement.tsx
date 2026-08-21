@@ -93,11 +93,13 @@ export const SECTION_PLACEMENTS: Placement[] = (Object.keys(STYLES) as Placement
 );
 
 /**
- * A placement at column width, for a matrix too wide to carry words.
+ * A placement at column width, for a matrix too wide to carry a full badge.
  *
- * The section number alone, because above about five manufacturers a badge reading
- * `CONTRAINDICATED §4.3` needs more width than a column has. The words move to the
- * legend, which is rendered from `PLACEMENT_LEGEND` and so cannot drift from this.
+ * The word without its section code, which is the opposite of the obvious trade. The row
+ * already names the concept, so what the cell must say is how binding the filing is —
+ * and `CONTRAINDICATED` answers that where `§4.3` sends the reader to a legend, once per
+ * cell, in a table whose whole purpose is being read across. The code is kept for anyone
+ * checking the claim, in the accessible name and the tooltip.
  *
  * Absence keeps its own treatment here as everywhere: unfilled, dashed, and never a
  * colour. Shrinking a cell is a reason to say less, never a reason to say it differently.
@@ -107,10 +109,16 @@ export function PlacementChip({ placement }: { placement: string }) {
   return (
     <span
       title={style.detail}
-      className={`inline-flex h-7 w-full min-w-12 items-center justify-center rounded-sheet border font-mono text-kicker ${style.className}`}
+      className={`inline-flex min-h-7 items-center justify-center rounded-sheet border px-2 py-1 text-center text-kicker tracking-wide uppercase ${style.className}`}
     >
-      <span aria-hidden>{style.section ?? "—"}</span>
-      <span className="sr-only">{style.label}</span>
+      {/* The word, not the section code. The row already names the concept, so what a
+          cell has to carry is how binding the filing is — and a bare code sends the
+          reader to a legend for every cell of a table meant to be read across. The code
+          stays for anyone checking the claim. */}
+      <span aria-hidden>{style.section ? style.label : "—"}</span>
+      <span className="sr-only">
+        {style.section ? `${style.label} ${style.section}` : style.label}
+      </span>
     </span>
   );
 }
