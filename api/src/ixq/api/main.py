@@ -29,7 +29,7 @@ from ixq.domain import (
     variant,
 )
 from ixq.domain.sections import INDICATIONS_CODE, VALUE_SECTIONS
-from ixq.pipeline.diverge import Comparison, ConceptRow, compare
+from ixq.pipeline.diverge import PRECEDENCE, Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
 
@@ -266,6 +266,43 @@ class ValueSection(BaseModel):
     groups: list[ValueGroup]
     collected: int
     total: int
+
+
+class ProductConcept(BaseModel):
+    """Where one concept sits in one label, with the sentence that put it there."""
+
+    concept: str
+    placement: Placement
+    evidence: Evidence | None = None
+
+
+class ValueStatement(BaseModel):
+    """One value section as a single label states it."""
+
+    code: str
+    heading: str
+    text: str
+
+
+class ProductDetail(BaseModel):
+    """One label, addressable on its own.
+
+    The project's claim is that every statement can be checked against its source, and
+    until this existed a label had no URL: a product was only ever a column inside a
+    comparison, so a finding could be read but not cited.
+
+    Self-contained, like `ConceptDetail`: the siblings travel with it because "what else
+    is this substance dispensed as" is the question a reader arrives with, and fetching
+    the substance alongside to answer it would give back what the split saved.
+    """
+
+    substance_id: str
+    substance_name: str
+    product: ProductColumn
+    siblings: list[ProductColumn]
+    indications: list[IndicationStatement]
+    concepts: list[ProductConcept]
+    values: list[ValueStatement]
 
 
 class Matrix(BaseModel):
@@ -525,31 +562,58 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
     return [column(product) for product in result.products]
 
 
-#: Markers a publisher uses for a nested item, as opposed to the "-" of a top-level one.
-_NESTED_MARKERS = "•·▪▫◦●○‣⁃∙*"
+def _binding(placement: Placement) -> int:
+    """How binding a placement is, with absence ranked below every section."""
+    return PRECEDENCE.index(placement) if placement in PRECEDENCE else len(PRECEDENCE)
 
 
-def _nesting(text: str, start: int) -> int:
-    """How deeply the label nested the clause beginning at `start`.
+#: Every character a publisher uses to open a list item, of either level.
+_MARKERS = "•·▪▫◦●○‣⁃∙*-–—"
 
-    Read from the marker the publisher wrote immediately before it, never guessed from the
-    wording. §4.1 is routinely two levels — "Treatment of renal disease:" followed by the
-    nephropathies it covers — and every label in this corpus writes the outer level as "-"
-    and the inner one as a bullet, but not the same bullet: one uses "•" after an em space,
-    one a "•" after a newline, and one the bare letter "o", which is why `BULLET` in the
-    splitter already recognises all three.
 
-    So the test is which kind of marker sits there, not which character. Anything with no
-    marker is top level, which is what a section written as plain sentences should be.
-    """
+def _marker(text: str, start: int) -> str | None:
+    """The list marker immediately before the clause at `start`, if it has one."""
     before = text[max(0, start - 8) : start].rstrip()
     if not before:
-        return 0
-    if before[-1] in _NESTED_MARKERS:
-        return 1
+        return None
+    if before[-1] in _MARKERS:
+        return before[-1]
     # A lone "o" is a bullet; the same letter ending a word is not.
     standalone = len(before) == 1 or before[-2].isspace()
-    return 1 if before[-1] in "oO" and standalone else 0
+    return "o" if before[-1] in "oO" and standalone else None
+
+
+def _nesting(markers: Sequence[str | None]) -> list[int]:
+    """How deeply the label nested each clause, read from the markers it wrote.
+
+    Depth is **relative to the document**, never absolute. Publishers are internally
+    consistent and disagree with each other: across four ramipril labels the outer level
+    is written "-", "-", "-" and "▪", and the inner one an em space then "•", a newline
+    then "•", a bare "o", and an em space then "o". A rule that named particular
+    characters as nested read one label's top level as its second.
+
+    So whatever marker opens the section is its top level, and anything else is one deeper.
+    A section with a single marker throughout is flat, which is what it looks like.
+    """
+    top = next((mark for mark in markers if mark is not None), None)
+    return [0 if mark is None or mark == top else 1 for mark in markers]
+
+
+def _statements(text: str | None) -> list[IndicationStatement]:
+    """§4.1 split into its statements, each carrying the nesting the label wrote.
+
+    Shared by the matrix and a product's own page, so one label's indications cannot read
+    differently depending on which screen reached them.
+    """
+    if not text:
+        return []
+    section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
+    found = clauses(section)
+    depths = _nesting([_marker(text, clause.start) for clause in found])
+    return [
+        IndicationStatement(text=clause.text, depth=depth)
+        for clause, depth in zip(found, depths, strict=True)
+    ]
 
 
 def _indications(result: Comparison, stated: Mapping[str, str]) -> list[IndicationGroup]:
@@ -572,17 +636,17 @@ def _indications(result: Comparison, stated: Mapping[str, str]) -> list[Indicati
         text = stated.get(document.sha256) if document else None
         if not text:
             continue
-        section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
-        statements = [
-            IndicationStatement(text=clause.text, depth=_nesting(text, clause.start))
-            for clause in clauses(section)
-        ]
+        statements = _statements(text)
         words = prepared(" ".join(s.text for s in statements))
         # Punctuation first, whitespace after: dropping a full stop leaves the space it
         # sat between, and collapsing before the strip leaves two where there was one.
         key = " ".join("".join(c if c.isalnum() else " " for c in words).split())
         held = groups.setdefault(key, (statements, []))
-        held[1].append(product.ma_holder or product.external_id)
+        # A holder with several products contributes once: "Sandoz, Sandoz" reads as two
+        # manufacturers agreeing when it is one label listed twice.
+        name = product.ma_holder or product.external_id
+        if name not in held[1]:
+            held[1].append(name)
 
     return [
         IndicationGroup(statements=statements, manufacturers=manufacturers)
@@ -659,6 +723,60 @@ def _substance_name(substance_id: str) -> str:
     """The display name from the configured roster, or the id when it names no such one."""
     names = {s.id: s.name for s in load_substances(config_dir() / "substances.yaml")}
     return names.get(substance_id, substance_id)
+
+
+@app.get("/products/{product_external_id}", response_model=ProductDetail)
+def product(
+    product_external_id: str, repo: Repository = Depends(repository)
+) -> ProductDetail:
+    """One label: what it is, where it files each concept, and what it is stored with.
+
+    Built from the same `compare` the matrix uses rather than from a query of its own, so
+    a placement here and the same placement in the comparison cannot disagree — and the
+    evidence stays paired with the revision it was taken from.
+    """
+    substance_id = repo.substance_of(product_external_id)
+    if substance_id is None:
+        raise HTTPException(404, f"no product {product_external_id!r} is stored")
+
+    result = compare(substance_id, repo)
+    columns = _columns(result, repo.appearances_for_substance(substance_id))
+    mine = next((c for c in columns if c.external_id == product_external_id), None)
+    if mine is None:
+        raise HTTPException(404, f"no label stored for {product_external_id!r}")
+
+    document = next(
+        (d for d in result.documents if d.product_external_id == product_external_id), None
+    )
+    stated = repo.indications_for_substance(substance_id)
+    values = repo.value_sections_for_substance(substance_id)
+    held = values.get(document.sha256, {}) if document else {}
+
+    return ProductDetail(
+        substance_id=substance_id,
+        substance_name=_substance_name(substance_id),
+        product=mine,
+        siblings=[c for c in columns if c.external_id != product_external_id],
+        indications=_statements(stated.get(document.sha256)) if document else [],
+        concepts=sorted(
+            (
+                ProductConcept(
+                    concept=row.concept,
+                    placement=row.placements[product_external_id],
+                    evidence=_evidence(row.evidence.get(product_external_id), document),
+                )
+                for row in result.rows
+            ),
+            # Absence last: `PRECEDENCE` ranks the sections a concept can be filed in,
+            # and absence is not one of them.
+            key=lambda c: (_binding(c.placement), c.concept),
+        ),
+        values=[
+            ValueStatement(code=spec.code, heading=spec.heading, text=held[spec.code].strip())
+            for spec in VALUE_SECTIONS
+            if held.get(spec.code, "").strip()
+        ],
+    )
 
 
 @app.get("/substances/{substance_id}/concepts/{concept}", response_model=ConceptDetail)

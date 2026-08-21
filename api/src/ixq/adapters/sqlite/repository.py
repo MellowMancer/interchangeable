@@ -193,6 +193,14 @@ class SqliteRepository:
             found.setdefault(row["sha"], {})[row["code"]] = row["text"]
         return found
 
+    def substance_of(self, product_external_id: str) -> str | None:
+        """The substance a product belongs to, or None when it is not stored."""
+        row = self._conn.execute(
+            "SELECT substance_id FROM products WHERE external_id = ?",
+            (product_external_id,),
+        ).fetchone()
+        return row["substance_id"] if row else None
+
     def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
         """Each substance's current product names and MA holders, in one query."""
         rows = self._conn.execute(

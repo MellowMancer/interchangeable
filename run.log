@@ -96,3 +96,194 @@ ValueError: collector returned no clinical section content — expected one of
 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 
 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A 
 renamed field is a break, not a label without contraindications.
+skipping the collector health check (--no-heal)
+omeprazole: 30 products, fetching 10 from 9 manufacturers
+  10340: 91 occurrences
+  15127: 94 occurrences
+  101415: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  1509: 92 occurrences
+  4895: 85 occurrences
+  4402: 70 occurrences
+  15055: 92 occurrences
+  9154: 82 occurrences
+  8756: 69 occurrences
+  10339: 91 occurrences
+skipping the collector health check (--no-heal)
+sertraline: 29 products, fetching 10 from 10 manufacturers
+  4348: 163 occurrences
+  3501: 169 occurrences
+  13523: 171 occurrences
+  5760: 168 occurrences
+  1070: 170 occurrences
+  7162: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  102002: 161 occurrences
+  14327: 162 occurrences
+  15860: 168 occurrences
+  14273: 162 occurrences
+skipping the collector health check (--no-heal)
+simvastatin: 18 products, fetching 10 from 6 manufacturers
+  100212: 160 occurrences
+  5688: 156 occurrences
+  4760: 157 occurrences
+  10667: 164 occurrences
+  7789: 156 occurrences
+  4420: 164 occurrences
+  4759: 158 occurrences
+  5687: 156 occurrences
+  7791: 156 occurrences
+  1010: 156 occurrences
+skipping the collector health check (--no-heal)
+amoxicillin: 29 products, fetching 10 from 7 manufacturers
+  10638: 87 occurrences
+  15728: 61 occurrences
+  526: 80 occurrences
+  13501: 73 occurrences
+  8743: 62 occurrences
+  14926: 66 occurrences
+  278: 69 occurrences
+  13689: 74 occurrences
+  14145: 76 occurrences
+  10892: 74 occurrences
+skipping the collector health check (--no-heal)
+lisinopril: 22 products, fetching 10 from 7 manufacturers
+  10115: 174 occurrences
+  7144: 174 occurrences
+  10810: 173 occurrences
+  7610: 174 occurrences
+  14447: 182 occurrences
+  100978: 182 occurrences
+  100385: 179 occurrences
+  5502: 245 occurrences
+  4741: 174 occurrences
+  10113: 174 occurrences
+skipping the collector health check (--no-heal)
+bisoprolol: 40 products, fetching 10 from 10 manufacturers
+  14905: 122 occurrences
+  14147: 103 occurrences
+  7765: 108 occurrences
+  102395: 93 occurrences
+  101896: 100 occurrences
+  3090: 117 occurrences
+  4622: 126 occurrences
+  13704: 114 occurrences
+  101209: 117 occurrences
+  12962: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+skipping the collector health check (--no-heal)
+losartan: 29 products, fetching 10 from 9 manufacturers
+  14491: 110 occurrences
+  7799: 119 occurrences
+  7061: 117 occurrences
+  101966: 123 occurrences
+  13600: 117 occurrences
+  10812: 114 occurrences
+  101265: 118 occurrences
+  15461: 120 occurrences
+  651: 119 occurrences
+  15460: 120 occurrences
+skipping the collector health check (--no-heal)
+furosemide: 19 products, fetching 10 from 10 manufacturers
+  12129: 108 occurrences
+  597: 92 occurrences
+  100580: 111 occurrences
+  14299: 98 occurrences
+  2463: 104 occurrences
+  109: 162 occurrences
+  6275: 176 occurrences
+  14419: 155 occurrences
+  4575: 149 occurrences
+  11522: 81 occurrences
+skipping the collector health check (--no-heal)
+levothyroxine: 31 products, fetching 10 from 6 manufacturers
+  14593: 80 occurrences
+  12781: 89 occurrences
+  5683: 92 occurrences
+  6441: 94 occurrences
+  12324: 124 occurrences
+  102397: 94 occurrences
+  434: 92 occurrences
+  12780: 89 occurrences
+  100043: 80 occurrences
+  1204: 117 occurrences
+skipping the collector health check (--no-heal)
+gliclazide: 12 products, fetching 10 from 8 manufacturers
+  1321: 87 occurrences
+  102251: 89 occurrences
+  5084: 85 occurrences
+  15405: 89 occurrences
+  13135: 89 occurrences
+  13514: 79 occurrences
+  13829: 86 occurrences
+  7023: 86 occurrences
+  1150: 89 occurrences
+  102252: 89 occurrences
+skipping the collector health check (--no-heal)
+clopidogrel: 8 products, fetching 8 from 7 manufacturers
+  10634: 122 occurrences
+  15874: 119 occurrences
+  5934: 114 occurrences
+  15846: 112 occurrences
+  5207: 119 occurrences
+  2147: 132 occurrences
+  14736: 115 occurrences
+  5935: 114 occurrences
+skipping the collector health check (--no-heal)
+lansoprazole: 10 products, fetching 10 from 5 manufacturers
+  4396: 119 occurrences
+  4440: 91 occurrences
+  4395: 122 occurrences
+  1969: 100 occurrences
+  1714: 100 occurrences
+  14550: 86 occurrences
+  14551: 85 occurrences
+  4441: 91 occurrences
+  14714: 124 occurrences
+  14713: 124 occurrences
+skipping the collector health check (--no-heal)
+pantoprazole: 16 products, fetching 10 from 10 manufacturers
+  10866: 83 occurrences
+  450: 90 occurrences
+  15375: 76 occurrences
+  7089: 89 occurrences
+  14643: 100 occurrences
+  2833: 66 occurrences
+  2241: 69 occurrences
+  15409: 59 occurrences
+  13353: 69 occurrences
+  11068: 68 occurrences
+skipping the collector health check (--no-heal)
+gabapentin: 45 products, fetching 10 from 10 manufacturers
+  158: 89 occurrences
+  4121: 96 occurrences
+  13544: 101 occurrences
+  101066: 95 occurrences
+  15369: 76 occurrences
+  10736: 75 occurrences
+  11963: 99 occurrences
+  9543: 94 occurrences
+  100984: 88 occurrences
+  14358: 97 occurrences
+skipping the collector health check (--no-heal)
+pregabalin: 98 products, fetching 10 from 10 manufacturers
+  15627: 121 occurrences
+  7097: 100 occurrences
+  735: 101 occurrences
+  13422: 110 occurrences
+  10753: 90 occurrences
+  13403: 105 occurrences
+  10301: 111 occurrences
+  7011: 105 occurrences
+  13612: 110 occurrences
+  100948: 81 occurrences
+skipping the collector health check (--no-heal)
+naproxen: 19 products, fetching 10 from 10 manufacturers
+  2635: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  101361: 172 occurrences
+  13239: 140 occurrences
+  530: 175 occurrences
+  101273: 133 occurrences
+  5097: 177 occurrences
+  14307: 149 occurrences
+  3935: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  11105: 172 occurrences
+  2099: 168 occurrences
+skipping the collector health check (--no-heal)

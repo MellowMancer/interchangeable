@@ -685,3 +685,51 @@ def test_indications_keep_the_nesting_the_label_wrote(
     depths = [(s["text"][:20], s["depth"]) for s in groups[0]["statements"]]
 
     assert [depth for _, depth in depths] == [0, 1, 1, 0], depths
+
+
+def test_nesting_is_read_relative_to_the_label_not_from_fixed_characters(
+    client: TestClient, repository: Repository
+) -> None:
+    """One publisher's outer marker is another's inner one.
+
+    Across the real ramipril labels the top level is written "-" three times and "▪" once,
+    and the nested level an em space then "•", a newline then "•", a bare "o", and an em
+    space then "o". Naming particular characters as nested read the "▪" label's top level
+    as its second, and indented every statement it had.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        repository.save_section(
+            "1".rjust(64, "0"),
+            Section(
+                code="4.1",
+                heading="Therapeutic indications",
+                text="▪ Treatment of renal disease:\n\n o Incipient nephropathy,\n"
+                "▪ Treatment of hypertension.",
+            ),
+        )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+    depths = [s["depth"] for s in groups[0]["statements"]]
+
+    assert depths == [0, 1, 0], "the marker that opens the section is its top level"
+
+
+def test_a_holder_with_several_products_is_named_once(
+    client: TestClient, repository: Repository
+) -> None:
+    """"Sandoz, Sandoz" reads as two manufacturers agreeing; it is one listed twice."""
+    divergent_corpus(repository)
+    with repository.transaction():
+        for sha in ("1".rjust(64, "0"), "2".rjust(64, "0")):
+            repository.save_section(
+                sha,
+                Section(
+                    code="4.1", heading="Therapeutic indications", text="- Hypertension."
+                ),
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+
+    for group in groups:
+        assert len(group["manufacturers"]) == len(set(group["manufacturers"]))

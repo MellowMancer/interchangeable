@@ -88,6 +88,26 @@ export type Matrix = {
   clauses: ClauseCoverage;
 };
 
+/** Where one concept sits in one label, with the sentence that put it there. */
+export type ProductConcept = {
+  concept: string;
+  placement: string;
+  evidence: Evidence | null;
+};
+
+/** One value section as a single label states it. */
+export type ValueStatement = { code: string; heading: string; text: string };
+
+export type ProductDetail = {
+  substance_id: string;
+  substance_name: string;
+  product: ProductColumn;
+  siblings: ProductColumn[];
+  indications: IndicationStatement[];
+  concepts: ProductConcept[];
+  values: ValueStatement[];
+};
+
 /** One disagreement, named but not evidenced — enough to preview a comparison. */
 export type DivergencePreview = { concept: string; placements: string[] };
 
@@ -194,6 +214,14 @@ async function get<T>(path: string): Promise<T> {
 export const getSubstances = () => get<SubstanceSummary[]>("/substances");
 export const getCollectors = () => get<CollectorHealth[]>("/collectors");
 export const getBenchmark = () => get<BenchRun[]>("/benchmark");
+
+/** `null` rather than a throw: an unknown product is a 404 the page renders. */
+export async function getProduct(id: string): Promise<ProductDetail | null> {
+  const response = await fetch(`${BASE}/products/${encodeURIComponent(id)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`/products/${id} responded ${response.status}`);
+  return response.json() as Promise<ProductDetail>;
+}
 
 /** `null` rather than a throw: an unmatched concept is a 404 the page renders. */
 export async function getConceptDetail(

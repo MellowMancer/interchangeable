@@ -1,6 +1,7 @@
 # What the site does not show
 
-Gaps in the **presentation layer**, recorded 2026-08-21 against the routes then live.
+Gaps in the **presentation layer**, recorded 2026-08-21 against the routes then live and
+revised 2026-08-22 after gap 3 was closed and gap 2 half-closed.
 `docs/EMC_FIELDS.md` is the authority on what can be *collected*; this is the authority on
 what is collected and never reaches a reader.
 
@@ -10,10 +11,10 @@ side is already done.
 
 ## What exists today
 
-Five routes: `/` (roster, search, one hero finding), `/substances/[id]` (the matrix,
-indications, revision timeline, recall gap, provenance), `/substances/[id]/concepts/
-[concept]` (evidence per manufacturer), `/collectors` (reliability and benchmark), and
-`/reading` (the vocabulary).
+Six routes: `/` (roster, live search, sort and filter), `/substances/[id]` (the matrix,
+indications, value sections, recall gap, provenance), `/substances/[id]/concepts/
+[concept]` (evidence grouped by wording), `/products/[id]` (one label on its own),
+`/collectors` (reliability and benchmark), and `/reading` (the vocabulary).
 
 Everything about a finding is scoped to **one substance at a time**. That is the shape of
 the gaps below: the corpus holds entities the UI has no page for.
@@ -29,10 +30,9 @@ publishes two counts rather than a flattering percentage. Do not simplify these.
 
 A column *is* a manufacturer, and there is no way to click one.
 
-- `ProductColumn.holder_id` is served by the API and read by **nothing** — typed at
-  `web/src/lib/api.ts:52`, zero call sites. Canonical holder identity already exists,
-  because a company id cannot be misspelt the way `ma_holder` free text can.
-- `manufacturer()` (`api.ts:208`) is only ever called inside one substance's response.
+- `ProductColumn.holder_id` is now read, but only to group a matrix's columns within one
+  substance. Canonical holder identity exists across substances and nothing uses it.
+- `manufacturer()` is still only ever called inside one substance's response.
 
 **What it would say.** Every product a holder makes, across every substance — and then the
 finding that needs more than one substance to exist: *is this manufacturer systematically
@@ -51,39 +51,43 @@ brand — what is different?"*
 Every view is all-columns-at-once: `DivergenceTable`, `PlacementSpectrum`, and the concept
 page's stacked list. Nothing compares exactly two products.
 
-- `groupByWording` (`web/src/lib/finding.ts:174`) groups products by shared wording and is
-  **exported, never rendered** — dead code pointing straight at this feature.
-- `identicalWording` (`finding.ts:125`) already annotates "identical wording to X, Y", so
-  the byte-comparison half is written and working.
+**Half closed.** `groupByWording` is now the concept page's primary structure: one block
+per byte-identical quote, listing every label that carries it, each keeping its own
+offsets. Seven ramipril labels collapse to two or three blocks. `identicalWording` was
+deleted as superseded.
+
+What remains is the *two-product* view. Every screen is still all-columns-at-once, so
+"my pharmacy switched my brand, what changed" cannot be asked of exactly two labels.
 
 **What it would say.** Two products, only what differs, in the labels' own words —
 including where they are byte-identical, which is itself the answer most of the time and
 is reassuring rather than dull.
 
-## 3. A label is not addressable
+## 3. A label is not addressable — **closed 2026-08-22**
 
-There is no `/products/[id]`. A product exists only as a column inside a comparison.
+`/products/[id]` exists, reached from the matrix's column headers. It carries the label's
+identity and §3 drawing, its §4.1, every concept with its placement and the sentence behind
+it behind a disclosure, its §6.3 and §6.4, and a shelf of the other labels for the same
+substance.
 
-This is not merely navigation. The project's whole claim is that every statement can be
-checked against its source, and **there is currently no URL for a single label**. A finding
-cannot be cited.
+`GET /products/{id}` is built from the same `compare()` the matrix uses, so a placement
+here and the same placement in the comparison cannot disagree.
 
 Everything needed is stored: the verbatim sections, `ma_number` (the regulator's id, unlike
 the source's surrogate `external_id`), `atc_code`, `legal_status`, `holder_id`,
 `listing_updated`, the §3 appearance, and every occurrence with its character offsets.
 
-**Also the home for two fields served and rendered nowhere:** `ProductColumn.legal_status`
-and `ProductColumn.listing_updated` (`api.ts:56,58`). The second matters — it answers "when
-did the source last touch this record", which is a different question from `revised`, and
-the UI currently shows only one of the two.
+`legal_status` and `listing_updated` are rendered there, alongside `ma_number` and
+`atc_code`. Both questions a reader can now ask of one label: when the publisher revised
+the text, and when the source last touched its record.
 
 ## 5. Findings are buried one substance deep
 
 Numbered 5 to match the discussion it came from; item 4 was revision history, deferred
 separately because it needs time to pass before it shows anything.
 
-- The home page features exactly **one** finding, chosen by `featuredSubstance`
-  (`finding.ts:41`).
+- The home page no longer features a single finding — the hero was replaced by the roster,
+  and `featuredSubstance` (`finding.ts:41`) now has **zero call sites**.
 - The concept route is nested under a substance, and `ConceptDetail` is scoped to a single
   `substance_id` (`api/src/ixq/api/main.py:308`). Home search matches concept names but
   returns *substances*.

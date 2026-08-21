@@ -129,6 +129,15 @@ class Repository(Protocol):
         """
         ...
 
+    def substance_of(self, product_external_id: str) -> str | None:
+        """Which substance a product belongs to, or None when no such product is stored.
+
+        A product's own page is reached by its id alone, and everything else about it —
+        its placements, its siblings, what it is compared against — is scoped to the
+        substance. This is the one lookup that turns the id in a URL into that scope.
+        """
+        ...
+
     def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
         """Per substance, the names a reader might search for: products and their holders.
 

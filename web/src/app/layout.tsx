@@ -62,6 +62,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-3">
               <Link
+                href="/"
+                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+              >
+                Home
+              </Link>
+              <Link
                 href="/collectors"
                 className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
               >

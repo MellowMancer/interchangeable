@@ -24,7 +24,6 @@ import {
   PlacementBadge,
   PlacementChip,
 } from "@/lib/placement";
-import { RevisionTimeline } from "@/lib/timeline";
 
 /**
  * Every concept, across every manufacturer.
@@ -93,11 +92,6 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
       )}
 
       <ValueSections sections={matrix.values} />
-
-      <section className="space-y-6 border-t border-rule pt-10">
-        <Kicker>When each label was last revised</Kicker>
-        <RevisionTimeline products={matrix.products} />
-      </section>
 
       {agreeing.length > 0 && (
         <section className="space-y-6 border-t border-rule pt-10">
@@ -273,7 +267,12 @@ function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
                   scope="col"
                   className="px-2 pb-2 text-left align-bottom font-normal"
                 >
-                  <div className="font-mono text-meta">{product.variant ?? product.name}</div>
+                  <Link
+                    href={`/products/${product.external_id}`}
+                    className="block font-mono text-meta underline underline-offset-4 hover:text-accent"
+                  >
+                    {product.variant ?? product.name}
+                  </Link>
                   <div className="font-mono text-kicker text-ink-muted">
                     {product.revised ? product.revised : "revision unknown"}
                   </div>
