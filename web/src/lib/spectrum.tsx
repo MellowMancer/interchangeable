@@ -105,6 +105,13 @@ function SpectrumRow({
       })}
       <th scope="row" className="p-2 pl-4 text-left font-normal">
         <span className="block">{name}</span>
+        {/* A holder may hold several products, and they need not agree — without the
+            variant two of its rows read as the same label listed twice. */}
+        {(product?.variant ?? product?.name) && (
+          <span className="block font-mono text-kicker text-ink-muted">
+            {product?.variant ?? product?.name}
+          </span>
+        )}
         {cell.placement === "absent" && (
           <span className="block text-kicker text-ink-muted">
             not found in {scanned.length ? scanned.join(", ") : "any section"} as read here

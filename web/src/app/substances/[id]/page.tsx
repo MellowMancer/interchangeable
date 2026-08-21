@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppearanceRail } from "@/lib/appearance";
 import { notFound } from "next/navigation";
 import {
   conceptLabel,
@@ -16,7 +17,13 @@ import {
   sharedScanned,
   UNCLASSIFIED,
 } from "@/lib/finding";
-import { ABSENT, PLACEMENT_LEGEND, PlacementBadge, placementStyle } from "@/lib/placement";
+import {
+  ABSENT,
+  PLACEMENT_LEGEND,
+  PlacementBadge,
+  PlacementChip,
+  placementStyle,
+} from "@/lib/placement";
 import { RevisionTimeline } from "@/lib/timeline";
 
 /**
@@ -43,6 +50,9 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
 
   const { divergent, agreeing } = partition(matrix.rows);
   const concepts = divergent.length + agreeing.length;
+  // A holder may hold several products, and they need not agree with each other, so the
+  // two counts are different facts and the table shows both.
+  const holders = holderGroups(matrix.products).length;
 
   return (
     <div className="space-y-12">
@@ -51,8 +61,8 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           {matrix.substance_name}
         </h1>
         <p className="font-mono text-meta text-ink-muted">
-          {matrix.products.length} manufacturers · {concepts} concepts ·{" "}
-          {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
+          {holders} manufacturers · {matrix.products.length} products · {concepts} concepts
+          · {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
         <Link
           href="/"
@@ -61,7 +71,10 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           ← All substances
         </Link>
         <Classification products={matrix.products} />
-        <Indications groups={matrix.indications} total={matrix.products.length} />
+        <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,20rem)]">
+          <Indications groups={matrix.indications} total={matrix.products.length} />
+          <AppearanceRail products={matrix.products} />
+        </div>
       </header>
 
       {divergent.length > 0 ? (
@@ -116,62 +129,114 @@ const Kicker = ({ children }: { children: React.ReactNode }) => (
   <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
 );
 
+/** Above this many columns a badge no longer fits, and the cells become chips. */
+const COMPACT_ABOVE = 5;
+
+/**
+ * Products of one holder, kept adjacent and named once.
+ *
+ * Grouping is by `holder_id` where the label carries it, because `ma_holder` is free text
+ * and two spellings of one company would otherwise read as two manufacturers — invisible
+ * at three columns, certain at ten, and it would manufacture a divergence.
+ *
+ * The products are *not* merged. One holder's capsule and tablet disagree on seven
+ * concepts in the collected corpus — all of them excipients, which is exactly what
+ * changes between two formulations of the same molecule. Collapsing a holder into one
+ * column would delete that, so the holder spans its products rather than replacing them.
+ */
+function holderGroups(products: ProductColumn[]): { name: string; products: ProductColumn[] }[] {
+  const groups: { key: string; name: string; products: ProductColumn[] }[] = [];
+  for (const product of products) {
+    const key = product.holder_id === null ? `name:${manufacturer(product)}` : `id:${product.holder_id}`;
+    const held = groups.find((g) => g.key === key);
+    if (held) held.products.push(product);
+    else groups.push({ key, name: manufacturer(product), products: [product] });
+  }
+  return groups.map(({ name, products: p }) => ({ name, products: p }));
+}
+
 function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
+  const groups = holderGroups(matrix.products);
+  const ordered = groups.flatMap((g) => g.products);
+  const compact = ordered.length > COMPACT_ABOVE;
+
   return (
     <div className="space-y-2">
       {/* A cut-off table on a phone reads as broken rather than as scrollable. */}
       <p className="font-mono text-kicker text-ink-muted md:hidden">
-        scroll for all {matrix.products.length} manufacturers →
+        scroll for all {ordered.length} products →
       </p>
       <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-rule">
-            <th className="sticky left-0 z-10 bg-paper p-3 text-left align-bottom font-normal">
-              <span className="sr-only">Concept</span>
-            </th>
-            {matrix.products.map((product) => (
-              <th key={product.external_id} className="p-3 text-left align-bottom font-normal">
-                <div className="font-medium">{manufacturer(product)}</div>
-                <div className="font-mono text-meta text-ink-muted">
-                  {product.variant ?? product.name}
-                </div>
-                <div className="font-mono text-meta text-ink-muted">
-                  {product.revised ? `revised ${product.revised}` : "revision unknown"}
-                </div>
-                {product.discontinued && (
-                  <div className="font-mono text-meta text-accent">discontinued</div>
-                )}
-                {product.ma_number && (
-                  <div className="font-mono text-meta text-ink-muted">{product.ma_number}</div>
-                )}
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-paper p-2 text-left font-normal">
+                <span className="sr-only">Concept</span>
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.concept} className="border-b border-rule align-top">
-              <th className="sticky left-0 z-10 bg-paper p-3 text-left font-normal">
-                <Link
-                  href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
-                  className="underline underline-offset-4 hover:text-accent"
+              {groups.map((group) => (
+                <th
+                  key={group.name}
+                  colSpan={group.products.length}
+                  scope="colgroup"
+                  className="border-l border-rule px-2 pt-2 text-left align-bottom font-medium first:border-l-0"
                 >
-                  {conceptLabel(row.concept)}
-                </Link>
-              </th>
-              {row.cells.map((cell, order) => (
-                <td key={cell.product_external_id} className="p-3">
-                  <PlacementBadge
-                    placement={cell.placement}
-                    className="animate-land"
-                    delayMs={order * 70}
-                  />
-                </td>
+                  {group.name}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
+            <tr className="border-b border-rule">
+              <th className="sticky left-0 z-10 bg-paper p-2" />
+              {ordered.map((product) => (
+                <th
+                  key={product.external_id}
+                  scope="col"
+                  className="px-2 pb-2 text-left align-bottom font-normal"
+                >
+                  <div className="font-mono text-meta">{product.variant ?? product.name}</div>
+                  <div className="font-mono text-kicker text-ink-muted">
+                    {product.revised ? product.revised : "revision unknown"}
+                  </div>
+                  {product.discontinued && (
+                    <div className="font-mono text-kicker text-accent">discontinued</div>
+                  )}
+                  {!compact && product.ma_number && (
+                    <div className="font-mono text-kicker text-ink-muted">{product.ma_number}</div>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.concept} className="border-b border-rule align-top">
+                <th className="sticky left-0 z-10 bg-paper p-2 pr-4 text-left font-normal">
+                  <Link
+                    href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
+                    className="underline underline-offset-4 hover:text-accent"
+                  >
+                    {conceptLabel(row.concept)}
+                  </Link>
+                </th>
+                {ordered.map((product, order) => {
+                  const cell = row.cells.find((c) => c.product_external_id === product.external_id);
+                  return (
+                    <td key={product.external_id} className="px-1 py-2">
+                      {cell &&
+                        (compact ? (
+                          <PlacementChip placement={cell.placement} />
+                        ) : (
+                          <PlacementBadge
+                            placement={cell.placement}
+                            className="animate-land"
+                            delayMs={order * 70}
+                          />
+                        ))}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>

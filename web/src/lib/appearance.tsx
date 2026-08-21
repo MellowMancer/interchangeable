@@ -218,3 +218,60 @@ function DescribedProduct({ product }: { product: ProductColumn }) {
     </li>
   );
 }
+
+/**
+ * The products at a glance, for a header rather than a section of its own.
+ *
+ * The same drawing as `AppearanceStrip`, without the §3 text beside it. On the comparison
+ * screen the question is "what am I looking at" — seven labels, and whether they are
+ * capsules or tablets — while the wording that justifies each drawing belongs with the
+ * evidence, where a reader has already chosen to look closely.
+ *
+ * A separate component rather than a flag on the other: the two answer different
+ * questions, and one of them must never lose the text it is derived from.
+ */
+export function AppearanceRail({ products }: { products: ProductColumn[] }) {
+  const described = products.filter((product) => product.appearance);
+  if (described.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+        What they look like
+      </h2>
+
+      <ul className="space-y-2">
+        {described.map((product) => {
+          const appearance = product.appearance;
+          if (!appearance) return null;
+          const undrawn = undrawnBecause(appearance);
+          return (
+            <li key={product.external_id} className="flex items-center gap-3">
+              <span className="flex h-8 w-24 shrink-0 items-center">
+                {undrawn.length === 0 ? (
+                  <DosageGlyph appearance={appearance} />
+                ) : (
+                  <span className="font-mono text-kicker text-ink-muted">not drawn</span>
+                )}
+              </span>
+              <span className="text-meta">
+                <span className="block">{manufacturer(product)}</span>
+                <span className="block font-mono text-kicker text-ink-muted">
+                  {product.variant ?? product.name}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="text-kicker text-ink-muted">
+        Drawn from each label&apos;s section 3, never photographed — no photograph of any
+        product in this corpus exists.
+        {described.length < products.length && (
+          <> {described.length} of {products.length} labels have one collected.</>
+        )}
+      </p>
+    </section>
+  );
+}
