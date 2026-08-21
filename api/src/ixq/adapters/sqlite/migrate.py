@@ -41,6 +41,13 @@ def migrate(db_path: Path, target: int) -> int:
     Idempotent by version, not by statement: a file already at `target` is left untouched.
     Every step runs inside one transaction with the stamp, so an interrupted migration
     leaves the file on its old version rather than half-way between two.
+
+    The transaction is opened by hand. `with conn:` is not enough here: Python's `sqlite3`
+    starts an implicit transaction only before DML, so `ALTER TABLE` and the `PRAGMA`
+    stamp would each commit on their own and an interruption would leave columns added
+    with the version unchanged — after which every re-run dies on `duplicate column name`
+    and the corpus, which is hundreds of billable fetches, cannot be repaired by this
+    module at all. SQLite itself is happy to roll DDL back; only the driver needed telling.
     """
     if not db_path.exists():
         raise FileNotFoundError(f"{db_path} does not exist — `ixq init` creates it")
@@ -62,11 +69,17 @@ def migrate(db_path: Path, target: int) -> int:
                 "versions changed something other than added columns, which this module "
                 "cannot do safely — copy the rows into a fresh database instead."
             )
-        with conn:  # one transaction: the statements and the stamp commit together
+        conn.isolation_level = None
+        conn.execute("BEGIN")
+        try:
             for version in range(found + 1, target + 1):
                 for statement in ADDED[version]:
                     conn.execute(statement)
             conn.execute(f"PRAGMA user_version = {target}")
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
         return found
     finally:
         conn.close()
