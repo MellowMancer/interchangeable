@@ -212,6 +212,19 @@ class ClauseCoverage(BaseModel):
     unclassified: int
 
 
+class IndicationStatement(BaseModel):
+    """One indication, and how deeply the label itself nested it.
+
+    Depth is read from the marker the publisher wrote, never inferred from the sentence.
+    §4.1 is routinely two levels — a heading like "Treatment of renal disease:" followed
+    by the nephropathies it covers — and flattening them states that a label lists nine
+    equal indications when it lists five, two of which are qualified.
+    """
+
+    text: str
+    depth: int
+
+
 class IndicationGroup(BaseModel):
     """One §4.1 wording, and the manufacturers whose labels carry it.
 
@@ -222,7 +235,7 @@ class IndicationGroup(BaseModel):
     the point.
     """
 
-    statements: list[str]
+    statements: list[IndicationStatement]
     manufacturers: list[str]
 
 
@@ -512,6 +525,33 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
     return [column(product) for product in result.products]
 
 
+#: Markers a publisher uses for a nested item, as opposed to the "-" of a top-level one.
+_NESTED_MARKERS = "•·▪▫◦●○‣⁃∙*"
+
+
+def _nesting(text: str, start: int) -> int:
+    """How deeply the label nested the clause beginning at `start`.
+
+    Read from the marker the publisher wrote immediately before it, never guessed from the
+    wording. §4.1 is routinely two levels — "Treatment of renal disease:" followed by the
+    nephropathies it covers — and every label in this corpus writes the outer level as "-"
+    and the inner one as a bullet, but not the same bullet: one uses "•" after an em space,
+    one a "•" after a newline, and one the bare letter "o", which is why `BULLET` in the
+    splitter already recognises all three.
+
+    So the test is which kind of marker sits there, not which character. Anything with no
+    marker is top level, which is what a section written as plain sentences should be.
+    """
+    before = text[max(0, start - 8) : start].rstrip()
+    if not before:
+        return 0
+    if before[-1] in _NESTED_MARKERS:
+        return 1
+    # A lone "o" is a bullet; the same letter ending a word is not.
+    standalone = len(before) == 1 or before[-2].isspace()
+    return 1 if before[-1] in "oO" and standalone else 0
+
+
 def _indications(result: Comparison, stated: Mapping[str, str]) -> list[IndicationGroup]:
     """§4.1 across a substance's current labels, grouped by what they actually say.
 
@@ -533,8 +573,11 @@ def _indications(result: Comparison, stated: Mapping[str, str]) -> list[Indicati
         if not text:
             continue
         section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
-        statements = [clause.text for clause in clauses(section)]
-        words = prepared(" ".join(statements))
+        statements = [
+            IndicationStatement(text=clause.text, depth=_nesting(text, clause.start))
+            for clause in clauses(section)
+        ]
+        words = prepared(" ".join(s.text for s in statements))
         # Punctuation first, whitespace after: dropping a full stop leaves the space it
         # sat between, and collapsing before the strip leaves two where there was one.
         key = " ".join("".join(c if c.isalnum() else " " for c in words).split())

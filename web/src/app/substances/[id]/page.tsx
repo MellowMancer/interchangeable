@@ -153,9 +153,10 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
       <div className="grid gap-10 lg:grid-cols-2">
         {sections.map((section) => (
           <article key={section.code} className="space-y-3">
-            <h3 className="flex items-baseline gap-3">
-              <span className="font-mono text-meta text-ink-muted">§{section.code}</span>
-              <span>{section.heading}</span>
+            {/* The app's voice, in the app's face: everything below is the label's own
+                words in serif, and a heading set like them reads as one of them. */}
+            <h3 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+              §{section.code} — {section.heading}
             </h3>
             <ul className="divide-y divide-rule border-y border-rule">
               {section.groups.map((group) => (
@@ -397,10 +398,19 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
               as stated by {group.manufacturers.join(", ")}
             </p>
           )}
+          {/* Indented as the label indents it. Ten equal lines said this substance is
+              authorised for ten things; it is authorised for five, two of them qualified. */}
           <ul className="space-y-1">
             {group.statements.map((statement) => (
-              <li key={statement} className="border-l-2 border-rule pl-4 text-meta">
-                {statement}
+              <li
+                key={statement.text}
+                className={
+                  statement.depth === 0
+                    ? "border-l-2 border-rule pl-4 text-meta"
+                    : "ml-6 border-l border-rule pl-4 text-meta text-ink-muted"
+                }
+              >
+                {statement.text}
               </li>
             ))}
           </ul>

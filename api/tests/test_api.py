@@ -513,7 +513,10 @@ def test_indications_are_grouped_by_what_the_labels_state(
     groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
 
     assert len(groups) == 1, "spacing and a full stop are not a difference of indication"
-    assert groups[0]["statements"] == ["Treatment of hypertension.", "Renal disease."]
+    assert [s["text"] for s in groups[0]["statements"]] == [
+        "Treatment of hypertension.",
+        "Renal disease.",
+    ]
     assert len(groups[0]["manufacturers"]) == 2
 
 
@@ -654,3 +657,31 @@ def test_the_roster_carries_the_names_on_a_box(
 
     assert found["labels"], "a collected substance must be searchable by its labels"
     assert len(found["labels"]) >= found["products"]
+
+
+def test_indications_keep_the_nesting_the_label_wrote(
+    client: TestClient, repository: Repository
+) -> None:
+    """Publishers indent §4.1, and flattening it overstates what a licence covers.
+
+    Three labels in the real corpus mark a nested item three different ways — an em space
+    then a bullet, a newline then a bullet, and the bare letter "o" — so the rule reads
+    which kind of marker sits before a clause, never which character.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        for sha, text in (
+            (
+                "1".rjust(64, "0"),
+                "- Treatment of renal disease:\n\no Incipient nephropathy,\n"
+                " • Manifest nephropathy.\n- Treatment of hypertension.",
+            ),
+        ):
+            repository.save_section(
+                sha, Section(code="4.1", heading="Therapeutic indications", text=text)
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+    depths = [(s["text"][:20], s["depth"]) for s in groups[0]["statements"]]
+
+    assert [depth for _, depth in depths] == [0, 1, 1, 0], depths

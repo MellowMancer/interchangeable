@@ -70,7 +70,13 @@ export type ProductColumn = {
 export type ClauseCoverage = { classified: number; unclassified: number };
 
 /** One §4.1 wording, and the manufacturers whose labels carry it. */
-export type IndicationGroup = { statements: string[]; manufacturers: string[] };
+/** One indication, and how deeply the label itself nested it. */
+export type IndicationStatement = { text: string; depth: number };
+
+export type IndicationGroup = {
+  statements: IndicationStatement[];
+  manufacturers: string[];
+};
 
 export type Matrix = {
   substance_id: string;
