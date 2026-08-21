@@ -8,8 +8,9 @@ the network unless something hands it a client that can.
     BDHEAL_BENCH=1 BDHEAL_PAGES_URL=https://<owner>.github.io/<repo> \
       uv run --package bdheal python fixtures/benchmark.py
 
-**This costs real Bright Data credit and hours of wall-clock**: nine collectors built at
-roughly two minutes each, then several collector runs per case. State is written per case,
+**This costs real Bright Data credit and hours of wall-clock**: ten collectors built at
+roughly two minutes each — one per mutation class plus the unmutated control — then several
+collector runs per case. State is written per case,
 so re-running with the same `--run-id` executes only what is left, and collector ids are
 remembered so a second run does not pay to build them again.
 
