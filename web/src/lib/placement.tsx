@@ -93,6 +93,29 @@ export const SECTION_PLACEMENTS: Placement[] = (Object.keys(STYLES) as Placement
 );
 
 /**
+ * A placement at column width, for a matrix too wide to carry words.
+ *
+ * The section number alone, because above about five manufacturers a badge reading
+ * `CONTRAINDICATED §4.3` needs more width than a column has. The words move to the
+ * legend, which is rendered from `PLACEMENT_LEGEND` and so cannot drift from this.
+ *
+ * Absence keeps its own treatment here as everywhere: unfilled, dashed, and never a
+ * colour. Shrinking a cell is a reason to say less, never a reason to say it differently.
+ */
+export function PlacementChip({ placement }: { placement: string }) {
+  const style = placementStyle(placement);
+  return (
+    <span
+      title={style.detail}
+      className={`inline-flex h-7 w-full min-w-12 items-center justify-center rounded-sheet border font-mono text-kicker ${style.className}`}
+    >
+      <span aria-hidden>{style.section ?? "—"}</span>
+      <span className="sr-only">{style.label}</span>
+    </span>
+  );
+}
+
+/**
  * The one place a placement becomes markup.
  *
  * Every screen mounts the same element, so the guarantee that absence renders unfilled

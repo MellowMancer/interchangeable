@@ -98,8 +98,10 @@ function Manufacturer({
   const name = product ? manufacturer(product) : cell.product_external_id;
 
   return (
-    <section className="space-y-4 py-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <section className="grid gap-6 py-8 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
+      {/* Who is speaking, and where in their label — left. What they say — right. The
+          quote is the wider half because it is the only part a reader has to read. */}
+      <div className="space-y-3">
         <div className="space-y-1">
           <h2 className="font-medium">{name}</h2>
           {sharedWith.length > 0 && (
@@ -112,44 +114,42 @@ function Manufacturer({
             {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}
           </p>
         </div>
-        <PlacementBadge placement={cell.placement} />
-      </header>
+        <PlacementBadge placement={cell.placement} className="self-start" />
+        {cell.evidence && cell.context && (
+          <QuotePosition
+            charStart={cell.evidence.char_start}
+            charEnd={cell.evidence.char_end}
+            sectionLength={cell.context.section_length}
+            sectionCode={cell.evidence.section_code}
+          />
+        )}
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-block font-mono text-meta text-accent underline underline-offset-4"
+          >
+            Source SmPC ↗
+          </a>
+        )}
+      </div>
 
+      <div className="space-y-4">
       {cell.evidence ? (
         <>
           {cell.context ? (
             <InContext context={cell.context} />
           ) : (
-            <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote">
+            <blockquote className="border-l-2 border-rule pl-6 font-serif text-quote">
               &ldquo;{cell.evidence.quote}&rdquo;
             </blockquote>
           )}
-          {cell.context && (
-            <QuotePosition
-              charStart={cell.evidence.char_start}
-              charEnd={cell.evidence.char_end}
-              sectionLength={cell.context.section_length}
-              sectionCode={cell.evidence.section_code}
-            />
-          )}
-          <p className="font-mono text-meta text-ink-muted">
-            {sourceUrl && (
-              <>
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-accent underline underline-offset-4"
-                >
-                  Source SmPC ↗
-                </a>
-              </>
-            )}
-          </p>
         </>
       ) : (
-        <Absence product={product} sourceUrl={sourceUrl} />
+        <Absence product={product} />
       )}
+      </div>
     </section>
   );
 }
@@ -189,35 +189,15 @@ function InContext({ context }: { context: ContextWindow }) {
  * the claim reads as an omission from the label, which is a claim this project has not
  * checked and does not make.
  */
-function Absence({
-  product,
-  sourceUrl,
-}: {
-  product: ProductColumn | undefined;
-  sourceUrl: string | undefined;
-}) {
+function Absence({ product }: { product: ProductColumn | undefined }) {
   const scanned = product?.scanned ?? [];
   return (
     <>
-      <p className="max-w-prose border-l-2 border-dashed border-rule pl-6 text-ink-muted">
+      <p className="border-l-2 border-dashed border-rule pl-6 text-ink-muted">
         No match in {scanned.length ? `sections ${scanned.join(", ")}` : "any section"} as
         read for this label. Not the same as the label being silent.
       </p>
       <SectionCoverage scanned={scanned} />
-      <p className="font-mono text-meta text-ink-muted">
-        {sourceUrl && (
-          <>
-            <a
-              href={sourceUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="text-accent underline underline-offset-4"
-            >
-              Source SmPC ↗
-            </a>
-          </>
-        )}
-      </p>
     </>
   );
 }
