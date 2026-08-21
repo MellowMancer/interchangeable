@@ -162,6 +162,7 @@ def shortlist(products: Sequence[Product], cap: int) -> list[Product]:
     commonest = presentations.most_common(1)[0][0] if presentations else None
 
     chosen: list[Product] = []
+    taken: set[str] = set()
     held: set[str] = set()
 
     def take(candidates: Iterable[Product], *, one_per_holder: bool) -> None:
@@ -169,13 +170,15 @@ def shortlist(products: Sequence[Product], cap: int) -> list[Product]:
             if len(chosen) == cap:
                 return
             holder = product.ma_holder or product.external_id
+            if product.external_id in taken:
+                continue
             if one_per_holder and holder in held:
                 continue
             held.add(holder)
+            taken.add(product.external_id)
             chosen.append(product)
 
-    at_commonest = [p for p in products if _presentation(p.name) == commonest]
-    take(at_commonest, one_per_holder=True)
-    take((p for p in products if p not in chosen), one_per_holder=True)
-    take((p for p in products if p not in chosen), one_per_holder=False)
+    take((p for p in products if _presentation(p.name) == commonest), one_per_holder=True)
+    take(products, one_per_holder=True)
+    take(products, one_per_holder=False)
     return chosen

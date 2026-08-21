@@ -14,7 +14,7 @@ from ixq.adapters.config import (
 from ixq.adapters.sqlite import SCHEMA_VERSION, SqliteRepository, connect, migrate
 from ixq.domain import Collector, CollectorKind
 from ixq.pipeline.classify import classify_document
-from ixq.pipeline.collect import collect
+from ixq.pipeline.collect import collect, shortlist
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
 from ixq.pipeline.ports import CollectorMaintainer
@@ -141,8 +141,12 @@ def run(
             with repository.transaction():
                 repository.save_source(source)
                 found = collect(item, source, by_kind[CollectorKind.SEARCH], labels, repository)
-            chosen = found[:products] if products else found
-            typer.echo(f"{item.id}: {len(found)} products, fetching {len(chosen)}")
+            chosen = shortlist(found, products)
+            holders = len({p.ma_holder or p.external_id for p in chosen})
+            typer.echo(
+                f"{item.id}: {len(found)} products, fetching {len(chosen)} "
+                f"from {holders} manufacturers"
+            )
 
             for product in chosen:
                 _one_label(product, source, by_kind, labels, concepts, repository)

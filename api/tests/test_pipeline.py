@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from ixq.domain import COMPARABLE, Product, Source, Substance
-from ixq.pipeline.collect import collect, is_combination
+from ixq.pipeline.collect import collect, is_combination, shortlist
 from ixq.domain.sections import STORED_ONLY
 from ixq.pipeline.fetch import SECTIONS, fetch
 from ixq.pipeline.ports import Repository
@@ -498,3 +498,66 @@ def test_a_concentration_is_still_not_a_combination() -> None:
     assert not is_combination("Ramipril 2.5 mg/5 ml Oral solution")
     assert not is_combination("Amlodipine 10mg/5ml Oral Solution")
     assert not is_combination("Amlodipine 1 mg/ml Oral Suspension")
+
+
+def _product(external_id: str, name: str, holder: str) -> Product:
+    return Product(
+        source_id="emc",
+        external_id=external_id,
+        substance_id="example",
+        name=name,
+        ma_holder=holder,
+    )
+
+
+def test_the_shortlist_prefers_a_new_manufacturer_over_another_of_the_same() -> None:
+    """Discovery order spent three of ramipril's seven fetches on one holder.
+
+    A column is a manufacturer, so a second product from a holder already represented
+    buys nothing the comparison can use while another holder goes uncollected.
+    """
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 5mg Tablets", "Alpha"),
+        _product("3", "Ex 5mg Tablets", "Beta"),
+    ]
+
+    chosen = shortlist(products, 2)
+
+    assert {p.ma_holder for p in chosen} == {"Alpha", "Beta"}
+
+
+def test_the_shortlist_holds_one_presentation_where_it_can() -> None:
+    """Mixing forms imports differences that are not the manufacturer's choice.
+
+    Ramipril's one refrigerated label is an oral solution and the rest are tablets;
+    reading them side by side invites "these disagree about storage" when what differs
+    is the formulation.
+    """
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 1mg/ml Oral Solution", "Beta"),
+        _product("3", "Ex 5mg Tablets", "Gamma"),
+    ]
+
+    chosen = shortlist(products, 2)
+
+    assert [p.name for p in chosen] == ["Ex 5mg Tablets", "Ex 5mg Tablets"]
+
+
+def test_the_shortlist_fills_its_cap_rather_than_starving() -> None:
+    """Once every holder at the chosen presentation is taken, the rest still count."""
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 1mg/ml Oral Solution", "Alpha"),
+        _product("3", "Ex 10mg Tablets", "Alpha"),
+    ]
+
+    assert len(shortlist(products, 3)) == 3
+    assert len(shortlist(products, 2)) == 2
+
+
+def test_the_shortlist_returns_everything_when_under_the_cap() -> None:
+    products = [_product("1", "Ex 5mg Tablets", "Alpha")]
+    assert shortlist(products, 10) == products
+    assert shortlist(products, 0) == products
