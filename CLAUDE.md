@@ -30,6 +30,8 @@ Project-specific: FastAPI is the seam between pipeline and UI — the frontend n
 
 `docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface, not `docs/superseded-municipal-agendas.md`.
 
+`docs/EMC_FIELDS.md` is the authority on what an EMC product page exposes — check it before assuming a field must be derived or is unavailable.
+
 `docs/interchangeable.md` is the live implementation plan. `docs/superseded-municipal-agendas.md` is retained only as the record of the government-host block and the `bdheal` package split.
 
 ## Commits
