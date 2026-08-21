@@ -1,9 +1,14 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import { conceptLabel, getMatrix, getSubstances, type Matrix, type Row, type SubstanceSummary } from "@/lib/api";
-import { AppearanceStrip } from "@/lib/appearance";
-import { featuredSubstance, rankedDivergences, rankedPreviews } from "@/lib/finding";
-import { PlacementSpectrum } from "@/lib/spectrum";
-import { PlacementBadge } from "@/lib/placement";
+import { conceptLabel, getSubstances, type SubstanceSummary } from "@/lib/api";
+import { rankedPreviews } from "@/lib/finding";
+import { PLACEMENT_LEGEND, PlacementBadge } from "@/lib/placement";
+
+/** Degrees of splay between neighbouring chips in the placement fan. */
+const ANGLE_PER_CHIP = 18;
+
+/** How far each chip lifts out of the stack, along its own axis, in pixels. */
+const LIFT_PER_CHIP = 18;
 
 /** How many disagreements a card advertises before it defers to the comparison itself. */
 const PREVIEW_LIMIT = 3;
@@ -23,16 +28,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
 
   const substances = await getSubstances();
-  const featured = featuredSubstance(substances);
-  const matrix = featured ? await getMatrix(featured.id) : null;
-  const top = matrix ? (rankedDivergences(matrix.rows)[0] ?? null) : null;
   const matching = substances.filter((substance) => matches(substance, query));
   const collected = matching.filter((substance) => substance.products > 0);
   const uncollected = matching.filter((substance) => substance.products === 0);
 
   return (
     <div className="space-y-12">
-      <header className="space-y-5">
+      <header className="grid items-center gap-10 lg:grid-cols-[1fr_minmax(0,22rem)]">
+        <div className="space-y-5">
         {/* Its own measure: inside the prose column a display size wraps to three uneven
             lines, and the strapline is the one thing on the page that must land cleanly. */}
         <h1 className="max-w-3xl font-serif text-display font-normal text-balance">
@@ -50,9 +53,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           The question mark is deliberate. This asks whether these products really are
           interchangeable; it does not assert that they are not.
         </p>
+        </div>
+        <PlacementFan />
       </header>
-
-      {matrix && top && <Hero matrix={matrix} row={top} />}
 
       <Search query={query} total={substances.length} />
 
@@ -100,32 +103,47 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 }
 
 /**
- * The sharpest disagreement in the corpus, shown rather than described.
+ * The vocabulary itself, fanned out.
  *
- * Derived — most divergent substance, then its strongest-ranked concept — so the landing
- * screen follows the corpus instead of freezing on whatever was collected first. It is
- * the finding itself, not a link to it: a reader who never scrolls has still seen the
- * thing the project exists to show.
+ * Every cell on every comparison is one of these, so showing them here teaches the whole
+ * grid before a reader meets it — and the header's right half was empty.
+ *
+ * Rendered from `PLACEMENT_LEGEND`, so it is necessarily the set the tables actually draw
+ * and cannot drift from them. It asserts nothing about the corpus: these are the places a
+ * concept can be filed, not a finding about any substance.
  */
-function Hero({ matrix, row }: { matrix: Matrix; row: Row }) {
+function PlacementFan() {
+  const chips = PLACEMENT_LEGEND.filter((style) => style.section);
+  const middle = (chips.length - 1) / 2;
+
   return (
-    <section className="space-y-8 border-y border-rule py-10">
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-          {matrix.substance_name} · {conceptLabel(row.concept)}
-        </p>
-        <Link
-          href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
-          className="text-meta text-accent underline underline-offset-4"
-        >
-          Read the quoted text behind this →
-        </Link>
-      </div>
-
-      <PlacementSpectrum cells={row.cells} products={matrix.products} />
-
-      <AppearanceStrip products={matrix.products} />
-    </section>
+    <ul aria-hidden className="relative hidden h-52 lg:block">
+      {chips.map((style, index) => {
+        const offset = index - middle;
+        return (
+          <li
+            key={style.label}
+            style={
+              {
+                // Every card pivots on the same point at its left edge, so they splay
+                // like a hand held at one corner. About their own centres they would
+                // cross over. The lift is in the card's own rotated frame, so it clears
+                // its neighbour rather than sliding along it; `.fan-chip` assembles both
+                // into the transform and adds the hover slide.
+                transformOrigin: "0% 50%",
+                "--fan-angle": `${offset * ANGLE_PER_CHIP}deg`,
+                "--fan-lift": `${offset * LIFT_PER_CHIP}px`,
+                zIndex: index,
+              } as CSSProperties
+            }
+            className={`fan-chip absolute top-1/2 left-0 flex w-60 items-baseline justify-end gap-4 rounded-sheet border px-4 py-3 font-mono text-meta ${style.className}`}
+          >
+            <span>{style.label}</span>
+            <span className="opacity-80">{style.section}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -146,8 +164,11 @@ function matches(substance: SubstanceSummary, query: string): boolean {
 
 function Search({ query, total }: { query: string; total: number }) {
   return (
-    <form action="/" className="max-w-prose space-y-2">
-      <label htmlFor="q" className="block font-mono text-kicker tracking-widest text-ink-muted uppercase">
+    <form action="/" className="space-y-3">
+      <label
+        htmlFor="q"
+        className="block font-mono text-kicker tracking-widest text-ink-muted uppercase"
+      >
         Search {total} substances
       </label>
       <div className="flex gap-3">
@@ -157,11 +178,13 @@ function Search({ query, total }: { query: string; total: number }) {
           name="q"
           defaultValue={query}
           placeholder="a substance, or a concept they disagree about"
-          className="w-full rounded-sheet border border-rule bg-paper px-3 py-2 text-body text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
+          className="w-full rounded-sheet border border-rule bg-paper px-4 py-3.5 text-quote text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
         />
+        {/* The page's only filled control. In a document idiom prominence comes from
+            scale and a single solid mark, not from adding chrome to everything. */}
         <button
           type="submit"
-          className="rounded-sheet border border-rule px-4 py-2 font-mono text-kicker tracking-widest uppercase hover:border-accent hover:text-accent"
+          className="shrink-0 rounded-sheet border border-accent bg-accent px-6 py-3.5 font-mono text-kicker tracking-widest text-paper uppercase hover:border-ink hover:bg-ink"
         >
           Search
         </button>
