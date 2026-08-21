@@ -1,6 +1,15 @@
 """S5. The matrix, and the discipline that keeps `absent` honest."""
 
-from ixq.domain import Document, Occurrence, Placement, Product, Section, Source, Substance
+from ixq.domain import (
+    Document,
+    Occurrence,
+    Placement,
+    Product,
+    Section,
+    Source,
+    Substance,
+    appearance,
+)
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.ports import Repository
 from conftest import SOURCE_ID, SUBSTANCE_ID
@@ -163,3 +172,23 @@ def test_a_substance_with_no_labels_compares_to_nothing(repository: Repository) 
     result = compare(SUBSTANCE_ID, repository)
 
     assert result.rows == () and result.products == () and result.scanned == {}
+
+
+def test_the_appearance_section_never_enters_the_scanned_scope(
+    repository: Repository,
+) -> None:
+    """Every `ABSENT` on the site is scoped to `scanned`, so what goes in it is the claim.
+
+    §3 describes the capsule. A concept could never have been found there, so listing it
+    as scanned would widen the scope of every absence in that column to a section that
+    cannot support it.
+    """
+    _seed_source(repository)
+    _label(
+        repository,
+        "1001",
+        "Alpha Ltd",
+        {appearance.SECTION_CODE: "Orange/White capsule.", "4.3": SECTION_43},
+    )
+
+    assert compare(SUBSTANCE_ID, repository).scanned == {"1001": ("4.3",)}

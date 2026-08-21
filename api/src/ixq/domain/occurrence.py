@@ -46,3 +46,51 @@ def found_in(
         char_start=char_start,
         char_end=char_end,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Context:
+    """A quote's surroundings, with the quote's own span inside them.
+
+    `text` is a slice of the stored section, never a cleaned copy, so `text[quote_start:
+    quote_end]` is byte-identical to the occurrence's quote — the same guarantee the
+    offsets carry, held one level down.
+
+    `truncated_start` and `truncated_end` say which ends were cut. Without them a window
+    that stops mid-sentence is indistinguishable from a section that ends there, and the
+    reader is invited to conclude the label says nothing further.
+    """
+
+    text: str
+    quote_start: int
+    quote_end: int
+    truncated_start: bool
+    truncated_end: bool
+    # The whole section's length, which the window alone cannot imply. Without it a
+    # reader can see the quote's surroundings but not where in the section it falls, and
+    # a clause near the end is indistinguishable from one near the start.
+    section_length: int
+
+
+def in_context(section_text: str, occurrence: Occurrence, radius: int) -> Context:
+    """The section text `radius` characters either side of an occurrence's quote.
+
+    Takes the text rather than a `Section` because the caller reads one section's body by
+    document and code; demanding the whole entity would make it fetch a heading and a
+    code it already holds.
+
+    Offsets come back relative to the window so the caller highlights by slicing. Locating
+    the quote by searching the window instead lands on the wrong instance wherever a
+    clause repeats within a section, and the highlight then marks a sentence the
+    occurrence does not claim.
+    """
+    start = max(0, occurrence.char_start - radius)
+    end = min(len(section_text), occurrence.char_end + radius)
+    return Context(
+        text=section_text[start:end],
+        quote_start=occurrence.char_start - start,
+        quote_end=occurrence.char_end - start,
+        truncated_start=start > 0,
+        truncated_end=end < len(section_text),
+        section_length=len(section_text),
+    )

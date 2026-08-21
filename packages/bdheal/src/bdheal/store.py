@@ -138,6 +138,14 @@ class SqliteHealStore:
         ).fetchall()
         return [row["case_id"] for row in rows]
 
+    def bench_runs(self) -> list[str]:
+        """Every run id present, oldest first — ordered by when each run's first case landed."""
+        rows = self._conn.execute(
+            "SELECT run_id FROM bdheal_bench_cases "
+            "GROUP BY run_id ORDER BY MIN(completed_at), run_id"
+        ).fetchall()
+        return [row["run_id"] for row in rows]
+
     def bench_cases(self, run_id: str) -> list[BenchCase]:
         """Every finished case in this run, so a restarted process can publish its metrics."""
         rows = self._conn.execute(

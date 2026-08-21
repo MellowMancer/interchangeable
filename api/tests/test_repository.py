@@ -7,16 +7,19 @@ import pytest
 
 from ixq.adapters.sqlite.repository import SCHEMA_VERSION, connect
 from ixq.domain import (
+    UNCLASSIFIED,
     Collector,
     CollectorKind,
     Document,
+    Placement,
     Product,
     Section,
     Source,
     Substance,
+    appearance,
     found_in,
 )
-from ixq.pipeline.ports import Repository
+from ixq.pipeline.ports import ClauseCounts, Repository
 from conftest import DOC_SHA, PRODUCT_EXTERNAL_ID, SECTION, SOURCE_ID, SUBSTANCE_ID
 
 
@@ -99,6 +102,23 @@ def test_sections_come_back_verbatim(repository: Repository, seeded_product: Pro
 
     assert len(sections) == 1
     assert sections[0].text == SECTION.text
+
+
+def test_one_sections_text_can_be_read_without_the_rest_of_the_label(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """Showing a quote in context needs the one body it was sliced from, not four of them."""
+    text = repository.section_text(DOC_SHA, SECTION.code)
+
+    assert text == SECTION.text
+    assert text[42:65] == "Severe renal impairment"
+
+
+def test_a_section_the_document_never_had_reads_as_none_rather_than_empty(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """Never stored and stored empty are different claims about what was scanned."""
+    assert repository.section_text(DOC_SHA, "4.5") is None
 
 
 def test_substance_and_source_survive_a_reload(
@@ -285,3 +305,92 @@ def test_section_codes_are_grouped_per_document(repository: Repository) -> None:
 
     assert len(codes) == 2
     assert all(found == ("4.3", "4.4") for found in codes.values())
+
+
+def test_previewed_divergences_agree_with_building_the_comparison(
+    repository: Repository,
+) -> None:
+    """The roster previews concepts it never compares. It must not advertise the wrong ones.
+
+    Same justification as the counts above: the index screen names a substance's
+    disagreements from SQL, and a card that promised a concept the comparison does not
+    show would be a lie told to whoever chose not to click.
+    """
+    from conftest import divergent_corpus
+    from ixq.pipeline.diverge import compare
+
+    divergent_corpus(repository)
+
+    previewed = repository.divergences_by_substance()[SUBSTANCE_ID]
+    built = compare(SUBSTANCE_ID, repository)
+
+    assert {d.concept for d in previewed} == {row.concept for row in built.divergent}
+    for preview in previewed:
+        row = next(r for r in built.rows if r.concept == preview.concept)
+        assert set(preview.placements) == {p.value for p in row.placements.values()} | (
+            {Placement.ABSENT.value} if len(row.placements) < len(built.products) else set()
+        )
+
+
+def test_a_lone_product_has_nothing_to_disagree_with(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """One manufacturer cannot diverge from itself, and must not be previewed as if it had."""
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, "renal", 0, 20))
+
+    assert repository.divergences_by_substance().get(SUBSTANCE_ID, ()) == ()
+
+
+def test_clause_counts_split_what_the_lexicon_matched_from_what_it_missed(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """The recall gap is published as counts, so the counting must be right."""
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, "renal", 0, 20))
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, UNCLASSIFIED, 20, 40))
+    repository.save_occurrence(found_in(SECTION, DOC_SHA, UNCLASSIFIED, 40, 60))
+
+    counted = repository.clause_counts(SUBSTANCE_ID)
+
+    assert counted.classified == 1
+    assert counted.unclassified == 2
+
+
+def test_clause_counts_are_zero_for_a_substance_with_nothing_stored(
+    repository: Repository,
+) -> None:
+    """Nothing collected is nothing counted, never a gap of unknown size."""
+    assert repository.clause_counts("nonesuch") == ClauseCounts(classified=0, unclassified=0)
+
+
+def _describe(repository: Repository, text: str) -> None:
+    """Store the seeded document's §3, the way `fetch` will once the collector returns it."""
+    repository.save_section(
+        DOC_SHA,
+        Section(code=appearance.SECTION_CODE, heading="Pharmaceutical form", text=text),
+    )
+
+
+def test_the_appearance_comes_back_keyed_by_the_document_it_belongs_to(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """Keyed by document, so a revised label cannot show the previous one's description."""
+    described = "Orange/White size '4' hard gelatin capsules."
+    _describe(repository, described)
+
+    assert repository.appearances_for_substance(SUBSTANCE_ID) == {DOC_SHA: described}
+
+
+def test_a_label_with_no_appearance_stored_is_absent_not_empty(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """"Nobody described it" and "described as nothing" are different claims."""
+    assert repository.appearances_for_substance(SUBSTANCE_ID) == {}
+
+
+def test_the_appearance_query_reads_no_other_section(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """§4.4 runs to kilobytes; this must never be a way to drag one back."""
+    _describe(repository, "Red tablet.")
+
+    assert list(repository.appearances_for_substance(SUBSTANCE_ID).values()) == ["Red tablet."]

@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from ixq.domain import UNCLASSIFIED, Concept, Occurrence, Section, clauses, found_in
+from ixq.domain import COMPARABLE, UNCLASSIFIED, Concept, Occurrence, Section, clauses, found_in
 from ixq.pipeline.ports import Repository
 
 
@@ -38,6 +38,13 @@ def classify_document(
     cut gives the same finding a new span, and inserting without clearing leaves the old
     row beside it. On a document that has none — the fetch path — the clear does nothing.
 
+    Sections outside `COMPARABLE` are skipped. §3 describes what the product looks like
+    rather than naming a place a concept can sit, so classifying it would mint occurrences
+    whose section code is not a `Placement` — which `compare` cannot read, and which would
+    put an appearance in the matrix. The rule lives here rather than at the call site
+    because both paths into this table have to obey it, and one that did not would quietly
+    reintroduce the rows the other refuses to make.
+
     The caller owns the transaction, as everywhere else in the pipeline. It has to: a
     failure between the clear and the last insert would otherwise leave a document whose
     sections are intact and whose findings are gone.
@@ -45,6 +52,8 @@ def classify_document(
     repository.delete_occurrences(document_sha256)
     stored = 0
     for section in repository.sections_for_document(document_sha256):
+        if section.code not in COMPARABLE:
+            continue
         for occurrence in classify(section, document_sha256, concepts):
             repository.save_occurrence(occurrence)
             stored += 1

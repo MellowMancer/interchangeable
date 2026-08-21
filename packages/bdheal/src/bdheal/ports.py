@@ -98,6 +98,15 @@ class HealStore(Protocol):
         """The case ids already finished in this run. The runner skips these."""
         ...
 
+    def bench_runs(self) -> list[str]:
+        """Every run id present, oldest first.
+
+        A reader that has to name a run in advance can only report the run it already
+        knew about, which is the one way a benchmark can be made to look better than it
+        was. Enumerating them means a later run cannot silently replace an earlier one.
+        """
+        ...
+
     def bench_cases(self, run_id: str) -> list[BenchCase]:
         """Every finished case in this run, oldest case id first.
 

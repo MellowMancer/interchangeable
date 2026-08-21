@@ -381,3 +381,28 @@ def test_reclassifying_picks_up_a_lexicon_change_without_a_fetch(
 
     assert before == {"renal"}
     assert after == {"hypersensitivity"}, "a concept dropped from the lexicon stops being claimed"
+
+
+def test_reclassifying_skips_the_appearance_section(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """§3 must not become an occurrence, whichever path reaches the table.
+
+    Its code is not a `Placement`, so an occurrence carrying it makes `compare` raise on
+    read and puts a description of a capsule in a matrix of clinical placements. The fetch
+    path already refused it; a second path that did not would quietly put the rows back.
+    """
+    repository.save_section(
+        DOC_SHA,
+        Section(
+            code="3",
+            heading="Pharmaceutical form",
+            text="Orange/White size 4 hard gelatin capsules with renal markings.",
+        ),
+    )
+
+    with repository.transaction():
+        classify_document(DOC_SHA, repository, [Concept(name="renal", patterns=("renal",))])
+
+    codes = {o.section_code for o in repository.occurrences_for_substance(SUBSTANCE_ID)}
+    assert codes == {"4.3"}, "the §3 text matched the concept and was still not stored"

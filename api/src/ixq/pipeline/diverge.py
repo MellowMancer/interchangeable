@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ixq.domain import Document, Occurrence, Placement, Product
+from ixq.domain import COMPARABLE, Document, Occurrence, Placement, Product
 from ixq.pipeline.ports import Repository
 
 PRECEDENCE = (
@@ -93,9 +93,12 @@ def compare(substance_id: str, repository: Repository) -> Comparison:
     current = {d.product_external_id: d for d in documents}
     by_sha = {d.sha256: d for d in current.values()}
 
+    # Only the sections a concept can be placed in. A label also stores §3, its own
+    # appearance, and admitting that here would claim it was scanned for concepts — while
+    # every `ABSENT` on the site is scoped to exactly this list.
     codes = repository.section_codes_for_substance(substance_id)
     scanned = {
-        external_id: tuple(sorted(codes.get(document.sha256, ())))
+        external_id: tuple(sorted(c for c in codes.get(document.sha256, ()) if c in COMPARABLE))
         for external_id, document in current.items()
     }
 

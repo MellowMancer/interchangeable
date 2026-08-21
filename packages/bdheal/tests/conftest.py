@@ -233,6 +233,16 @@ class InMemoryHealStore:
         """The case ids already finished in this run."""
         return [case_id for run, case_id in self.cases if run == run_id]
 
+    def bench_runs(self) -> list[str]:
+        """Every run id present, ordered as the SQLite adapter orders them."""
+        def when(case: BenchCase) -> tuple[bool, object]:
+            return (case.completed_at is None, case.completed_at)
+
+        by_run: dict[str, BenchCase] = {}
+        for case in sorted(self.cases.values(), key=when):
+            by_run.setdefault(case.run_id, case)
+        return list(by_run)
+
     def bench_cases(self, run_id: str) -> list[BenchCase]:
         """Every finished case in this run, ordered as the SQLite adapter orders them."""
         return [case for (run, _), case in sorted(self.cases.items()) if run == run_id]

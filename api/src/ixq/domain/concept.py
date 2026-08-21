@@ -34,6 +34,20 @@ class Placement(StrEnum):
     ABSENT = "absent"
 
 
+COMPARABLE = frozenset(p.value for p in Placement if p is not Placement.ABSENT)
+"""Section codes a concept can be filed in — the entire vocabulary of the comparison.
+
+A label carries sections that are stored but never compared. §3 is the product's own
+appearance: metadata about the object, not a place a safety concept can sit. Every
+absence claim in the UI is scoped to the sections scanned, so admitting one of these
+would measure an absence against a section that could never have contained the concept —
+and every absence on the site would start overstating what was looked at.
+
+Held here rather than restated at each boundary, so classification and `scanned` can
+never disagree about which sections the comparison is entitled to read.
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class Concept:
     """A named clinical concept and the stems that identify it in prose.
