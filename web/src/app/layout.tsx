@@ -57,6 +57,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               >
                 Reliability
               </Link>
+              <Link
+                href="/reading"
+                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+              >
+                Reading
+              </Link>
             </div>
           </nav>
         </header>
