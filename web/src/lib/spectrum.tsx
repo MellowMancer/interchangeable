@@ -17,6 +17,9 @@
 import { manufacturer, type Cell, type ProductColumn } from "./api";
 import { placementStyle, SECTION_PLACEMENTS } from "./placement";
 
+/** The plain half of a placement's detail — the part after the term it explains. */
+const gloss = (detail: string) => detail.split(" — ").slice(1).join(" — ");
+
 /** Stagger between marks, so a row fills in the order it reads. */
 const LAND_STEP_MS = 90;
 
@@ -64,10 +67,12 @@ export function PlacementSpectrum({
               const style = placementStyle(placement);
               return (
                 <tr key={placement} className="border-t border-rule">
+                  {/* The word, then what it means. The section number is provenance and
+                      lives with the quote, where someone checking a claim needs it. */}
                   <th scope="row" className="p-2 text-left font-normal">
-                    <span className="block font-mono text-meta text-ink">{style.section}</span>
-                    <span className="block text-kicker text-ink-muted lowercase">
-                      {style.label}
+                    <span className="block text-ink">{style.label}</span>
+                    <span className="block text-kicker text-ink-muted">
+                      {gloss(style.detail)}
                     </span>
                   </th>
                   {products.map((product, order) => (

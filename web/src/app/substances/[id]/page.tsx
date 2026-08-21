@@ -111,8 +111,8 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
                   className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 hover:text-accent"
                 >
                   <span>{conceptLabel(row.concept)}</span>
-                  <span className="font-mono text-meta text-ink-muted">
-                    {placementStyle(row.cells[0]?.placement ?? "absent").section ?? "—"}
+                  <span className="text-meta text-ink-muted">
+                    {placementStyle(row.cells[0]?.placement ?? "absent").label}
                   </span>
                 </Link>
               </li>
@@ -474,7 +474,7 @@ function Provenance({ matrix }: { matrix: Matrix }) {
                 {style.section && <span className="font-mono opacity-80">{style.section}</span>}
               </span>
             </dt>
-            <dd className="sr-only">{style.detail}</dd>
+            <dd className="text-kicker text-ink-muted">{style.detail}</dd>
           </div>
         ))}
       </dl>

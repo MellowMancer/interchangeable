@@ -20,8 +20,12 @@ export type Placement = "4.3" | "4.4" | "4.5" | "4.6" | "6.1" | "absent";
 
 export type PlacementStyle = {
   label: string;
-  /** The section number, shown alongside the label so colour is never the only channel. */
+  /** The section number. Provenance only — shown where a claim is being checked, not
+   *  where the list is being read: §4.3 tells a reader nothing they do not already get
+   *  from the word beside it. */
   section: string | null;
+  /** The same thing in words anyone has. The regulatory term is the finding and stays,
+   *  but nothing is served by it standing alone in front of a reader who lacks it. */
   detail: string;
   className: string;
 };
@@ -31,31 +35,31 @@ const STYLES: Record<Placement, PlacementStyle> = {
   "4.3": {
     label: "Contraindicated",
     section: "§4.3",
-    detail: "Section 4.3 — contraindications",
+    detail: "Contraindicated — the label says it must not be used",
     className: "bg-p43 text-p43-on border-p43",
   },
   "4.4": {
     label: "Warning",
     section: "§4.4",
-    detail: "Section 4.4 — warnings and precautions",
+    detail: "Warning — the label says it can be used, with care",
     className: "bg-p44 text-p44-on border-p44",
   },
   "4.5": {
     label: "Interaction",
     section: "§4.5",
-    detail: "Section 4.5 — interactions",
+    detail: "Interaction — the label says another medicine affects it",
     className: "bg-p45 text-p45-on border-p45",
   },
   "4.6": {
     label: "Pregnancy",
     section: "§4.6",
-    detail: "Section 4.6 — pregnancy and lactation",
+    detail: "Pregnancy — the label gives advice for pregnancy or breastfeeding",
     className: "bg-p46 text-p46-on border-p46",
   },
   "6.1": {
     label: "Excipient",
     section: "§6.1",
-    detail: "Section 6.1 — listed as an ingredient, not a clinical restriction",
+    detail: "Excipient — listed as an ingredient, not a clinical restriction",
     className: "bg-p61 text-p61-on border-p61",
   },
   absent: {
@@ -116,9 +120,7 @@ export function PlacementChip({ placement }: { placement: string }) {
           reader to a legend for every cell of a table meant to be read across. The code
           stays for anyone checking the claim. */}
       <span aria-hidden>{style.section ? style.label : "—"}</span>
-      <span className="sr-only">
-        {style.section ? `${style.label} ${style.section}` : style.label}
-      </span>
+      <span className="sr-only">{style.detail}</span>
     </span>
   );
 }
@@ -148,7 +150,6 @@ export function PlacementBadge({
       className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className} ${className}`}
     >
       {style.label}
-      {style.section && <span className="font-mono opacity-80">{style.section}</span>}
     </span>
   );
 }

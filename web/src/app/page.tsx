@@ -89,10 +89,9 @@ function PlacementFan() {
                 zIndex: index,
               } as CSSProperties
             }
-            className={`fan-chip absolute top-1/2 left-0 flex w-60 items-baseline justify-end gap-4 rounded-sheet border px-4 py-3 font-mono text-meta ${style.className}`}
+            className={`fan-chip absolute top-1/2 left-0 flex w-60 items-baseline justify-end rounded-sheet border px-4 py-3 font-mono text-meta ${style.className}`}
           >
             <span>{style.label}</span>
-            <span className="opacity-80">{style.section}</span>
           </li>
         );
       })}
