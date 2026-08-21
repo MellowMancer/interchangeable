@@ -9,6 +9,7 @@ import json
 
 import pytest
 from conftest import (
+    ARRAY_PREVIEW_RESULT,
     FAKE_API_KEY,
     FAKE_SHORT_TOKEN,
     STUB_COLLECTOR_ID,
@@ -497,6 +498,28 @@ def test_a_heal_envelope_becomes_a_pending_heal_event(
     assert event.promoted is False
     assert event.collector_id == STUB_COLLECTOR_ID
     assert event.prompt == "restore the title field"
+
+
+def test_a_heal_envelope_whose_preview_is_an_array_still_becomes_a_heal_event(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """A live heal was thrown away for this on 2026-08-20, and scored as an outright loss.
+
+    `preview_result` was typed as an object, so the twelve-row array Bright Data returned
+    failed validation, `_event` raised `StudioResponseError` ("returned an unusable
+    envelope"), and the run recorded `promoted=0` with `failure_class=structure_changed`.
+    The heal itself may well have been correct — nothing ever got to look at it. The
+    preview is opaque to this package, so refusing a shape the vendor sends is refusing
+    evidence we would only have read back out again.
+    """
+    recording_runner.results.append(
+        ok(json.dumps({"status": "awaiting_approval", "preview_result": ARRAY_PREVIEW_RESULT}))
+    )
+
+    event = client(recording_runner, clock).heal(spec, "restore the reference field")
+
+    assert event.status == HealStatus.AWAITING_APPROVAL
+    assert event.preview_result == ARRAY_PREVIEW_RESULT
 
 
 def test_a_credential_in_the_heal_envelope_never_reaches_the_event(

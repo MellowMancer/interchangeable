@@ -92,6 +92,12 @@ FAKE_BEARER_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMDAwMDAwIn0.00Ftj0eZ4CVPmB
 # broken, which is exactly how a real leak shipped green once.
 FAKE_SHORT_TOKEN = "s3cr3t42"
 
+# A heal preview as `scraper heal` actually returned one on 2026-08-20, transcribed from
+# the validation error that discarded the envelope: a JSON *array* holding one object
+# whose key carries the extracted rows. It lives here because the parse and the round-trip
+# both pin it, and two hand-written copies of a vendor payload would drift apart.
+ARRAY_PREVIEW_RESULT = [{"components": [{"ref": f"RF-{index:03d}"} for index in range(1, 13)]}]
+
 
 class SampleRow(BaseModel):
     """A caller's row schema, deliberately generic — no test may rely on a problem domain."""

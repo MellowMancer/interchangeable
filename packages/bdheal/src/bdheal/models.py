@@ -146,6 +146,15 @@ class DetectVerdict(_Boundary):
         return {signal.kind for signal in self.fired}
 
 
+# What `scraper heal` puts in `preview_result`. Both shapes are live: a one-row preview
+# came back as an object, and a twelve-row preview came back as an array of objects —
+# `[{"components": [...]}]` — which a `dict`-only annotation refused as an unusable
+# envelope, discarding a heal nothing ever got to score. Widened to the two shapes seen,
+# not to `Any`: nothing here reads inside a preview, but a third shape should still fail
+# loudly at the boundary rather than reach the store unexamined.
+PreviewResult = dict[str, Any] | list[dict[str, Any]]
+
+
 class HealEvent(_Boundary):
     """One trip through the Bright Data heal gate. Written on every terminal outcome."""
 
@@ -153,7 +162,7 @@ class HealEvent(_Boundary):
     status: HealStatus
     created_at: datetime
     prompt: str | None = None
-    preview_result: dict[str, Any] | None = None
+    preview_result: PreviewResult | None = None
     promoted: bool = False
     failure_class: FailureClass | None = None
     template_id: str | None = None

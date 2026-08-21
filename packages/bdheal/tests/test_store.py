@@ -12,7 +12,14 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from conftest import FIXED_NOW, STUB_COLLECTOR_ID, baseline, bench_case, heal_event
+from conftest import (
+    ARRAY_PREVIEW_RESULT,
+    FIXED_NOW,
+    STUB_COLLECTOR_ID,
+    baseline,
+    bench_case,
+    heal_event,
+)
 
 from bdheal import store as store_module
 from bdheal.models import Baseline, BenchCase, HealEvent
@@ -125,6 +132,24 @@ def test_a_heal_event_round_trips_with_its_gate_state(sqlite_store: SqliteHealSt
     assert stored.preview_result == event.preview_result
     assert stored.promoted == event.promoted
     assert stored == event.model_copy(update={"id": stored.id})
+
+
+def test_a_heal_event_whose_preview_is_an_array_round_trips_as_an_array(
+    sqlite_store: SqliteHealStore,
+) -> None:
+    """The array shape must survive the column too, not merely pass validation.
+
+    `preview_result_json` is one TEXT column and its helpers were annotated `dict | None`,
+    so widening the model alone would leave the shape Bright Data actually returned typed
+    one way and persisted another. A preview that parses and comes back as something else
+    is the same lost evidence as the envelope that was refused outright.
+    """
+    event = _heal_event(preview_result=ARRAY_PREVIEW_RESULT)
+
+    sqlite_store.save_heal_event(event)
+    (stored,) = sqlite_store.heal_events(STUB_COLLECTOR_ID)
+
+    assert stored.preview_result == ARRAY_PREVIEW_RESULT
 
 
 def test_a_promoted_heal_event_round_trips_as_promoted(sqlite_store: SqliteHealStore) -> None:
