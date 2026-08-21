@@ -1,0 +1,98 @@
+nohup: ignoring input
+  c_mt16h8d01sakfyvaem: healthy — baseline captured
+  c_mt16ml4j14ri5s4qgc: healthy — baseline captured
+ramipril: 31 products, fetching 10 from 9 manufacturers
+  2758: 138 occurrences
+  4745: 143 occurrences
+  10153: 133 occurrences
+  8066: 134 occurrences
+  102456: 144 occurrences
+  100145: 141 occurrences
+  10671: 146 occurrences
+  100382: 150 occurrences
+  14717: 156 occurrences
+  10157: 132 occurrences
+metformin: 61 products, fetching 10 from 10 manufacturers
+  101793: 95 occurrences
+  100080: 95 occurrences
+  14339: 84 occurrences
+  6298: 90 occurrences
+  13160: 98 occurrences
+  13959: 95 occurrences
+  9352: 95 occurrences
+  15731: 99 occurrences
+  13568: 97 occurrences
+  102420: 94 occurrences
+atorvastatin: 60 products, fetching 10 from 10 manufacturers
+  15440: 133 occurrences
+  13673: 133 occurrences
+  6964: 136 occurrences
+  7049: 140 occurrences
+  5237: 144 occurrences
+  15738: 133 occurrences
+  4343: 137 occurrences
+  13504: 134 occurrences
+  13311: 135 occurrences
+  14004: 134 occurrences
+amlodipine: 26 products, fetching 10 from 10 manufacturers
+  14676: 61 occurrences
+  4718: 58 occurrences
+  101605: 60 occurrences
+  100431: 58 occurrences
+  3473: 57 occurrences
+  4582: 53 occurrences
+  2925: 58 occurrences
+  6878: 57 occurrences
+  13960: 57 occurrences
+  102452: 65 occurrences
+omeprazole: 30 products, fetching 10 from 9 manufacturers
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/mel/Projects/code/web/interchangeable/api/src/ixq/cli.py:152 in run    │
+│                                                                              │
+│   149 │   │   │   )                                                          │
+│   150 │   │   │                                                              │
+│   151 │   │   │   for product in chosen:                                     │
+│ ❱ 152 │   │   │   │   _one_label(product, source, by_kind, labels, concepts, │
+│       repository)                                                            │
+│   153                                                                        │
+│   154                                                                        │
+│   155 def _check(                                                            │
+│                                                                              │
+│ /home/mel/Projects/code/web/interchangeable/api/src/ixq/cli.py:191 in        │
+│ _one_label                                                                   │
+│                                                                              │
+│   188 def _one_label(product, source, by_kind, labels, concepts, repository) │
+│       -> None:                                                               │
+│   189 │   """Fetch and classify one label. One product is one unit of        │
+│       work."""                                                               │
+│   190 │   with repository.transaction():                                     │
+│ ❱ 191 │   │   document = fetch(product, source,                              │
+│       by_kind[CollectorKind.PRODUCT], labels, repository)                    │
+│   192 │   │   if document is None:                                           │
+│   193 │   │   │   typer.echo(f"  {product.external_id}: no rows")            │
+│   194 │   │   │   return                                                     │
+│                                                                              │
+│ /home/mel/Projects/code/web/interchangeable/api/src/ixq/pipeline/fetch.py:97 │
+│ in fetch                                                                     │
+│                                                                              │
+│    94 │                                                                      │
+│    95 │   row = rows[0]                                                      │
+│    96 │   if not any(row.get(field) for field in CLINICAL):                  │
+│ ❱  97 │   │   raise ValueError(                                              │
+│    98 │   │   │   "collector returned no clinical section content — expected │
+│       one of "                                                               │
+│    99 │   │   │   f"{sorted(CLINICAL)}, got {sorted(row)}. A renamed field   │
+│       is a break, "                                                          │
+│   100 │   │   │   "not a label without contraindications."                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+ValueError: collector returned no clinical section content — expected one of 
+['section_4_3_contraindications', 'section_4_4_warnings', 
+'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got 
+['active_substance', 'atc_code', 'company_id', 'discontinued', 
+'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 
+'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 
+'section_4_1_indications', 'section_4_3_contraindications', 
+'section_4_4_warnings', 'section_4_5_interactions', 
+'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 
+'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A 
+renamed field is a break, not a label without contraindications.

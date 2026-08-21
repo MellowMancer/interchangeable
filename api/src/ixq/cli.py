@@ -149,7 +149,13 @@ def run(
             )
 
             for product in chosen:
-                _one_label(product, source, by_kind, labels, concepts, repository)
+                try:
+                    _one_label(product, source, by_kind, labels, concepts, repository)
+                except Exception as failure:  # noqa: BLE001 — one label must not end the run
+                    # A run is hundreds of billable fetches. Losing all of them to one
+                    # unparseable page would mean paying for them twice, and a partial
+                    # corpus is visible in the comparison while a crashed run is not.
+                    typer.echo(f"  {product.external_id}: FAILED — {failure}")
 
 
 def _check(
@@ -190,7 +196,7 @@ def _one_label(product, source, by_kind, labels, concepts, repository) -> None:
     with repository.transaction():
         document = fetch(product, source, by_kind[CollectorKind.PRODUCT], labels, repository)
         if document is None:
-            typer.echo(f"  {product.external_id}: no rows")
+            typer.echo(f"  {product.external_id}: no usable label")
             return
         found = classify_document(document.sha256, repository, concepts)
     typer.echo(f"  {product.external_id}: {found} occurrences")
