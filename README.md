@@ -86,6 +86,61 @@ self-healing engine is built and tested but has not yet been driven through a fu
 on this corpus, so collector health reads as unobserved rather than healthy.
 Nothing here is production-ready, and nothing it outputs is medical advice.
 
+## Deploying
+
+The web app goes to Vercel (root directory `web`, with `API_URL` set to the API's
+public URL); the API goes to Render as a free web service. Neither needs a card.
+
+The corpus is shipped, not scraped in place. `ixq run` writes `data/*.db` locally,
+`docker build` bakes them into the image, and refreshing the data means a rebuild and
+a redeploy. The API only ever reads, so the container needs a writable filesystem —
+`bdheal`'s schema is applied on every connection — but never a persistent one: nothing
+written at runtime outlives the request that wrote it. That is what lets it sit on a
+free tier at all, since Render's free instances have no persistent disk. It serves
+every endpoint in about 70 MB against the free instance's 512 MB.
+
+`data/` is gitignored, so the image is **built locally and pushed to a registry**;
+letting Render build from the repo would produce a service with empty databases.
+
+```bash
+# one-time: a GitHub personal access token with write:packages
+echo $GH_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
+
+# every release: build, push, and tell Render to pull the new tag
+GH_USER=<github-user> RENDER_DEPLOY_HOOK='<hook-url>' make release
+```
+
+Create the service once as a Render **web service from an existing image** — not a
+private service, which only other Render services can reach — pointing at
+`ghcr.io/<github-user>/ixq-api` with the port set to 8000. Make the GHCR package public
+and no registry credentials are needed.
+
+`make release` exists because none of this can move to CI: `data/` is gitignored, so a
+GitHub Actions runner has no corpus to bake in. Its build flags are both load-bearing —
+Render requires `linux/amd64`, and without `--provenance=false` buildx emits a
+multi-arch manifest list it will not pull. The final `curl` is Render's deploy hook,
+taken from the service's Settings tab; an image-backed service never redeploys itself
+when a tag is pushed. Keep the hook URL in the environment, not in a file: it is a
+secret that triggers a deploy for anyone holding it.
+
+A free Render service spins down after 15 minutes idle and takes about a minute to come
+back, which is long enough to stall a Server Component render. Point an external pinger
+at `/health` every 10 minutes to keep it warm. The free allowance is 750 instance hours
+per workspace per month against the 730 a continuously running service uses, so one
+always-warm service fits — but only one.
+
+The same image runs unmodified on Cloud Run (`--port 8000 --allow-unauthenticated`) if a
+Google billing account is ever available; Render is the default because it needs no card.
+
+Every page is a Server Component, so the browser never calls the API and the API needs
+no CORS configuration. Before pushing a change, run the image with no volume mounted —
+that is what proves the baked databases are present:
+
+```bash
+docker run --rm -p 8099:8000 "$IMG"
+curl localhost:8099/substances   # empty array means the databases did not ship
+```
+
 ## Development
 
 Everything runs in Docker; nothing is installed on the host.
@@ -112,9 +167,9 @@ make add-js pkg=zod      # Node
 docker compose build     # rebuild images with the new dependency
 ```
 
-The Makefile exists only for these three: the underlying `docker compose run`
-invocations are long, and the `--user` flag they need on Linux must be omitted
-on macOS. `make lock` regenerates both lockfiles after a manual manifest edit.
+The Makefile exists only for these and `make release`: the underlying `docker
+compose run` invocations are long, and the `--user` flag they need on Linux must
+be omitted on macOS. `make lock` regenerates both lockfiles after a manual manifest edit.
 
 `uv.lock` and `web/pnpm-lock.yaml` are committed and the images install
 frozen, so builds are reproducible across machines.

@@ -8,4 +8,5 @@ web
 docs
 fixtures
 data
+!data/*.db
 .env

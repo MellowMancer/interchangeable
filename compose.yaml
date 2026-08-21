@@ -7,9 +7,28 @@ services:
       - "8000:8000"
     environment:
       IXQ_DATA_DIR: /app/data
+    # The image serves; dev reloads. `--reload` lives here rather than in the
+    # Dockerfile CMD so a deployed container is not watching a filesystem that
+    # never changes — but the `develop.watch` syncs below still need it.
+    command:
+      - uv
+      - run
+      - --frozen
+      - --package
+      - ixq
+      - uvicorn
+      - ixq.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
     volumes:
-      # The database is local state, not an image artifact — `data` stays in
-      # .dockerignore so it is never baked in, and is supplied at runtime instead.
+      # In dev the database is local state the pipeline writes, so it is supplied at
+      # runtime and this mount shadows the copy baked into the image. That baked copy
+      # is the release artifact: in production the API only reads it, and nothing
+      # mounts over it. Hence `data` is excluded from the build context except the
+      # `.db` files themselves — run state stays out, the corpus ships.
       - ./data:/app/data
     develop:
       watch:
