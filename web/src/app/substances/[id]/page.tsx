@@ -57,6 +57,12 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
   return (
     <div className="space-y-12">
       <header className="space-y-4">
+        <Link
+          href="/"
+          className="inline-block font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+        >
+          ← All substances
+        </Link>
         <h1 className="font-serif text-title font-normal tracking-tight">
           {matrix.substance_name}
         </h1>
@@ -64,12 +70,6 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           {holders} manufacturers · {matrix.products.length} products · {concepts} concepts
           · {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
-        <Link
-          href="/"
-          className="inline-block font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
-        >
-          ← All substances
-        </Link>
         <Classification products={matrix.products} />
         <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,20rem)]">
           <Indications groups={matrix.indications} total={matrix.products.length} />
