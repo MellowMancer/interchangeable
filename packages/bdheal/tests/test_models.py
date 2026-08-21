@@ -208,7 +208,7 @@ def test_a_heal_status_outside_the_vocabulary_is_rejected(status: str) -> None:
 
 @pytest.mark.parametrize("status", list(HealStatus))
 def test_every_documented_heal_status_is_accepted(status: HealStatus) -> None:
-    """The vocabulary is the contract in both directions: all four states construct."""
+    """The vocabulary is the contract in both directions: every named state constructs."""
     event = HealEvent(**{**HEAL_EVENT_FIELDS, "status": status})
     assert event.status == status
     assert event.promoted is False

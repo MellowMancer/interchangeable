@@ -15,11 +15,19 @@ schema that ships in the wheel.
 """
 
 import inspect
+import json
 import types
 from pathlib import Path
 
 import pytest
-from conftest import ForbiddenRunner, RecordingRunner, StubStudioClient, row_error, run_result
+from conftest import (
+    STRANDED_GATE_STDERR,
+    ForbiddenRunner,
+    RecordingRunner,
+    StubStudioClient,
+    row_error,
+    run_result,
+)
 
 import bdheal
 from bdheal import healer as healer_module
@@ -82,6 +90,13 @@ MODULE_LEVEL_ALLOWED = (
 # would give it a way to reach the network it was never handed (criterion (b)).
 TRANSPORT_MODULES = ("bdheal.studio", "bdheal.store", "bdheal.process", "bdheal.clock")
 
+# The three heal envelopes the gate can be driven through, and the refusal a collector
+# still holding an earlier job answers with.
+PENDING_ENVELOPE = json.dumps({"status": "awaiting_approval"})
+DONE_ENVELOPE = json.dumps({"status": "done"})
+REJECTED_ENVELOPE = json.dumps({"status": "rejected"})
+GATE_BUSY_REFUSAL = ProcessResult(returncode=1, stdout="", stderr=STRANDED_GATE_STDERR)
+
 BROKEN_VERDICT = DetectVerdict(
     broken=True,
     signals=[
@@ -92,6 +107,16 @@ BROKEN_VERDICT = DetectVerdict(
         )
     ],
 )
+
+
+def ok(stdout: str) -> ProcessResult:
+    """A successful command with its JSON envelope on stdout."""
+    return ProcessResult(returncode=0, stdout=stdout, stderr="")
+
+
+def sent(runner: RecordingRunner, subcommand: str) -> list[list[str]]:
+    """Every argv the loop sent for one `bdata scraper` subcommand, in order."""
+    return [argv for argv in runner.argvs if subcommand in argv]
 
 
 def healthy_run() -> RunResult:
@@ -344,6 +369,52 @@ def test_a_gate_call_that_failed_is_not_promoted(
     assert event.status is HealStatus.FAILED
     assert event.promoted is False
     assert filed_store.heal_events(spec.collector_id) == [event]
+
+
+def test_a_heal_a_stranded_gate_refused_clears_that_gate_and_heals(
+    recording_runner: RecordingRunner, filed_store: HealStore, clock: Clock, spec: CollectorSpec
+) -> None:
+    """The collector stranded on 2026-08-20 could have healed itself; instead it waited.
+
+    Bright Data allows one open job per collector, so a gate an earlier process left
+    parked refuses every heal after it — for five hours, in the incident, until a human
+    sent `--reject`. Nothing was wrong with the collector, and nothing was wrong with the
+    new heal: the loop simply had no way to say "clear the stale one and carry on". So it
+    does that here, exactly once, and the second attempt is the one that heals.
+    """
+    recording_runner.results.extend(
+        [GATE_BUSY_REFUSAL, ok(REJECTED_ENVELOPE), ok(PENDING_ENVELOPE), ok(DONE_ENVELOPE)]
+    )
+    healer = Healer(BdataStudioClient(recording_runner, clock), filed_store, clock)
+
+    event = healer.heal(spec, BROKEN_VERDICT)
+
+    assert event.status is HealStatus.DONE
+    assert event.promoted is True
+    assert "--reject" in sent(recording_runner, "approve")[0], "the stale gate was cleared first"
+    assert len(sent(recording_runner, "heal")) == 2
+
+
+def test_a_gate_that_will_not_clear_stops_the_loop_rather_than_cycling_it(
+    recording_runner: RecordingRunner, filed_store: HealStore, clock: Clock, spec: CollectorSpec
+) -> None:
+    """Recovery is one attempt. A collector Bright Data keeps refusing is not a heal to retry.
+
+    Every attempt is billable and each one is two calls — the rejection and the heal — so
+    a loop that kept trying would spend a collector's budget on a job it cannot displace.
+    The second refusal is reported as what it is: a heal that never ran, on a collector
+    still occupied, which a later run may find free.
+    """
+    recording_runner.results.extend(
+        [GATE_BUSY_REFUSAL, ok(REJECTED_ENVELOPE), GATE_BUSY_REFUSAL, ok(REJECTED_ENVELOPE)]
+    )
+    healer = Healer(BdataStudioClient(recording_runner, clock), filed_store, clock)
+
+    event = healer.heal(spec, BROKEN_VERDICT)
+
+    assert event.status is HealStatus.GATE_BUSY
+    assert event.promoted is False
+    assert len(sent(recording_runner, "heal")) == 2, "one recovery attempt, never a loop"
 
 
 def test_a_gate_cycle_is_read_from_its_terminal_row_not_from_a_row_count(

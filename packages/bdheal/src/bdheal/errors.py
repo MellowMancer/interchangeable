@@ -17,6 +17,19 @@ class StudioResponseError(StudioError):
     """`bdata` returned output that is not the documented JSON shape."""
 
 
+class GateBusyError(StudioError):
+    """Bright Data refused a heal because an earlier job on that collector is still open.
+
+    A `StudioError` subclass so every caller already guarding on the base type keeps
+    working, and its own type because this is the one refusal that is *recoverable*: the
+    collector is fine, it is merely occupied. On 2026-08-20 a heal raised on its way out
+    of the approval gate, so nothing ever answered the approval Bright Data was parked at,
+    and for the next five hours every heal on that collector came back "Another refactor
+    job is still in progress / Status: 409". Rejecting the pending gate freed it at once.
+    Told apart from a heal that failed on its merits, that recovery can be automatic.
+    """
+
+
 class CollectorCreateError(StudioError):
     """`scraper create` failed after the AI-generation trigger.
 

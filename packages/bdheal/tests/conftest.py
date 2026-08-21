@@ -98,6 +98,18 @@ FAKE_SHORT_TOKEN = "s3cr3t42"
 # both pin it, and two hand-written copies of a vendor payload would drift apart.
 ARRAY_PREVIEW_RESULT = [{"components": [{"ref": f"RF-{index:03d}"} for index in range(1, 13)]}]
 
+# What `scraper heal` printed for five straight hours on 2026-08-20, against a collector
+# whose gate an earlier run had left parked: Bright Data had finished that repair and was
+# waiting for an answer nobody ever sent, so it refused every heal proposed afterwards.
+# The collector became usable again only when the pending gate was rejected by hand.
+# Three files assert against this text — the adapter that must type it, the gate that must
+# record it, and the facade that must recover from it — and three copies would drift.
+STRANDED_GATE_STDERR = (
+    "Failed to start self-healing for collector c_mt25s8wzts19a6xf8:\n"
+    "  Error: Another refactor job is still in progress\n"
+    "  Status: 409"
+)
+
 
 class SampleRow(BaseModel):
     """A caller's row schema, deliberately generic — no test may rely on a problem domain."""

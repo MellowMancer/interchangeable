@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS bdheal_heal_events (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     collector_id        TEXT NOT NULL,
     created_at          TEXT NOT NULL,
-    status              TEXT NOT NULL,      -- awaiting_approval | done | rejected | failed
+    status              TEXT NOT NULL,      -- awaiting_approval | done | rejected |
+                                            -- failed | gate_busy
     failure_class       TEXT,
     template_id         TEXT,
     prompt              TEXT,               -- never contains a credential (G6)

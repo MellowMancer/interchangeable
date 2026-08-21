@@ -34,12 +34,21 @@ class FailureClass(StrEnum):
 
 
 class HealStatus(StrEnum):
-    """Bright Data's heal state machine, plus the two terminal states we record ourselves."""
+    """Bright Data's heal state machine, plus the three terminal states we record ourselves.
+
+    `GATE_BUSY` is not `FAILED`, and the distinction is worth a member: it says the heal
+    never ran, because the collector was still holding a job an earlier run left open. On
+    2026-08-20 that state lasted five hours and every heal in it was recorded as `failed`,
+    which reads as a repair that was attempted and lost — so the log accused the loop of
+    failing at work Bright Data never let it start. It is the one outcome here that a
+    later run may simply find cleared.
+    """
 
     AWAITING_APPROVAL = "awaiting_approval"
     DONE = "done"
     REJECTED = "rejected"
     FAILED = "failed"
+    GATE_BUSY = "gate_busy"
 
 
 # The statuses that end a heal cycle. A gated cycle writes two rows and an unattended or

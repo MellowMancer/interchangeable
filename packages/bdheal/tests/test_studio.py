@@ -12,12 +12,13 @@ from conftest import (
     ARRAY_PREVIEW_RESULT,
     FAKE_API_KEY,
     FAKE_SHORT_TOKEN,
+    STRANDED_GATE_STDERR,
     STUB_COLLECTOR_ID,
     RecordingRunner,
     SampleRow,
 )
 
-from bdheal.errors import CollectorCreateError, StudioError, StudioResponseError
+from bdheal.errors import CollectorCreateError, GateBusyError, StudioError, StudioResponseError
 from bdheal.models import CollectorSpec
 from bdheal.ports import Clock, ProcessResult
 from bdheal.studio import (
@@ -474,6 +475,47 @@ def test_a_non_zero_exit_raises_a_studio_error(
 
     with pytest.raises(StudioError, match="collector not found"):
         client(recording_runner, clock).run(spec, spec.anchor_urls)
+
+
+def test_a_heal_refused_because_the_collector_is_still_occupied_is_its_own_error(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """This refusal is recoverable, and no other `StudioError` is — hence its own type.
+
+    On 2026-08-20 a heal raised on its way out of the gate, so nothing ever answered the
+    approval Bright Data was parked at. It had already completed the repair, so for the
+    next five hours every heal proposed against that collector came back with exactly
+    this text and the collector could not be healed at all. Nothing was wrong with the
+    collector: rejecting the pending gate by hand freed it immediately. A caller can only
+    do that if it can tell this refusal apart from `collector not found`.
+    """
+    recording_runner.results.append(
+        ProcessResult(returncode=1, stdout="", stderr=STRANDED_GATE_STDERR)
+    )
+
+    with pytest.raises(GateBusyError) as raised:
+        client(recording_runner, clock).heal(spec, "restore the title field")
+
+    assert isinstance(raised.value, StudioError), "a caller guarding on StudioError keeps working"
+    assert "Another refactor job is still in progress" in str(raised.value)
+
+
+def test_an_ordinary_refusal_is_not_mistaken_for_an_occupied_collector(
+    recording_runner: RecordingRunner, clock: Clock, spec: CollectorSpec
+) -> None:
+    """Reading every failure as a busy gate would buy a paid rejection on nothing.
+
+    A collector that does not exist has no gate to clear, and clearing one it does not
+    have would spend a call and then retry a heal that cannot ever succeed.
+    """
+    recording_runner.results.append(
+        ProcessResult(returncode=2, stdout="", stderr="collector not found")
+    )
+
+    with pytest.raises(StudioError) as raised:
+        client(recording_runner, clock).heal(spec, "restore the title field")
+
+    assert not isinstance(raised.value, GateBusyError)
 
 
 def test_a_heal_envelope_becomes_a_pending_heal_event(

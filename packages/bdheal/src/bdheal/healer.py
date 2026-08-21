@@ -32,7 +32,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from bdheal.diagnose import Diagnosis, diagnose
-from bdheal.errors import StudioError, VerificationIncompleteError
+from bdheal.errors import GateBusyError, StudioError, VerificationIncompleteError
 from bdheal.models import (
     CollectorSpec,
     DetectVerdict,
@@ -63,6 +63,16 @@ AMBIGUOUS_RETRIES = 1
 # "not measured", so the caller excludes the case rather than publishing a check nobody
 # performed.
 VERIFICATION_PASSES = 2
+
+# One clearing of a stranded gate per heal, and no more. Bright Data allows a collector
+# one open job, so a gate an earlier run left parked refuses every heal after it — five
+# hours of a collector's availability, in the incident this exists to prevent, ended by a
+# single rejection sent by hand. The gate is released on the way out of the failed call,
+# so recovery here is the second attempt and nothing else. It is capped at one because a
+# collector that is still busy after its gate was cleared is busy with something this loop
+# did not leave behind, and retrying that is paying twice a pass to displace a job that is
+# not ours.
+GATE_RECOVERY_ATTEMPTS = 1
 
 # A heal has to recover something on the layout it was healed for. The non-regression pass
 # cannot see this on its own: a collector that extracts nothing regresses nothing, so it
@@ -158,7 +168,24 @@ class Healer:
         return retried, persistent
 
     def _gate(self, spec: CollectorSpec, diagnosis: Diagnosis) -> HealEvent:
-        """Heal, then approve if the CLI left the heal waiting at the gate."""
+        """Heal, and clear a gate a previous run stranded if that is what is in the way.
+
+        A collector Bright Data reports as still holding a job is not a collector that
+        refused this heal: nothing was diagnosed wrongly and nothing was rejected on its
+        merits — the heal was never allowed to start. The gate blocking it is almost
+        certainly one of ours, since this loop is what opens them, and the failed call has
+        already tried to reject it on its way out. So the recovery is simply to propose
+        the heal again, once. A second refusal stands: that job is not ours to displace.
+        """
+        for _ in range(GATE_RECOVERY_ATTEMPTS):
+            try:
+                return self._cycle(spec, diagnosis)
+            except GateBusyError:
+                continue
+        return self._cycle(spec, diagnosis)
+
+    def _cycle(self, spec: CollectorSpec, diagnosis: Diagnosis) -> HealEvent:
+        """One trip through the gate: heal, then approve if the CLI left it waiting."""
         pending = request_heal(spec, diagnosis, self._studio, self._store, self._clock)
         if pending.status is not HealStatus.AWAITING_APPROVAL:
             return pending

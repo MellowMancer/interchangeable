@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from bdheal.errors import CollectorCreateError, StudioError, StudioResponseError
+from bdheal.errors import CollectorCreateError, GateBusyError, StudioError, StudioResponseError
 from bdheal.models import CollectorSpec, HealEvent, RowError, RunResult
 from bdheal.ports import Clock, CommandRunner, ProcessResult
 from bdheal.vocabulary import HealStatus
@@ -70,6 +70,16 @@ EXCERPT_CHARS = 200
 # label and runs greedily rightward, so a credential beginning before the cut still matches
 # inside this window.
 STRADDLE_MARGIN = 4096
+
+# How Bright Data says the collector is already occupied. Transcribed from a v0.3.5
+# refusal on 2026-08-20, where a gate an earlier run had left parked blocked every heal
+# on that collector for five hours. Either marker is enough: the sentence is the CLI's
+# wording and the status is the HTTP conflict behind it, so a reworded message still
+# recovers, and a false positive costs one rejection of a gate that was not there.
+GATE_BUSY_MARKERS: tuple[str, ...] = (
+    "another refactor job is still in progress",
+    "status: 409",
+)
 
 # This package never reads a credential, but one can arrive *from* the subprocess: `npx`
 # echoes the command line it wrapped when that process fails, and `bdata` relays upstream
@@ -316,8 +326,22 @@ def _check(completed: ProcessResult, command: tuple[str, ...]) -> None:
     """Turn a non-zero exit into a typed error carrying the reason `bdata` gave."""
     if completed.returncode == 0:
         return
-    reason = _excerpt(completed.stderr or completed.stdout)
-    raise StudioError(f"{_label(command)} exited {completed.returncode}: {reason}")
+    output = completed.stderr or completed.stdout
+    message = f"{_label(command)} exited {completed.returncode}: {_excerpt(output)}"
+    if _gate_is_busy(output):
+        raise GateBusyError(message)
+    raise StudioError(message)
+
+
+def _gate_is_busy(output: str) -> bool:
+    """Whether this refusal is Bright Data saying the collector already has a job open.
+
+    Read from the raw output rather than the excerpt: the marker may sit past the 200
+    characters a message carries, and a recoverable refusal must not become an
+    unrecoverable one because the reason was truncated.
+    """
+    lowered = output.lower()
+    return any(marker in lowered for marker in GATE_BUSY_MARKERS)
 
 
 def _payload(completed: ProcessResult, command: tuple[str, ...]) -> Any:

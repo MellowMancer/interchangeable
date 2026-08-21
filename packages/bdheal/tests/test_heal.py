@@ -17,9 +17,11 @@ from dataclasses import replace
 
 import pytest
 from conftest import (
+    ARRAY_PREVIEW_RESULT,
     FAKE_API_KEY,
     FAKE_BEARER_TOKEN,
     FAKE_SHORT_TOKEN,
+    STRANDED_GATE_STDERR,
     RecordingRunner,
     SampleRow,
     StubStudioClient,
@@ -27,7 +29,7 @@ from conftest import (
 )
 
 from bdheal.diagnose import Diagnosis
-from bdheal.errors import NotPendingError, StudioError
+from bdheal.errors import GateBusyError, NotPendingError, StudioError, StudioResponseError
 from bdheal.heal import approve, heal
 from bdheal.models import CollectorSpec, HealEvent
 from bdheal.ports import Clock, HealStore, ProcessResult
@@ -277,6 +279,111 @@ def test_a_hostile_prompt_stays_one_argv_element(
     assert argv.count(HOSTILE_ID) == 1
     assert all(isinstance(element, str) for element in argv)
     assert [element for element in argv if "rm -rf" in element] == [HOSTILE_ID, HOSTILE_PROMPT]
+
+
+def test_a_heal_that_raised_on_its_way_out_rejects_the_gate_it_would_have_stranded(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """The whole incident of 2026-08-20, in one path: the raise came *after* the repair.
+
+    Bright Data ran the refactor, saved it and parked at the approval gate. Only then did
+    the envelope fail to parse here, so the exception left the collector waiting for an
+    answer no code would ever send. Bright Data allows one open job per collector, so the
+    collector stayed occupied for five hours and every heal after it was refused outright
+    — until a human sent `--reject` by hand and it worked immediately. The parse bug is
+    fixed; the next unforeseen raise on this path must not cost another five hours.
+    """
+    recording_runner.results.append(ok(json.dumps(ARRAY_PREVIEW_RESULT)))
+
+    with pytest.raises(StudioResponseError):
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    released = recording_runner.argvs[-1]
+    assert len(recording_runner.argvs) == 2, "the failed heal, then the rejection that frees it"
+    assert "--reject" in released
+    assert released[released.index("--url") + 1] == ANCHOR
+
+
+def test_a_gate_release_that_fails_never_replaces_the_error_the_caller_must_see(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """The cleanup is best-effort: it may fail, and it may not become the failure reported.
+
+    A rejection that itself errors would otherwise surface in place of the parse error
+    that caused the mess, and the operator would spend the outage debugging the wrong
+    call. It is attached to the original rather than dropped, so nothing is swallowed.
+    """
+    recording_runner.results.extend(
+        [ok(json.dumps(ARRAY_PREVIEW_RESULT)), failed("no job pending")]
+    )
+
+    with pytest.raises(StudioResponseError) as raised:
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    assert "expected a JSON object" in str(raised.value)
+    assert any("no job pending" in note for note in getattr(raised.value, "__notes__", []))
+
+
+def test_a_gate_that_settled_is_never_asked_to_release_itself(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """A call that was never made is not a flag violation, so nothing else can catch this.
+
+    Every trip through the gate is billable, and the cleanup exists for the path where
+    something raised. Firing it on a heal that settled normally would pay a second time on
+    every cycle, and a `--reject` after an approval could only ever be refused anyway.
+    """
+    recording_runner.results.extend([ok(PENDING_ENVELOPE), ok(DONE_ENVELOPE)])
+    studio = adapter(recording_runner, clock)
+
+    pending = heal(spec, DIAGNOSIS, studio, store, clock)
+    approve(spec, pending, studio, store, clock)
+
+    assert len(recording_runner.argvs) == 2, "one heal, one approve, and nothing else"
+    assert [argv for argv in recording_runner.argvs if "--reject" in argv] == []
+
+
+def test_a_failed_approval_releases_the_gate_it_could_not_settle(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """The gate's second half strands a collector exactly as expensively as its first.
+
+    An approval that raised leaves the heal parked, and the next heal on that collector is
+    refused for as long as it stays there. The rejection is sent even though the approval
+    may in fact have landed: a reject with nothing pending is refused harmlessly, while a
+    gate nobody closed costs the collector's availability.
+    """
+    recording_runner.results.extend([ok(PENDING_ENVELOPE), failed("approval expired")])
+    studio = adapter(recording_runner, clock)
+
+    pending = heal(spec, DIAGNOSIS, studio, store, clock)
+    with pytest.raises(StudioError, match="approval expired"):
+        approve(spec, pending, studio, store, clock)
+
+    assert "--reject" in recording_runner.argvs[-1]
+    assert len(recording_runner.argvs) == 3, "the heal, the approval that failed, the release"
+
+
+def test_a_heal_an_occupied_collector_refused_is_recorded_as_busy_not_failed(
+    recording_runner: RecordingRunner, store: HealStore, spec: CollectorSpec, clock: Clock
+) -> None:
+    """`failed` cannot mean both "Bright Data refused to start" and "the repair was no good".
+
+    The row for a collector still holding an earlier job is the one row that says *try
+    again*: nothing was diagnosed wrongly and nothing was rejected on its merits — the
+    heal never ran. Recorded as `failed` it reads as a heal that was attempted and lost,
+    and the benchmark counts it against the loop's success rate for a call the loop was
+    never allowed to make.
+    """
+    recording_runner.results.append(failed(STRANDED_GATE_STDERR))
+
+    with pytest.raises(GateBusyError):
+        heal(spec, DIAGNOSIS, adapter(recording_runner, clock), store, clock)
+
+    (row,) = store.heal_events(spec.collector_id)
+    assert row.status is HealStatus.GATE_BUSY
+    assert row.promoted is False
+    assert "Another refactor job is still in progress" in row.error
 
 
 def test_a_failed_heal_is_recorded_before_the_error_reaches_the_caller(
