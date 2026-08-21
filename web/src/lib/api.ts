@@ -267,4 +267,78 @@ export const columnLabel = (product: ProductColumn) =>
   product.variant ? `${product.variant} · ${manufacturer(product)}` : product.name;
 
 /** Concept ids are lexicon keys (`metabolic_acidosis`); every screen shows them the same way. */
-export const conceptLabel = (concept: string) => concept.replace(/_/g, " ");
+/**
+ * What a concept is called on screen.
+ *
+ * The lexicon's keys are matching slugs, chosen for the patterns they carry — `washout`
+ * says nothing to a reader, and `polyol` and `extracorporeal` are the parser's words, not
+ * anyone else's. Ingredients keep their chemical names, because that is what is printed
+ * on a box and what someone avoiding one will search for.
+ *
+ * Any slug without an entry falls back to its own words, capitalised, so a concept added
+ * to the lexicon renders sensibly before anyone names it here rather than rendering blank.
+ *
+ * Belongs in `api/config/concepts.yaml` beside the patterns, so the lexicon owns both what
+ * a concept matches and what it is called. Kept here for now because the loader takes a
+ * bare list of patterns per concept and reshaping it reaches the pipeline.
+ */
+const CONCEPT_NAMES: Record<string, string> = {
+  alcohol: "Alcohol",
+  angioedema: "Angioedema (deep swelling)",
+  azo_colourant: "Azo colourants",
+  benzyl_alcohol: "Benzyl alcohol",
+  bleeding: "Bleeding risk",
+  breastfeeding: "Breastfeeding",
+  cardiac: "Heart conditions",
+  cardiac_outflow: "Obstructed blood flow from the heart",
+  concomitant_drug: "Taken with other medicines",
+  contrast_agent: "Contrast dyes used in scans",
+  cough: "Cough",
+  dehydration: "Dehydration",
+  diabetes_type: "Type of diabetes",
+  elderly: "Older people",
+  electrolyte: "Salt and mineral balance",
+  endocrine: "Hormone disorders",
+  enzyme_deficiency: "Enzyme deficiency",
+  excipient_intolerance: "Intolerance to an ingredient",
+  extracorporeal: "Dialysis and blood filtering",
+  fertility: "Fertility",
+  gastrointestinal: "Stomach and gut",
+  glycaemic_emergency: "Diabetic emergency",
+  haematological: "Blood disorders",
+  heart_block: "Heart rhythm block",
+  hepatic: "Liver conditions",
+  hypersensitivity: "Allergy to the medicine",
+  hypotension: "Low blood pressure",
+  immunisation: "Vaccination",
+  infection: "Infection",
+  lactose: "Lactose",
+  malignancy: "Cancer",
+  metabolic_acidosis: "Acid build-up in the blood",
+  mineral_content: "Sodium and potassium content",
+  obstruction: "Blockage",
+  ocular: "Eye conditions",
+  paediatric: "Children",
+  peanut: "Peanut",
+  polyol: "Sugar alcohols",
+  porphyria: "Porphyria",
+  pregnancy: "Pregnancy",
+  propylene_glycol: "Propylene glycol",
+  qt_prolongation: "Heart rhythm (QT interval)",
+  raas_blockade: "Combining blood-pressure medicines",
+  renal: "Kidney conditions",
+  respiratory: "Breathing conditions",
+  serotonin: "Serotonin effects",
+  shock: "Shock",
+  soya: "Soya",
+  thromboembolism: "Blood clots",
+  thyroid: "Thyroid",
+  unclassified: "Unclassified",
+  vascular: "Blood vessel conditions",
+  washout: "Gap needed after another medicine",
+  wheat_starch: "Wheat starch",
+};
+
+export const conceptLabel = (concept: string) =>
+  CONCEPT_NAMES[concept] ??
+  concept.replace(/_/g, " ").replace(/^./, (first) => first.toUpperCase());

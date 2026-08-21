@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AppearanceRail, undrawnBecause } from "@/lib/appearance";
+import { AppearanceRail } from "@/lib/appearance";
 import { Carousel } from "@/lib/carousel";
 import { notFound } from "next/navigation";
 import {
@@ -53,7 +53,6 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
   // A holder may hold several products, and they need not agree with each other, so the
   // two counts are different facts and the table shows both.
   const holders = holderGroups(matrix.products).length;
-  const shown = shownColumns(matrix.products);
 
   return (
     <div className="space-y-12">
@@ -74,22 +73,14 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         <Classification products={matrix.products} />
         <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,18rem)]">
           <Indications groups={matrix.indications} total={matrix.products.length} />
-          <AppearanceRail products={shown} />
+          <AppearanceRail products={matrix.products} />
         </div>
       </header>
 
       {divergent.length > 0 ? (
         <section className="space-y-6">
           <Kicker>Where they disagree</Kicker>
-          <DivergenceTable matrix={matrix} rows={divergent} products={shown} />
-          {shown.length < matrix.products.length && (
-            <p className="max-w-prose text-kicker text-ink-muted">
-              Showing {shown.length} of {matrix.products.length} labels, preferring those
-              that describe their own product. The {divergent.length} disagreements above
-              were found across all {matrix.products.length}, so some may sit between
-              labels not drawn here — open a label to see it in full.
-            </p>
-          )}
+          <DivergenceTable matrix={matrix} rows={divergent} products={matrix.products} />
         </section>
       ) : (
         <section className="space-y-4">
@@ -169,31 +160,50 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
                 </span>
               )}
             </h3>
+            {/* Commonest first, and led by how many labels say it. "Six say this, two say
+                that" is the shape of the answer; a stack of equal paragraphs makes the
+                reader count for themselves. */}
             <ul className="divide-y divide-rule border-y border-rule">
-              {section.groups.map((group) => (
-                <li
-                  key={group.text}
-                  className={`flex flex-col gap-0.5 py-2 ${
-                    section.groups.length > 1 ? "border-l-2 border-accent pl-4" : ""
-                  }`}
-                >
-                  {/* Serif, because these are the label's words and not ours. Blank lines
-                      between the label's own lines are closed up — a paragraph break is
-                      formatting, and left as-is it reads as two separate statements. */}
-                  <div className="space-y-1 font-serif text-body">
-                    {group.text
-                      .split(/\n+/)
-                      .map((line) => line.trim())
-                      .filter(Boolean)
-                      .map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                  </div>
-                  <p className="font-mono text-kicker text-ink-muted">
-                    {group.manufacturers.join(" · ")}
-                  </p>
-                </li>
-              ))}
+              {[...section.groups]
+                .sort((a, b) => b.manufacturers.length - a.manufacturers.length)
+                .map((group) => (
+                  <li
+                    key={group.text}
+                    className="grid grid-cols-[3.5rem_1fr] items-baseline gap-x-4 py-2.5"
+                  >
+                    <span
+                      className={`font-mono text-meta ${
+                        section.groups.length > 1 ? "text-accent" : "text-ink-muted"
+                      }`}
+                    >
+                      {group.manufacturers.length}
+                      <span className="sr-only"> labels state</span>
+                      <span aria-hidden className="text-ink-muted">
+                        /{section.collected}
+                      </span>
+                    </span>
+                    <span className="block min-w-0 space-y-0.5">
+                      {/* The label's own words, in the label's own face. */}
+                      <span className="block space-y-0.5 font-serif text-body">
+                        {group.text
+                          .split(/\n+/)
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                          .map((line) => (
+                            <span key={line} className="block">
+                              {line}
+                            </span>
+                          ))}
+                      </span>
+                      <span
+                        title={group.manufacturers.join(", ")}
+                        className="block truncate font-mono text-kicker text-ink-muted"
+                      >
+                        {group.manufacturers.join(" · ")}
+                      </span>
+                    </span>
+                  </li>
+                ))}
             </ul>
             {/* Stated rather than implied: a section three labels carry is not a section
                 the other four contradict. */}
@@ -216,28 +226,6 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
 
 /** How many of a wording's statements a card shows before deferring to the label itself. */
 const STATEMENTS_SHOWN = 5;
-
-/** How many labels a comparison draws before it becomes unreadable at this width. */
-const SHOWN_COLUMNS = 7;
-
-/**
- * The labels to draw, when there are more than fit.
- *
- * Preferring the ones that describe their own product is not cosmetic: a label carrying a
- * §3 appearance is one the collector read completely, so it is likelier to carry the rest
- * of what the comparison reads too. Original order is otherwise kept, so the choice is
- * reproducible rather than a ranking nobody stated.
- */
-function shownColumns(products: ProductColumn[]): ProductColumn[] {
-  const drawn = (product: ProductColumn) =>
-    product.appearance && undrawnBecause(product.appearance).length === 0 ? 0 : 1;
-  return [...products]
-    .map((product, order) => ({ product, order, rank: drawn(product) }))
-    .sort((a, b) => a.rank - b.rank || a.order - b.order)
-    .slice(0, SHOWN_COLUMNS)
-    .sort((a, b) => a.order - b.order)
-    .map((held) => held.product);
-}
 
 /** Above this many columns a badge no longer fits, and the cells become chips. */
 const COMPACT_ABOVE = 5;

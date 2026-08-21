@@ -11,6 +11,10 @@
  * It stops the moment a reader engages with it. These cards carry clinical sentences, and
  * text that slides away mid-sentence is worse than text that never moved; hover, focus or
  * a manual scroll all hold it, and `prefers-reduced-motion` means it never starts.
+ *
+ * The shelf is as tall as its tallest card and stays that height. Sizing it to whatever is
+ * in view was tried and is worse: the page reflows under the reader every few seconds,
+ * which is more distracting than the white it saves.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -18,44 +22,20 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 /** How long a card holds before the shelf advances. Long enough to read a short one. */
 const DWELL_MS = 7000;
 
+/** Matches the `gap-6` between cards, so a step lands one card along rather than near it. */
+const GAP_PX = 24;
+
 export function Carousel({ children, label }: { children: ReactNode; label: string }) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState(false);
-  const [height, setHeight] = useState<number>();
-
-  /**
-   * Size the shelf to what is on it, not to its tallest card.
-   *
-   * A flex row is as tall as its largest child, so one label listing nine indications
-   * left a screenful of white under two one-line cards — the fatigue this shelf was
-   * built to remove, reintroduced by its own layout.
-   */
-  const measure = useCallback(() => {
-    const node = track.current;
-    if (!node) return;
-    const cards = [...node.children] as HTMLElement[];
-    const visible = cards.filter(
-      (card) =>
-        card.offsetLeft + card.offsetWidth > node.scrollLeft + 1 &&
-        card.offsetLeft < node.scrollLeft + node.clientWidth - 1,
-    );
-    const shown = visible.length ? visible : cards;
-    setHeight(Math.max(...shown.map((card) => card.scrollHeight)));
-  }, []);
-
-  useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure]);
 
   const step = useCallback((direction: 1 | -1) => {
     const node = track.current;
     if (!node) return;
     const card = node.firstElementChild as HTMLElement | null;
-    const stride = card ? card.offsetWidth + 24 : node.clientWidth;
+    const stride = card ? card.offsetWidth + GAP_PX : node.clientWidth;
     const last = node.scrollWidth - node.clientWidth;
-    // Wrapping rather than stopping: a shelf that silently dead-ends at the last card
+    // Wrapping rather than stopping: a shelf that silently dead-ends at its last card
     // looks broken, and there is no order here worth preserving an end to.
     const wrapped =
       direction === 1 && node.scrollLeft >= last - 1
@@ -83,13 +63,9 @@ export function Carousel({ children, label }: { children: ReactNode; label: stri
     >
       <div
         ref={track}
-        onScroll={() => {
-          setHeld(true);
-          measure();
-        }}
-        style={height ? { height } : undefined}
+        onScroll={() => setHeld(true)}
         aria-label={label}
-        className="no-scrollbar flex snap-x items-start gap-6 overflow-x-auto scroll-smooth transition-[height] duration-300"
+        className="no-scrollbar flex snap-x items-stretch gap-6 overflow-x-auto scroll-smooth"
       >
         {children}
       </div>
