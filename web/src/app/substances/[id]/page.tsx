@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppearanceRail } from "@/lib/appearance";
+import { Comparison } from "@/lib/compare";
 import { Carousel } from "@/lib/carousel";
 import { notFound } from "next/navigation";
 import {
-  conceptLabel,
   getMatrix,
-  manufacturer,
   type ClauseCoverage,
   type IndicationGroup,
   type Matrix,
   type ProductColumn,
-  type Row,
-  type ValueSection,
 } from "@/lib/api";
 import {
+  holderGroups,
   partition,
   sharedScanned,
   UNCLASSIFIED,
@@ -22,8 +20,6 @@ import {
 import {
   ABSENT,
   PLACEMENT_LEGEND,
-  PlacementBadge,
-  PlacementChip,
 } from "@/lib/placement";
 
 /**
@@ -81,41 +77,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         </div>
       </header>
 
-      {divergent.length > 0 ? (
-        <section className="space-y-6">
-          <Kicker>Where they disagree</Kicker>
-          <DivergenceTable matrix={matrix} rows={divergent} products={matrix.products} />
-        </section>
-      ) : (
-        <section className="space-y-4">
-          <Kicker>Where they disagree</Kicker>
-          <p className="max-w-prose text-ink-muted">
-            Nowhere that was scanned. Every concept below sits in the same section on every
-            label read.
-          </p>
-        </section>
-      )}
-
-      {agreeing.length > 0 && (
-        <section className="space-y-6 border-t border-rule pt-10">
-          <Kicker>Where they agree — {agreeing.length} concepts</Kicker>
-          <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {agreeing.map((row) => (
-              <li key={row.concept}>
-                <Link
-                  href={`/substances/${id}/concepts/${encodeURIComponent(row.concept)}`}
-                  className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 hover:text-accent"
-                >
-                  <span>{conceptLabel(row.concept)}</span>
-                  <PlacementBadge placement={row.cells[0]?.placement ?? "absent"} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <ValueSections sections={matrix.values} />
+      <Comparison matrix={matrix} />
 
       <RecallGap clauses={matrix.clauses} substanceId={id} />
 
@@ -128,235 +90,12 @@ const Kicker = ({ children }: { children: React.ReactNode }) => (
   <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
 );
 
-/**
- * §6.3 and §6.4, quoted rather than judged.
- *
- * These sections state a value instead of filing a concept, so they never enter the
- * placement matrix — a shelf life is not a place a warning can live. They are shown
- * because two labels for one substance disagreeing on whether it needs refrigerating is
- * an interchangeability finding in its own right, and one a reader can evaluate directly.
- *
- * Every distinct wording is printed verbatim and attributed. Nothing here says the labels
- * require different things: "Do not store above 25°C" and "Store below 25°C" are the same
- * instruction, and only the reader can tell that apart from a real difference.
- */
-function ValueSections({ sections }: { sections: ValueSection[] }) {
-  if (sections.length === 0) return null;
-
-  return (
-    <section className="space-y-6 border-t border-rule pt-10">
-      <Kicker>What the labels state, in their own words</Kicker>
-      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
-        {sections.map((section) => (
-          <article key={section.code} className="space-y-2">
-            {/* The app's voice, in the app's face: everything below is the label's own
-                words in serif, and a heading set like them reads as one of them. */}
-            <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker tracking-widest text-ink-muted uppercase">
-              <span>
-                §{section.code} — {section.heading}
-              </span>
-              {/* Said at the top, not inferred from the bottom. Two statements stacked
-                  read as a list of properties unless something says they are rival
-                  answers to one question. */}
-              {section.groups.length > 1 && (
-                <span className="rounded-sheet border border-accent px-2 py-0.5 text-accent">
-                  {section.groups.length} different statements
-                </span>
-              )}
-            </h3>
-            {/* Commonest first, and led by how many labels say it. "Six say this, two say
-                that" is the shape of the answer; a stack of equal paragraphs makes the
-                reader count for themselves. */}
-            <ul className="divide-y divide-rule border-y border-rule">
-              {[...section.groups]
-                .sort((a, b) => b.manufacturers.length - a.manufacturers.length)
-                .map((group) => (
-                  <li
-                    key={group.text}
-                    className="grid grid-cols-[3.5rem_1fr] items-baseline gap-x-4 py-2.5"
-                  >
-                    <span
-                      className={`font-mono text-meta ${
-                        section.groups.length > 1 ? "text-accent" : "text-ink-muted"
-                      }`}
-                    >
-                      {group.manufacturers.length}
-                      <span className="sr-only"> labels state</span>
-                      <span aria-hidden className="text-ink-muted">
-                        /{section.collected}
-                      </span>
-                    </span>
-                    <span className="block min-w-0 space-y-0.5">
-                      {/* The label's own words, in the label's own face. */}
-                      <span className="block space-y-0.5 font-serif text-body">
-                        {group.text
-                          .split(/\n+/)
-                          .map((line) => line.trim())
-                          .filter(Boolean)
-                          .map((line) => (
-                            <span key={line} className="block">
-                              {line}
-                            </span>
-                          ))}
-                      </span>
-                      <span
-                        title={group.manufacturers.join(", ")}
-                        className="block truncate font-mono text-kicker text-ink-muted"
-                      >
-                        {group.manufacturers.join(" · ")}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-            </ul>
-            {/* Stated rather than implied: a section three labels carry is not a section
-                the other four contradict. */}
-            {/* "Stated by all 3 labels" meant all three state a shelf life; it read as
-                all three stating the same one. Coverage and agreement are different
-                claims and are now made separately. */}
-            <p className="text-kicker text-ink-muted">
-              {section.groups.length > 1
-                ? `These ${section.collected} labels do not word this the same way.`
-                : `All ${section.collected} labels word this the same way.`}
-              {section.collected < section.total &&
-                ` The other ${section.total - section.collected} have no ${section.heading.toLowerCase()} collected.`}
-            </p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /** How many of a wording's statements a card shows before deferring to the label itself. */
 const STATEMENTS_SHOWN = 5;
 
-/** Above this many columns a badge no longer fits, and the cells become chips. */
-const COMPACT_ABOVE = 5;
 
-/**
- * Products of one holder, kept adjacent and named once.
- *
- * Grouping is by `holder_id` where the label carries it, because `ma_holder` is free text
- * and two spellings of one company would otherwise read as two manufacturers — invisible
- * at three columns, certain at ten, and it would manufacture a divergence.
- *
- * The products are *not* merged. One holder's capsule and tablet disagree on seven
- * concepts in the collected corpus — all of them excipients, which is exactly what
- * changes between two formulations of the same molecule. Collapsing a holder into one
- * column would delete that, so the holder spans its products rather than replacing them.
- */
-function holderGroups(products: ProductColumn[]): { name: string; products: ProductColumn[] }[] {
-  const groups: { key: string; name: string; products: ProductColumn[] }[] = [];
-  for (const product of products) {
-    const key = product.holder_id === null ? `name:${manufacturer(product)}` : `id:${product.holder_id}`;
-    const held = groups.find((g) => g.key === key);
-    if (held) held.products.push(product);
-    else groups.push({ key, name: manufacturer(product), products: [product] });
-  }
-  return groups.map(({ name, products: p }) => ({ name, products: p }));
-}
 
-function DivergenceTable({
-  matrix,
-  rows,
-  products,
-}: {
-  matrix: Matrix;
-  rows: Row[];
-  products: ProductColumn[];
-}) {
-  const groups = holderGroups(products);
-  const ordered = groups.flatMap((g) => g.products);
-  const compact = ordered.length > COMPACT_ABOVE;
-
-  return (
-    <div className="space-y-2">
-      {/* A cut-off table on a phone reads as broken rather than as scrollable. */}
-      <p className="font-mono text-kicker text-ink-muted md:hidden">
-        scroll for all {ordered.length} products →
-      </p>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 bg-paper p-2 text-left font-normal">
-                <span className="sr-only">Concept</span>
-              </th>
-              {groups.map((group) => (
-                <th
-                  key={group.name}
-                  colSpan={group.products.length}
-                  scope="colgroup"
-                  className="border-l border-rule px-2 pt-2 text-left align-bottom font-medium first:border-l-0"
-                >
-                  {group.name}
-                </th>
-              ))}
-            </tr>
-            <tr className="border-b border-rule">
-              <th className="sticky left-0 z-10 bg-paper p-2" />
-              {ordered.map((product) => (
-                <th
-                  key={product.external_id}
-                  scope="col"
-                  className="px-2 pb-2 text-left align-bottom font-normal"
-                >
-                  <Link
-                    href={`/products/${product.external_id}`}
-                    className="block font-mono text-meta underline underline-offset-4 hover:text-accent"
-                  >
-                    {product.variant ?? product.name}
-                  </Link>
-                  <div className="font-mono text-kicker text-ink-muted">
-                    {product.revised ? product.revised : "revision unknown"}
-                  </div>
-                  {product.discontinued && (
-                    <div className="font-mono text-kicker text-accent">discontinued</div>
-                  )}
-                  {!compact && product.ma_number && (
-                    <div className="font-mono text-kicker text-ink-muted">{product.ma_number}</div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.concept} className="border-b border-rule align-top">
-                <th className="sticky left-0 z-10 bg-paper p-2 pr-4 text-left font-normal">
-                  <Link
-                    href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
-                    className="underline underline-offset-4 hover:text-accent"
-                  >
-                    {conceptLabel(row.concept)}
-                  </Link>
-                </th>
-                {ordered.map((product, order) => {
-                  const cell = row.cells.find((c) => c.product_external_id === product.external_id);
-                  return (
-                    <td key={product.external_id} className="px-1 py-2">
-                      {cell &&
-                        (compact ? (
-                          <PlacementChip placement={cell.placement} />
-                        ) : (
-                          <PlacementBadge
-                            placement={cell.placement}
-                            className="animate-land"
-                            delayMs={order * 70}
-                          />
-                        ))}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 /**
  * The recall gap, published rather than tuned away.

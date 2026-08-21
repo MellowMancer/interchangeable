@@ -7,6 +7,7 @@
  */
 
 import {
+  manufacturer,
   type DivergencePreview,
   type Evidence,
   type ProductColumn,
@@ -154,4 +155,16 @@ export function groupByWording<
   return Array.from(groups.values()).sort(
     (a, b) => rank(a.placement) - rank(b.placement) || b.cells.length - a.cells.length,
   );
+}
+
+
+export function holderGroups(products: ProductColumn[]): { name: string; products: ProductColumn[] }[] {
+  const groups: { key: string; name: string; products: ProductColumn[] }[] = [];
+  for (const product of products) {
+    const key = product.holder_id === null ? `name:${manufacturer(product)}` : `id:${product.holder_id}`;
+    const held = groups.find((g) => g.key === key);
+    if (held) held.products.push(product);
+    else groups.push({ key, name: manufacturer(product), products: [product] });
+  }
+  return groups.map(({ name, products: p }) => ({ name, products: p }));
 }
