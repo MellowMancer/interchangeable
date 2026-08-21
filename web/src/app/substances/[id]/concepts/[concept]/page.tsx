@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   conceptLabel,
@@ -9,10 +8,10 @@ import {
   type ContextWindow,
   type ProductColumn,
 } from "@/lib/api";
-import { AppearanceStrip } from "@/lib/appearance";
 import { identicalWording, UNCLASSIFIED } from "@/lib/finding";
 import { PlacementBadge } from "@/lib/placement";
 import { QuotePosition, SectionCoverage } from "@/lib/scope";
+import Link from "next/link";
 import { PlacementSpectrum } from "@/lib/spectrum";
 
 /**
@@ -69,18 +68,22 @@ export default async function ConceptPage({
 
       <PlacementSpectrum cells={detail.cells} products={detail.products} />
 
-      <AppearanceStrip products={detail.products} />
-
-      <div className="divide-y divide-rule border-y border-rule">
+      {/* Two abreast: one label per row turned ten manufacturers into a page nobody
+          reaches the end of, and the metadata column left most of its width empty. */}
+      <ul className="grid border-t border-rule lg:grid-cols-2">
         {detail.cells.map((cell) => (
-          <Manufacturer
+          <li
             key={cell.product_external_id}
-            cell={cell}
-            product={byProduct.get(cell.product_external_id)}
-            sharedWith={shared.get(cell.product_external_id) ?? []}
-          />
+            className="border-b border-rule lg:odd:border-r lg:odd:pr-10 lg:even:pl-10"
+          >
+            <Manufacturer
+              cell={cell}
+              product={byProduct.get(cell.product_external_id)}
+              sharedWith={shared.get(cell.product_external_id) ?? []}
+            />
+          </li>
         ))}
-      </div>
+      </ul>
     </article>
   );
 }
@@ -98,9 +101,9 @@ function Manufacturer({
   const name = product ? manufacturer(product) : cell.product_external_id;
 
   return (
-    <section className="grid gap-6 py-8 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
-      {/* Who is speaking, and where in their label — left. What they say — right. The
-          quote is the wider half because it is the only part a reader has to read. */}
+    <section className="space-y-4 py-8">
+      {/* Who is speaking and where in their label, then what they say. Stacked rather
+          than side by side: at half the page width there is no room for two columns. */}
       <div className="space-y-3">
         <div className="space-y-1">
           <h2 className="font-medium">{name}</h2>
@@ -141,7 +144,7 @@ function Manufacturer({
           {cell.context ? (
             <InContext context={cell.context} />
           ) : (
-            <blockquote className="border-l-2 border-rule pl-6 font-serif text-quote">
+            <blockquote className="border-l-2 border-rule pl-6 font-serif text-body">
               &ldquo;{cell.evidence.quote}&rdquo;
             </blockquote>
           )}
@@ -170,7 +173,7 @@ function InContext({ context }: { context: ContextWindow }) {
   const after = context.text.slice(context.quote_end);
 
   return (
-    <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-quote text-ink-muted">
+    <blockquote className="max-w-prose border-l-2 border-rule pl-6 font-serif text-body text-ink-muted">
       {context.truncated_start && <span aria-hidden>… </span>}
       {before}
       <mark className="animate-sweep bg-transparent text-ink decoration-accent/40 underline-offset-4">
