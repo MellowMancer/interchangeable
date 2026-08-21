@@ -167,7 +167,7 @@ and must produce structured per-field errors.
 | `RunResult` | `collector_id`, `fetched_at`, `rows`, `errors`, `error_codes` | `error_codes` is a list, never `None` |
 | `Signal` | `kind`, `outcome`, `detail` | One detector's reading |
 | `DetectVerdict` | `broken`, `signals`, `incomplete`, `retry_requested`, `reason` | `incomplete` covers every target-side refusal, not only throttling |
-| `HealEvent` | ids, `status`, `created_at`, `prompt`, `preview_result`, `promoted`, `failure_class`, `template_id`, `attempts`, `error` | |
+| `HealEvent` | ids, `status`, `created_at`, `prompt`, `preview_result`, `promoted`, `failure_class`, `template_id`, `attempts`, `error` | `preview_result` is `PreviewResult` — an object **or an array**. Bright Data returns an array when the preview carries several rows, and typing it as an object alone discarded a completed repair |
 | `VerifyReport` | `field_accuracy`, `non_regression_passed`, `attempts`, `elapsed_s` | |
 | `Baseline` | `collector_id`, `captured_at`, `row_count`, `null_rates`, `skeleton_hash` | Crosses `HealStore`, so Pydantic |
 | `BenchCase` | run/case ids, `mutation`, `expected_signals`, `caught_by`, outcome fields | Crosses `HealStore` |
@@ -244,6 +244,21 @@ per cycle must select the **terminal-most** row, never treat row count as cycle 
 value-based `VerifyReport.non_regression_passed=False`, so the caller cannot branch on
 `event.status` for this failure mode.
 
+**A gate that opens must be answered, even on the way out.** Bright Data completes the whole
+repair and then waits at `user_approval`. If anything raises between opening the heal and
+settling it, `_record` rejects the gate through `release_gate()` before the exception
+propagates — the original error still surfaces, and a cleanup that fails rides along as a
+note rather than replacing it. Verified the expensive way: a parse error skipped `approve`,
+the collector sat at the gate for five hours, and every later heal returned
+`Status: 409 — Another refactor job is still in progress`. Two collectors were stranded and
+had to be freed by hand.
+
+**A refusal because the collector is occupied is not a failed repair.** `GateBusyError` and
+`HealStatus.GATE_BUSY` keep the two apart: one is retryable and means nothing was attempted,
+the other is a verdict on a repair that was. `Healer._gate` clears a stale gate and
+re-proposes exactly once (`GATE_RECOVERY_ATTEMPTS`), then stops rather than cycling against
+a billable endpoint.
+
 **Three branches, and they are not interchangeable:**
 
 | Condition | Outcome |
@@ -297,7 +312,8 @@ Extend these. Do not clone a near-copy beside them.
 | `skeleton()`, `skeleton_hash()` | `skeleton.py` | Any structural comparison |
 | `null_rates()`, `capture_baseline()` | `detect.py` | Baseline maths, used by detect and the facade |
 | `TEMPLATE_IDS`, `Diagnosis` | `diagnose.py` | Prompt selection. A new failure class adds a row |
-| `heal()`, `approve()`, `PROMOTED_STATUS` | `heal.py` | The approval gate |
+| `heal()`, `approve()`, `release_gate()`, `PROMOTED_STATUS` | `heal.py` | The approval gate. `release_gate` answers a gate with no `HealEvent` to describe it — the state the incident above left behind |
+| `PreviewResult` | `models.py` | The preview's two shapes. Annotate rather than re-spelling the union |
 | `BDATA_ARGV`, `DEFAULT_TIMEOUT_S`, `BATCH_TIMEOUT_S` | `studio.py` | Every `bdata` invocation |
 | `connect()`, `SqliteHealStore` | `store.py` | Persistence; `schema.sql` is the single DDL source |
 | `SystemClock` / `SubprocessRunner` | `clock.py` / `process.py` | The only `datetime.now` / `subprocess.run` |

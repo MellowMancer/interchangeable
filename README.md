@@ -81,9 +81,20 @@ be read as a stale label rather than a real disagreement.
 ## Status
 
 Working end to end for the ramipril corpus: collection, section splitting, concept
-classification, comparison, an HTTP API, an MCP server and the three UI screens. The
-self-healing engine is built and tested but has not yet been driven through a full cycle
-on this corpus, so collector health reads as unobserved rather than healthy.
+classification, comparison, an HTTP API, an MCP server and the three UI screens.
+
+The self-healing loop has been driven through a full cycle against a controlled fixture
+site. On a real layout mutation it detected the break, named the signal, repaired the
+collector and scored the result — `field_accuracy 1.0`, and the non-regression check
+passed, meaning the repair also still works against the layout it was built for. The
+collector id was unchanged throughout, which is the property the design rests on. The
+repair was confirmed to persist by re-running the collector from a cold process. On an
+unmutated control page the detector stayed silent, which is the only measurement that can
+show it is not simply firing on everything.
+
+`medicines.org.uk` cannot be broken on cue, which is why that evidence comes from a site
+we control — see `docs/GOLDEN_BENCHMARK.md`.
+
 Nothing here is production-ready, and nothing it outputs is medical advice.
 
 ## Deploying

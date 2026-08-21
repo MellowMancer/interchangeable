@@ -26,6 +26,12 @@ bdata scraper heal    <collector_id> <prompt>
 bdata scraper approve <collector_id>
 ```
 
+### `--name` is worth passing on every `create`
+
+The default is `cli-scraper-<timestamp>`, which makes every collector an account has ever
+built indistinguishable in the UI. There is **no programmatic delete**, so a collector that
+outlives its run can only be removed by a human picking it out of a list. Name them.
+
 ### ⚠️ `create` descriptions are capped at 500 characters
 
 `--help` states it on the argument; nothing else does. Over the cap the template is
@@ -101,6 +107,42 @@ the old template while reporting success.
 
 **Always assert the field on a real run afterwards** — never trust a status. This is what
 `Healer.heal()` exists to do; driving the CLI by hand skips that verification.
+
+### ⚠️ `preview_result` is an object **or an array**
+
+Verified 2026-08-21. A preview carrying several rows comes back as a JSON array:
+
+```json
+[{"components": [{"ref": "RF-001", "name": "…", "category": "…", "updated": "…", "href": "…"}, …]}]
+```
+
+A single-row preview comes back as an object, which is why a one-row collector never trips
+this. Typing the field as an object alone rejects the array, and the *entire completed
+repair* is discarded as an unusable envelope.
+
+### ⚠️ An unanswered gate blocks the collector — `Status: 409`
+
+Verified the expensive way, same day. Bright Data finishes the whole repair and then waits
+at `user_approval`. If the caller never answers, the job stays open indefinitely — five
+hours in the observed case — and every later heal on that collector fails:
+
+```
+Failed to start self-healing for collector c_…: Error: Another refactor job is still in progress
+  Status: 409
+```
+
+It is not a slow job; nobody picked up. Clear it with `bdata scraper approve <id> --reject`,
+which returns `{"status":"rejected","completed_steps":[…,"user_approval"]}` and frees the
+collector immediately. **Any code path that opens a heal must answer the gate on its way
+out, including on failure.**
+
+### `--auto-save` on `heal` is enough; `approve` does not need its own
+
+`bdata scraper approve` also exposes `--auto-save`, so it looks like it might be required
+for the resume call. It is not. Verified by running a healed collector from a cold process
+afterwards: 12/12 rows exact on the mutated page **and** on the original layout, with
+`--auto-save` passed only to `heal`. Assert the fields on a real run rather than reasoning
+about the flag — that is the rule this file already records, and it is what settled it.
 
 ## Heal state machine
 
@@ -244,6 +286,6 @@ Two host corrections to `superseded-municipal-agendas.md`: Bothell is `bothellwa
 
 ## Notes for this project
 
-- Collector IDs belong in `config/agencies.yaml` beside the variant, never in code.
+- Collector IDs belong in `api/config/collectors.yaml` beside their anchor, never in code.
 - A heal is anchored on a URL, so the plan's non-regression check maps cleanly: heal anchored on the new layout, then `run` against the **old** layout URL and diff against golden.
 - Scraper Studio executes in Bright Data's cloud and cannot reach `localhost` — benchmark fixtures must be publicly hosted.
