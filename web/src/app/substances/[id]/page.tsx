@@ -6,6 +6,7 @@ import {
   getMatrix,
   manufacturer,
   type ClauseCoverage,
+  type IndicationGroup,
   type Matrix,
   type ProductColumn,
   type Row,
@@ -60,6 +61,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           ← All substances
         </Link>
         <Classification products={matrix.products} />
+        <Indications groups={matrix.indications} total={matrix.products.length} />
       </header>
 
       {divergent.length > 0 ? (
@@ -237,6 +239,51 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
           Inspect what went unmatched →
         </Link>
       )}
+    </section>
+  );
+}
+
+/**
+ * What the labels say this substance is for.
+ *
+ * Shown, never diffed. §4.1 describes the substance rather than naming a section a safety
+ * concept is filed in, so a difference here is different wording — not a divergence, and
+ * not something the comparison's vocabulary reaches.
+ *
+ * When every label states the same indications this reads as the substance's own
+ * description. When they do not, each wording is shown with the manufacturers carrying it
+ * rather than one being picked to stand for the rest.
+ */
+function Indications({ groups, total }: { groups: IndicationGroup[]; total: number }) {
+  if (groups.length === 0) return null;
+  const carrying = groups.reduce((n, g) => n + g.manufacturers.length, 0);
+  const agreed = groups.length === 1;
+
+  return (
+    <section className="max-w-prose space-y-3">
+      <Kicker>{agreed ? "What it is for" : "What it is for — the labels differ"}</Kicker>
+      {groups.map((group) => (
+        <div key={group.manufacturers.join("|")} className="space-y-2">
+          {!agreed && (
+            <p className="font-mono text-kicker text-ink-muted">
+              as stated by {group.manufacturers.join(", ")}
+            </p>
+          )}
+          <ul className="space-y-1">
+            {group.statements.map((statement) => (
+              <li key={statement} className="border-l-2 border-rule pl-4 text-meta">
+                {statement}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p className="text-kicker text-ink-muted">
+        Section 4.1, verbatim, collected for {carrying} of {total} labels.{" "}
+        {agreed
+          ? "Every one of those states these."
+          : "Those labels do not state the same set."}
+      </p>
     </section>
   );
 }

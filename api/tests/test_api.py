@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from ixq.domain import Section
 from ixq.pipeline.ports import Repository
 from conftest import SECTION_43, SOURCE_ID, SUBSTANCE_ID, divergent_corpus
 
@@ -491,3 +492,49 @@ def test_the_concept_screen_carries_the_appearance_too(
     described = next(c for c in columns if c["external_id"] == "1")["appearance"]
 
     assert (described["length_mm"], described["width_mm"]) == (8.0, 4.0)
+
+
+def test_indications_are_grouped_by_what_the_labels_state(
+    client: TestClient, repository: Repository
+) -> None:
+    """§4.1 describes the substance, so labels wording it alike become one description."""
+    divergent_corpus(repository)
+    # The API reads through its own connection, so these must be committed, not pending.
+    with repository.transaction():
+        for sha, text in (
+            ("1".rjust(64, "0"), "- Treatment of hypertension. - Renal disease."),
+            ("2".rjust(64, "0"), "- Treatment of hypertension.\n\n- Renal disease"),
+        ):
+            repository.save_section(
+                sha, Section(code="4.1", heading="Therapeutic indications", text=text)
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+
+    assert len(groups) == 1, "spacing and a full stop are not a difference of indication"
+    assert groups[0]["statements"] == ["Treatment of hypertension.", "Renal disease."]
+    assert len(groups[0]["manufacturers"]) == 2
+
+
+def test_labels_stating_different_indications_are_not_merged(
+    client: TestClient, repository: Repository
+) -> None:
+    """The rare real case: one holder's licence is narrower, and that must survive.
+
+    Picking one wording to stand for the substance would hide exactly the finding that
+    makes §4.1 worth showing at all.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        for sha, text in (
+            ("1".rjust(64, "0"), "- Treatment of hypertension. - Paediatric use in children over 1 year."),
+            ("2".rjust(64, "0"), "- Treatment of hypertension."),
+        ):
+            repository.save_section(
+                sha, Section(code="4.1", heading="Therapeutic indications", text=text)
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+
+    assert len(groups) == 2
+    assert {len(g["statements"]) for g in groups} == {1, 2}

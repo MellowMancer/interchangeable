@@ -17,6 +17,9 @@ from bdheal.store import connect as heal_connect
 from ixq.adapters.config import load_collectors, load_sources, load_substances
 from ixq.adapters.sqlite import SqliteRepository, connect
 from ixq.domain import (
+    Section,
+    clauses,
+    prepared,
     Document,
     Occurrence,
     Placement,
@@ -25,6 +28,7 @@ from ixq.domain import (
     in_context,
     variant,
 )
+from ixq.domain.sections import INDICATIONS_CODE
 from ixq.pipeline.diverge import Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
@@ -201,6 +205,20 @@ class ClauseCoverage(BaseModel):
     unclassified: int
 
 
+class IndicationGroup(BaseModel):
+    """One §4.1 wording, and the manufacturers whose labels carry it.
+
+    A list rather than a single description because the labels are not guaranteed to
+    agree, and picking one silently would present one holder's licence as the substance's.
+    Across the substances checked they agree in wording that normalises to the same text
+    six times in seven, so this is usually one group — and when it is not, the split is
+    the point.
+    """
+
+    statements: list[str]
+    manufacturers: list[str]
+
+
 class Matrix(BaseModel):
     """The comparison for one substance.
 
@@ -219,6 +237,14 @@ class Matrix(BaseModel):
 
     products: list[ProductColumn]
     rows: list[Row]
+    indications: list[IndicationGroup]
+    """What the labels state this substance is for, grouped by wording.
+
+    Shown, never diffed. §4.1 is a description of the substance rather than a place a
+    safety concept is filed, so a difference here is reported as different wording and
+    never as a divergence — the comparison's vocabulary does not reach it.
+    """
+
     clauses: ClauseCoverage
     """The recall gap, carried with the comparison it belongs to.
 
@@ -342,6 +368,7 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
         substance_id=result.substance_id,
         substance_name=_substance_name(substance_id),
         products=_columns(result, repo.appearances_for_substance(substance_id)),
+        indications=_indications(result, repo.indications_for_substance(substance_id)),
         clauses=ClauseCoverage(
             classified=counted.classified, unclassified=counted.unclassified
         ),
@@ -435,6 +462,41 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
         )
 
     return [column(product) for product in result.products]
+
+
+def _indications(result: Comparison, stated: Mapping[str, str]) -> list[IndicationGroup]:
+    """§4.1 across a substance's current labels, grouped by what they actually say.
+
+    Grouped on `prepared()` — the same normalisation concept matching uses — reduced
+    further to its words. Two ramipril labels state the identical indications and differ
+    by a single stray full stop left where a cross-reference was removed; grouping on
+    punctuation would split them and imply a disagreement that is not there.
+
+    Comparing words, not bytes, is the right granularity for a description: the claim made
+    is that these labels state the same indications, not that they are byte-identical. The
+    statements shown are one member's verbatim text, never merged or rewritten.
+    """
+    by_product = {d.product_external_id: d for d in result.documents}
+    groups: dict[str, tuple[list[str], list[str]]] = {}
+
+    for product in result.products:
+        document = by_product.get(product.external_id)
+        text = stated.get(document.sha256) if document else None
+        if not text:
+            continue
+        section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
+        statements = [clause.text for clause in clauses(section)]
+        words = prepared(" ".join(statements))
+        # Punctuation first, whitespace after: dropping a full stop leaves the space it
+        # sat between, and collapsing before the strip leaves two where there was one.
+        key = " ".join("".join(c if c.isalnum() else " " for c in words).split())
+        held = groups.setdefault(key, (statements, []))
+        held[1].append(product.ma_holder or product.external_id)
+
+    return [
+        IndicationGroup(statements=statements, manufacturers=manufacturers)
+        for statements, manufacturers in groups.values()
+    ]
 
 
 def _appearance(section_text: str | None) -> AppearanceView | None:

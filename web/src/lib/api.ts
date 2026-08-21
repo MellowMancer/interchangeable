@@ -69,11 +69,15 @@ export type ProductColumn = {
 /** The recall gap as two counts. Never a ratio — one substance cannot support one. */
 export type ClauseCoverage = { classified: number; unclassified: number };
 
+/** One §4.1 wording, and the manufacturers whose labels carry it. */
+export type IndicationGroup = { statements: string[]; manufacturers: string[] };
+
 export type Matrix = {
   substance_id: string;
   substance_name: string;
   products: ProductColumn[];
   rows: Row[];
+  indications: IndicationGroup[];
   clauses: ClauseCoverage;
 };
 

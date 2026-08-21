@@ -19,6 +19,7 @@ from ixq.domain import (
     Substance,
     appearance,
 )
+from ixq.domain.sections import INDICATIONS_CODE
 from ixq.pipeline.ports import ClauseCounts, ConceptDivergence, SubstanceCounts
 
 _SCHEMA = "schema.sql"
@@ -153,13 +154,26 @@ class SqliteRepository:
         Keeping it out of the comparison is `COMPARABLE`'s job, not the schema's — which
         is also why this needs no schema change and no migration of the collected corpus.
         """
+        return self._texts_for_substance(substance_id, appearance.SECTION_CODE)
+
+    def indications_for_substance(self, substance_id: str) -> dict[str, str]:
+        """Every document's §4.1 text for one substance, keyed by sha."""
+        return self._texts_for_substance(substance_id, INDICATIONS_CODE)
+
+    def _texts_for_substance(self, substance_id: str, code: str) -> dict[str, str]:
+        """One short section's text across a substance's documents.
+
+        Private, and reached only through the narrow methods above. Exposing it on the port
+        would invite reading §4.4 this way, and that section runs to kilobytes per label —
+        the read-the-whole-corpus-per-navigation shape `counts_by_substance` exists to undo.
+        """
         rows = self._conn.execute(
             "SELECT s.document_sha256 AS sha, s.text FROM sections s "
             "JOIN documents d ON d.sha256 = s.document_sha256 "
             "JOIN products p ON p.source_id = d.source_id "
             "AND p.external_id = d.product_external_id "
             "WHERE p.substance_id = ? AND s.code = ?",
-            (substance_id, appearance.SECTION_CODE),
+            (substance_id, code),
         ).fetchall()
         return {row["sha"]: row["text"] for row in rows}
 

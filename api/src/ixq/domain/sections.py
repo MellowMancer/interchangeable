@@ -29,6 +29,14 @@ class SectionSpec:
             raise ValueError("a section spec needs a collector field and a section code")
 
 
+INDICATIONS_CODE = "4.1"
+"""§4.1, the section that says what the substance is authorised to treat.
+
+Named because two callers address it: the fetch mapping below, and the reader that shows
+it under a substance. A literal in both would be a code the corpus depends on with nobody
+owning it.
+"""
+
 STORED_ONLY: tuple[SectionSpec, ...] = (
     SectionSpec(
         field="section_3_pharmaceutical_form",
@@ -37,7 +45,7 @@ STORED_ONLY: tuple[SectionSpec, ...] = (
     ),
     SectionSpec(
         field="section_4_1_indications",
-        code="4.1",
+        code=INDICATIONS_CODE,
         heading="Therapeutic indications",
     ),
     SectionSpec(
