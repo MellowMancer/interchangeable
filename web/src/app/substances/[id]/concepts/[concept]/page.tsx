@@ -8,7 +8,7 @@ import {
   type ContextWindow,
   type ProductColumn,
 } from "@/lib/api";
-import { identicalWording, UNCLASSIFIED } from "@/lib/finding";
+import { groupByWording, UNCLASSIFIED, type WordingGroup } from "@/lib/finding";
 import { PlacementBadge } from "@/lib/placement";
 import { QuotePosition, SectionCoverage } from "@/lib/scope";
 import Link from "next/link";
@@ -43,7 +43,7 @@ export default async function ConceptPage({
 
   const byProduct = new Map(detail.products.map((p) => [p.external_id, p]));
   const isRecallGap = concept === UNCLASSIFIED;
-  const shared = identicalWording(detail.cells, detail.products);
+  const groups = groupByWording(detail.cells, detail.products);
 
   return (
     <article className="space-y-10">
@@ -68,19 +68,16 @@ export default async function ConceptPage({
 
       <PlacementSpectrum cells={detail.cells} products={detail.products} />
 
-      {/* Two abreast: one label per row turned ten manufacturers into a page nobody
-          reaches the end of, and the metadata column left most of its width empty. */}
+      {/* One block per distinct wording, two abreast. A block per label turned ten
+          manufacturers into a page nobody reaches the end of — and most of those blocks
+          were the same sentence, because generics copy an SmPC verbatim. */}
       <ul className="grid border-t border-rule lg:grid-cols-2">
-        {detail.cells.map((cell) => (
+        {groups.map((group) => (
           <li
-            key={cell.product_external_id}
+            key={`${group.placement}|${group.cells[0].product_external_id}`}
             className="border-b border-rule lg:odd:border-r lg:odd:pr-10 lg:even:pl-10"
           >
-            <Manufacturer
-              cell={cell}
-              product={byProduct.get(cell.product_external_id)}
-              sharedWith={shared.get(cell.product_external_id) ?? []}
-            />
+            <Wording group={group} byProduct={byProduct} />
           </li>
         ))}
       </ul>
@@ -88,72 +85,112 @@ export default async function ConceptPage({
   );
 }
 
-function Manufacturer({
-  cell,
-  product,
-  sharedWith,
+/**
+ * One wording, and every label that carries it.
+ *
+ * Grouped rather than repeated because the alternative misleads by volume: ten labels
+ * carrying one copied sentence printed ten times reads as ten findings, and buries the
+ * one label that words it differently. The grouping is byte-exact, so a block never
+ * claims agreement it has not verified.
+ *
+ * Every member keeps its own offsets, revision and source link. The same sentence sits at
+ * different indices in different labels, and a block that showed only the first member's
+ * provenance would quietly drop the rest.
+ */
+function Wording({
+  group,
+  byProduct,
 }: {
-  cell: ConceptCell;
-  product: ProductColumn | undefined;
-  sharedWith: string[];
+  group: WordingGroup<ConceptCell>;
+  byProduct: Map<string, ProductColumn>;
 }) {
-  const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
-  const name = product ? manufacturer(product) : cell.product_external_id;
+  const [first] = group.cells;
+  const shared = group.cells.length > 1;
 
   return (
     <section className="space-y-4 py-8">
-      {/* Who is speaking and where in their label, then what they say. Stacked rather
-          than side by side: at half the page width there is no room for two columns. */}
       <div className="space-y-3">
-        <div className="space-y-1">
-          <h2 className="font-medium">{name}</h2>
-          {sharedWith.length > 0 && (
-            <p className="text-kicker text-ink-muted">
-              identical wording to {sharedWith.join(", ")}
-            </p>
-          )}
-          <p className="font-mono text-meta text-ink-muted">
-            {product?.variant ?? product?.name}
-            {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}
-          </p>
-        </div>
-        <PlacementBadge placement={cell.placement} className="self-start" />
-        {cell.evidence && cell.context && (
-          <QuotePosition
-            charStart={cell.evidence.char_start}
-            charEnd={cell.evidence.char_end}
-            sectionLength={cell.context.section_length}
-            sectionCode={cell.evidence.section_code}
-          />
-        )}
-        {sourceUrl && (
-          <a
-            href={sourceUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-block font-mono text-meta text-accent underline underline-offset-4"
-          >
-            Source SmPC ↗
-          </a>
-        )}
+        <PlacementBadge placement={group.placement} className="self-start" />
+        <ul className="space-y-3">
+          {group.cells.map((cell) => (
+            <Speaker
+              key={cell.product_external_id}
+              cell={cell}
+              product={byProduct.get(cell.product_external_id)}
+            />
+          ))}
+        </ul>
       </div>
 
-      <div className="space-y-4">
-      {cell.evidence ? (
-        <>
-          {cell.context ? (
-            <InContext context={cell.context} />
+      {first.evidence ? (
+        <div className="space-y-2">
+          {first.context ? (
+            <InContext context={first.context} />
           ) : (
             <blockquote className="border-l-2 border-rule pl-6 font-serif text-body">
-              &ldquo;{cell.evidence.quote}&rdquo;
+              &ldquo;{first.evidence.quote}&rdquo;
             </blockquote>
           )}
-        </>
+          {/* The quote is identical in every member; the text around it is not, so the
+              label it was taken from is named rather than implied. */}
+          {shared && (
+            <p className="text-kicker text-ink-muted">
+              {group.cells.length === 2
+                ? "Identical in both labels."
+                : `Identical in all ${group.cells.length} labels.`}{" "}
+              Surrounding text shown from {label(first, byProduct)}.
+            </p>
+          )}
+        </div>
       ) : (
-        <Absence product={product} />
+        <Absence product={byProduct.get(first.product_external_id)} />
       )}
-      </div>
     </section>
+  );
+}
+
+/** A product's display name, falling back to its id when the column is missing. */
+const label = (cell: ConceptCell, byProduct: Map<string, ProductColumn>) => {
+  const product = byProduct.get(cell.product_external_id);
+  return product ? manufacturer(product) : cell.product_external_id;
+};
+
+/** One label in a wording group: who it is, which revision, and where in it. */
+function Speaker({
+  cell,
+  product,
+}: {
+  cell: ConceptCell;
+  product: ProductColumn | undefined;
+}) {
+  const sourceUrl = cell.evidence?.source_url ?? product?.source_url ?? undefined;
+
+  return (
+    <li className="space-y-1">
+      <p className="font-medium">{product ? manufacturer(product) : cell.product_external_id}</p>
+      <p className="font-mono text-meta text-ink-muted">
+        {product?.variant ?? product?.name}
+        {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}
+      </p>
+      {cell.evidence && cell.context && (
+        <QuotePosition
+          charStart={cell.evidence.char_start}
+          charEnd={cell.evidence.char_end}
+          sectionLength={cell.context.section_length}
+          sectionCode={cell.evidence.section_code}
+        />
+      )}
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-block font-mono text-meta text-accent underline underline-offset-4"
+        >
+          Source SmPC ↗
+        </a>
+      )}
+    </li>
   );
 }
 

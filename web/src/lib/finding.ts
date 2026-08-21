@@ -7,7 +7,6 @@
  */
 
 import {
-  manufacturer,
   type DivergencePreview,
   type Evidence,
   type ProductColumn,
@@ -109,43 +108,6 @@ export function sharedScanned(products: ProductColumn[]): string[] | null {
   return scopes.size === 1 ? (products[0]?.scanned ?? []) : null;
 }
 
-
-
-/**
- * Which other manufacturers state this in byte-identical words, per product.
- *
- * An annotation rather than a merge. Generic SmPCs are frequently copied verbatim between
- * holders, and saying so is worth doing — but two labels carrying the same sentence carry
- * it at their own offsets, in their own section, of their own length. Collapsing them into
- * one block would show one label's provenance and silently drop the other's.
- *
- * Exact string equality, never similarity: "these two say the same thing" is only a safe
- * claim when the bytes match, and a near-match is a difference worth reading.
- */
-export function identicalWording(
-  cells: { product_external_id: string; evidence: Evidence | null }[],
-  products: ProductColumn[],
-): Map<string, string[]> {
-  const byId = new Map(products.map((product) => [product.external_id, product]));
-  const name = (id: string) => {
-    const product = byId.get(id);
-    return product ? manufacturer(product) : id;
-  };
-
-  const byQuote = new Map<string, string[]>();
-  for (const cell of cells) {
-    const quote = cell.evidence?.quote;
-    if (!quote) continue;
-    byQuote.set(quote, [...(byQuote.get(quote) ?? []), cell.product_external_id]);
-  }
-
-  const shared = new Map<string, string[]>();
-  for (const ids of byQuote.values()) {
-    if (ids.length < 2) continue;
-    for (const id of ids) shared.set(id, ids.filter((other) => other !== id).map(name));
-  }
-  return shared;
-}
 
 
 /** One distinct wording, and every product whose label carries it. */
