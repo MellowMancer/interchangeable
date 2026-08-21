@@ -1,7 +1,8 @@
 """S1 — resolve a substance to the products that share it."""
 
 import re
-from collections.abc import Iterable
+from collections import Counter
+from collections.abc import Iterable, Sequence
 
 from ixq.domain import Product, Source, Substance
 from ixq.pipeline.ports import LabelSource, Repository
@@ -112,3 +113,69 @@ def _products(
         )
         repository.save_product(product)
         yield product
+
+
+PRESENTATION = re.compile(
+    r"(?P<strength>\d+(?:\.\d+)?)\s*(?P<unit>mg|micrograms?|g)\b(?!\s*/)", re.I
+)
+"""A product's strength, when its name states one. `(?!\\s*/)` skips a concentration's
+numerator — `1 mg/ml` states a strength per volume, which is not a tablet's 1 mg.
+"""
+
+FORM = ("oral suspension", "oral solution", "capsule", "tablet")
+"""Dosage forms, longest first so `oral solution` is not read as a bare `solution`."""
+
+
+def _presentation(name: str) -> tuple[str, str] | None:
+    """The (strength, form) a product name states, or None when it states neither."""
+    strength = PRESENTATION.search(name)
+    form = next((f for f in FORM if f in name.lower()), None)
+    if not strength or not form:
+        return None
+    return f"{float(strength['strength']):g} {strength['unit'].lower()}", form
+
+
+def shortlist(products: Sequence[Product], cap: int) -> list[Product]:
+    """The `cap` products that make the strongest comparison, not the first `cap` found.
+
+    The comparison's premise is that its columns are substitutable for one another, so the
+    selection maximises *distinct manufacturers at one presentation*: the commonest
+    strength and form among what was found, then one product per holder.
+
+    Both halves matter. Taking discovery order gave ramipril three Aurobindo products out
+    of seven, which spends fetches on a holder already represented while leaving others
+    uncollected. And mixing presentations imports differences that are not the
+    manufacturer's choice — ramipril's one refrigerated label is an oral solution, and
+    reading that beside tablets invites "these disagree about storage" when what differs
+    is the formulation.
+
+    Falls back rather than starves: once every holder at the chosen presentation is taken,
+    remaining slots go to unrepresented holders at any presentation, then to anything left.
+    A substance whose names state no presentation at all still returns `cap` products.
+    """
+    if not cap or len(products) <= cap:
+        return list(products)
+
+    presentations = Counter(
+        found for found in map(_presentation, (p.name for p in products)) if found
+    )
+    commonest = presentations.most_common(1)[0][0] if presentations else None
+
+    chosen: list[Product] = []
+    held: set[str] = set()
+
+    def take(candidates: Iterable[Product], *, one_per_holder: bool) -> None:
+        for product in candidates:
+            if len(chosen) == cap:
+                return
+            holder = product.ma_holder or product.external_id
+            if one_per_holder and holder in held:
+                continue
+            held.add(holder)
+            chosen.append(product)
+
+    at_commonest = [p for p in products if _presentation(p.name) == commonest]
+    take(at_commonest, one_per_holder=True)
+    take((p for p in products if p not in chosen), one_per_holder=True)
+    take((p for p in products if p not in chosen), one_per_holder=False)
+    return chosen

@@ -3,6 +3,12 @@
 # `id` is our slug, not any publisher's identifier: the same ingredient is named
 # differently by every source, so the join key cannot be borrowed. Adding a substance is
 # a change here and nowhere else.
+#
+# Chosen for the number of manufacturers each has on EMC, not for any expected finding:
+# whether these labels disagree is what the pipeline is for, and picking substances
+# because a disagreement was already suspected would make every result a foregone one.
+# Every entry below was checked to have at least four distinct MA holders — a comparison
+# of two labels is a coin toss, and the count is the only thing known before collecting.
 substances:
   - id: ramipril
     name: Ramipril
@@ -20,3 +26,87 @@ substances:
     name: Simvastatin
   - id: amoxicillin
     name: Amoxicillin
+  - id: lisinopril
+    name: Lisinopril
+  - id: bisoprolol
+    name: Bisoprolol
+  - id: losartan
+    name: Losartan
+  - id: furosemide
+    name: Furosemide
+  - id: levothyroxine
+    name: Levothyroxine
+  - id: gliclazide
+    name: Gliclazide
+  - id: clopidogrel
+    name: Clopidogrel
+  - id: lansoprazole
+    name: Lansoprazole
+  - id: pantoprazole
+    name: Pantoprazole
+  - id: gabapentin
+    name: Gabapentin
+  - id: pregabalin
+    name: Pregabalin
+  - id: naproxen
+    name: Naproxen
+  - id: ibuprofen
+    name: Ibuprofen
+  - id: tramadol
+    name: Tramadol
+  - id: prednisolone
+    name: Prednisolone
+  - id: salbutamol
+    name: Salbutamol
+  - id: montelukast
+    name: Montelukast
+  - id: citalopram
+    name: Citalopram
+  - id: escitalopram
+    name: Escitalopram
+  - id: fluoxetine
+    name: Fluoxetine
+  - id: mirtazapine
+    name: Mirtazapine
+  - id: amitriptyline
+    name: Amitriptyline
+  - id: venlafaxine
+    name: Venlafaxine
+  - id: duloxetine
+    name: Duloxetine
+  - id: quetiapine
+    name: Quetiapine
+  - id: lamotrigine
+    name: Lamotrigine
+  - id: levetiracetam
+    name: Levetiracetam
+  - id: allopurinol
+    name: Allopurinol
+  - id: tamsulosin
+    name: Tamsulosin
+  - id: finasteride
+    name: Finasteride
+  - id: sildenafil
+    name: Sildenafil
+  - id: candesartan
+    name: Candesartan
+  - id: rosuvastatin
+    name: Rosuvastatin
+  - id: atenolol
+    name: Atenolol
+  - id: propranolol
+    name: Propranolol
+  - id: ondansetron
+    name: Ondansetron
+  - id: metoclopramide
+    name: Metoclopramide
+  - id: nitrofurantoin
+    name: Nitrofurantoin
+  - id: cetirizine
+    name: Cetirizine
+  - id: clarithromycin
+    name: Clarithromycin
+  - id: flucloxacillin
+    name: Flucloxacillin
+  - id: methotrexate
+    name: Methotrexate
