@@ -266,6 +266,9 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
         What they look like
       </h2>
 
+      {/* One column: this sits in a narrow column beside the indications, and the caller
+          passes only the labels the comparison draws, so it is a short list rather than
+          the six hundred pixels ten products made of it. */}
       <ul className="space-y-2">
         {described.map((product) => {
           const appearance = product.appearance;
@@ -273,7 +276,7 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
           const undrawn = undrawnBecause(appearance);
           return (
             <li key={product.external_id} className="flex items-center gap-3">
-              <span className="flex h-8 w-24 shrink-0 items-center">
+              <span className="flex h-8 w-20 shrink-0 items-center">
                 {undrawn.length === 0 ? (
                   <DosageGlyph appearance={appearance} />
                 ) : (
@@ -286,9 +289,9 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
                   </span>
                 )}
               </span>
-              <span className="text-meta">
-                <span className="block">{manufacturer(product)}</span>
-                <span className="block font-mono text-kicker text-ink-muted">
+              <span className="min-w-0 text-meta">
+                <span className="block truncate">{manufacturer(product)}</span>
+                <span className="block truncate font-mono text-kicker text-ink-muted">
                   {product.variant ?? product.name}
                 </span>
               </span>

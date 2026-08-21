@@ -183,6 +183,15 @@
  * Components into client ones and ship a bundle to run entrance animations. The
  * `prefers-reduced-motion` block above neutralises all of it.
  */
+/* A shelf a reader drags or steps through; the bar underneath it is noise. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes land {
   from {
     opacity: 0;

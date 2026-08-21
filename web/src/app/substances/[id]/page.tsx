@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AppearanceRail } from "@/lib/appearance";
+import { AppearanceRail, undrawnBecause } from "@/lib/appearance";
+import { Carousel } from "@/lib/carousel";
 import { notFound } from "next/navigation";
 import {
   conceptLabel,
@@ -52,6 +53,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
   // A holder may hold several products, and they need not agree with each other, so the
   // two counts are different facts and the table shows both.
   const holders = holderGroups(matrix.products).length;
+  const shown = shownColumns(matrix.products);
 
   return (
     <div className="space-y-12">
@@ -70,16 +72,24 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           · {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
         </p>
         <Classification products={matrix.products} />
-        <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,20rem)]">
+        <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,18rem)]">
           <Indications groups={matrix.indications} total={matrix.products.length} />
-          <AppearanceRail products={matrix.products} />
+          <AppearanceRail products={shown} />
         </div>
       </header>
 
       {divergent.length > 0 ? (
         <section className="space-y-6">
           <Kicker>Where they disagree</Kicker>
-          <DivergenceTable matrix={matrix} rows={divergent} />
+          <DivergenceTable matrix={matrix} rows={divergent} products={shown} />
+          {shown.length < matrix.products.length && (
+            <p className="max-w-prose text-kicker text-ink-muted">
+              Showing {shown.length} of {matrix.products.length} labels, preferring those
+              that describe their own product. The {divergent.length} disagreements above
+              were found across all {matrix.products.length}, so some may sit between
+              labels not drawn here — open a label to see it in full.
+            </p>
+          )}
         </section>
       ) : (
         <section className="space-y-4">
@@ -90,8 +100,6 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           </p>
         </section>
       )}
-
-      <ValueSections sections={matrix.values} />
 
       {agreeing.length > 0 && (
         <section className="space-y-6 border-t border-rule pt-10">
@@ -111,6 +119,8 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
           </ul>
         </section>
       )}
+
+      <ValueSections sections={matrix.values} />
 
       <RecallGap clauses={matrix.clauses} substanceId={id} />
 
@@ -141,9 +151,9 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
   return (
     <section className="space-y-6 border-t border-rule pt-10">
       <Kicker>What the labels state, in their own words</Kicker>
-      <div className="grid gap-10 lg:grid-cols-2">
+      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
         {sections.map((section) => (
-          <article key={section.code} className="space-y-3">
+          <article key={section.code} className="space-y-2">
             {/* The app's voice, in the app's face: everything below is the label's own
                 words in serif, and a heading set like them reads as one of them. */}
             <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker tracking-widest text-ink-muted uppercase">
@@ -163,7 +173,7 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
               {section.groups.map((group) => (
                 <li
                   key={group.text}
-                  className={`flex flex-col gap-1 py-3 ${
+                  className={`flex flex-col gap-0.5 py-2 ${
                     section.groups.length > 1 ? "border-l-2 border-accent pl-4" : ""
                   }`}
                 >
@@ -204,6 +214,31 @@ function ValueSections({ sections }: { sections: ValueSection[] }) {
   );
 }
 
+/** How many of a wording's statements a card shows before deferring to the label itself. */
+const STATEMENTS_SHOWN = 5;
+
+/** How many labels a comparison draws before it becomes unreadable at this width. */
+const SHOWN_COLUMNS = 7;
+
+/**
+ * The labels to draw, when there are more than fit.
+ *
+ * Preferring the ones that describe their own product is not cosmetic: a label carrying a
+ * §3 appearance is one the collector read completely, so it is likelier to carry the rest
+ * of what the comparison reads too. Original order is otherwise kept, so the choice is
+ * reproducible rather than a ranking nobody stated.
+ */
+function shownColumns(products: ProductColumn[]): ProductColumn[] {
+  const drawn = (product: ProductColumn) =>
+    product.appearance && undrawnBecause(product.appearance).length === 0 ? 0 : 1;
+  return [...products]
+    .map((product, order) => ({ product, order, rank: drawn(product) }))
+    .sort((a, b) => a.rank - b.rank || a.order - b.order)
+    .slice(0, SHOWN_COLUMNS)
+    .sort((a, b) => a.order - b.order)
+    .map((held) => held.product);
+}
+
 /** Above this many columns a badge no longer fits, and the cells become chips. */
 const COMPACT_ABOVE = 5;
 
@@ -230,8 +265,16 @@ function holderGroups(products: ProductColumn[]): { name: string; products: Prod
   return groups.map(({ name, products: p }) => ({ name, products: p }));
 }
 
-function DivergenceTable({ matrix, rows }: { matrix: Matrix; rows: Row[] }) {
-  const groups = holderGroups(matrix.products);
+function DivergenceTable({
+  matrix,
+  rows,
+  products,
+}: {
+  matrix: Matrix;
+  rows: Row[];
+  products: ProductColumn[];
+}) {
+  const groups = holderGroups(products);
   const ordered = groups.flatMap((g) => g.products);
   const compact = ordered.length > COMPACT_ABOVE;
 
@@ -399,6 +442,22 @@ function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanc
  * description. When they do not, each wording is shown with the manufacturers carrying it
  * rather than one being picked to stand for the rest.
  */
+/** One wording is a paragraph; ten are a shelf. Only the second needs moving parts. */
+const Wordings = ({
+  agreed,
+  count,
+  children,
+}: {
+  agreed: boolean;
+  count: number;
+  children: React.ReactNode;
+}) =>
+  agreed ? (
+    <>{children}</>
+  ) : (
+    <Carousel label={`${count} wordings of what this substance is for`}>{children}</Carousel>
+  );
+
 function Indications({ groups, total }: { groups: IndicationGroup[]; total: number }) {
   if (groups.length === 0) return null;
   const carrying = groups.reduce((n, g) => n + g.manufacturers.length, 0);
@@ -415,20 +474,17 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
           reader reaches the comparison, and each is a paraphrase of the last — so they
           cost one card's height between them and the reader moves along only if the
           differences interest them. Scroll snapping, no script. */}
-      {!agreed && (
-        <p className="font-mono text-kicker text-ink-muted">
-          scroll for all {groups.length} wordings →
-        </p>
-      )}
-      <ul
-        className={
-          agreed ? "" : "flex snap-x items-start gap-6 overflow-x-auto pb-2"
-        }
-      >
+      <Wordings agreed={agreed} count={groups.length}>
       {groups.map((group) => (
-        <li
+        <div
           key={group.manufacturers.join("|")}
-          className={agreed ? "space-y-2" : "w-96 shrink-0 snap-start space-y-2"}
+          // Half the shelf each, less half the gap between them, so two sit exactly in
+            // view and a third edge shows there is more.
+            className={
+              agreed
+                ? "space-y-2"
+                : "w-[calc(50%-0.75rem)] shrink-0 snap-start space-y-2"
+            }
         >
           {!agreed && (
             <p className="font-mono text-kicker text-ink-muted">
@@ -437,8 +493,10 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
           )}
           {/* Indented as the label indents it. Ten equal lines said this substance is
               authorised for ten things; it is authorised for five, two of them qualified. */}
+          {/* Five, then a count. A card is a glance at how this label words it; the
+              whole of §4.1 is on the label's own page, where nothing competes with it. */}
           <ul className="space-y-1">
-            {group.statements.map((statement) => (
+            {group.statements.slice(0, STATEMENTS_SHOWN).map((statement) => (
               <li
                 key={statement.text}
                 className={
@@ -451,9 +509,14 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
               </li>
             ))}
           </ul>
-        </li>
+          {group.statements.length > STATEMENTS_SHOWN && (
+            <p className="font-mono text-kicker text-ink-muted">
+              + {group.statements.length - STATEMENTS_SHOWN} more
+            </p>
+          )}
+        </div>
       ))}
-      </ul>
+      </Wordings>
       <p className="text-kicker text-ink-muted">
         Section 4.1, verbatim, collected for {carrying} of {total} labels.{" "}
         {agreed
