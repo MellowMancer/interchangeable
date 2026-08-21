@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 
 /**
@@ -13,7 +14,7 @@ import { cookies } from "next/headers";
  */
 export const THEME_COOKIE = "theme";
 
-/** The choices, in the order the control offers them. `system` is the absence of a cookie. */
+/** The choices, in the order the control cycles them. `system` is the absence of a cookie. */
 export const THEMES = ["system", "light", "dark"] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -43,28 +44,65 @@ export async function chooseTheme(formData: FormData): Promise<void> {
   else jar.set(THEME_COOKIE, theme, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
 }
 
+/**
+ * One mark per choice, drawn rather than named.
+ *
+ * The nav beside this is entirely links, so three words reading SYSTEM LIGHT DARK read as
+ * three more destinations. An icon is unambiguously a control. Inline SVG on
+ * `currentColor`, so it inherits the same hover the links use and needs no asset.
+ */
+const ICONS: Record<Theme, ReactNode> = {
+  system: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  light: (
+    <>
+      <circle cx="12" cy="12" r="4.5" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M19.1 4.9l-1.5 1.5M6.4 17.6l-1.5 1.5" />
+    </>
+  ),
+  dark: <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />,
+};
+
+/**
+ * A single button showing the theme in force and switching to the next one.
+ *
+ * Cycling rather than three buttons: the choice is small enough that a reader can reach
+ * any of them in at most two presses, and one control takes the space of one nav item
+ * instead of dominating the header.
+ */
 export async function ThemeToggle() {
   const active = await currentTheme();
+  const next = THEMES[(THEMES.indexOf(active) + 1) % THEMES.length];
+  const description = `Colour theme: ${active}. Switch to ${next}.`;
 
+  // The nav aligns on the baseline; an icon has none, so it centres itself.
   return (
-    <form action={chooseTheme} className="flex items-center gap-px">
-      <span className="sr-only">Colour theme</span>
-      {THEMES.map((theme) => (
-        <button
-          key={theme}
-          type="submit"
-          name={THEME_COOKIE}
-          value={theme}
-          aria-pressed={theme === active}
-          className={`rounded-sheet border px-2 py-1 font-mono text-kicker tracking-widest uppercase ${
-            theme === active
-              ? "border-rule bg-rule/50 text-ink"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
+    <form action={chooseTheme} className="flex self-center">
+      <button
+        type="submit"
+        name={THEME_COOKIE}
+        value={next}
+        title={description}
+        className="rounded-sheet border border-transparent p-1.5 text-ink-muted hover:border-rule hover:text-ink"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          aria-hidden
         >
-          {theme}
-        </button>
-      ))}
+          {ICONS[active]}
+        </svg>
+        <span className="sr-only">{description}</span>
+      </button>
     </form>
   );
 }
