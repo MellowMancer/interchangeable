@@ -28,6 +28,20 @@ The name is *not* required to contain the substance: `Tritace` is ramipril's ori
 brand, and excluding brands would drop the reference product from every comparison.
 """
 
+STRENGTHS = re.compile(r"\d+\s*(?:mg|micrograms?|g)\s*/\s*\d+\s*(?:mg|micrograms?|g)\b", re.I)
+"""Two strengths joined by `/`, which only a combination has.
+
+`COMBINATION` requires a word either side of the join, so it cannot see a branded
+combination that names no ingredient at all: `Exforge 5mg/80mg` is amlodipine and
+valsartan, and it reads to that rule exactly like a single-substance tablet. Of the 32
+products EMC returns for amlodipine, seven are combinations and it caught none.
+
+Safe for the same reason the `/` branch was narrowed: a concentration is a strength over a
+*volume* — `Ramipril 2.5 mg/5 ml` — so requiring a mass unit on both sides separates the
+two. Checked against the ramipril corpus, where it matches nothing.
+"""
+
+
 def _joins_substances(left: str, right: str) -> bool:
     """Whether this join is between two substance names rather than two presentations.
 
@@ -46,6 +60,8 @@ def is_combination(product_name: str) -> bool:
     A name may contain several joins — `Amoxicillin and Clavulanic Acid Powder and
     Solvent` has two — so every one is examined and any single substance join settles it.
     """
+    if STRENGTHS.search(product_name):
+        return True
     return any(
         _joins_substances(left, right)
         for left, right in COMBINATION.findall(product_name)

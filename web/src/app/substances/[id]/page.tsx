@@ -23,7 +23,6 @@ import {
   PLACEMENT_LEGEND,
   PlacementBadge,
   PlacementChip,
-  placementStyle,
 } from "@/lib/placement";
 import { RevisionTimeline } from "@/lib/timeline";
 
@@ -111,9 +110,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
                   className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 hover:text-accent"
                 >
                   <span>{conceptLabel(row.concept)}</span>
-                  <span className="text-meta text-ink-muted">
-                    {placementStyle(row.cells[0]?.placement ?? "absent").label}
-                  </span>
+                  <PlacementBadge placement={row.cells[0]?.placement ?? "absent"} />
                 </Link>
               </li>
             ))}

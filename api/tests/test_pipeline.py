@@ -475,3 +475,26 @@ def test_a_row_of_only_stored_only_sections_is_still_a_break(repository: Reposit
 
     with pytest.raises(ValueError, match="no clinical section content"):
         fetch(product, SOURCE, "c_product", StubLabels([row]), repository)
+
+
+def test_a_branded_combination_is_excluded_by_its_two_strengths() -> None:
+    """`Exforge 5mg/80mg` is amlodipine and valsartan, and names neither.
+
+    The word-either-side rule cannot see it: there is no ingredient in the name to join.
+    Of the 32 products EMC returns for amlodipine, seven are combinations and that rule
+    caught none of them.
+    """
+    assert is_combination("Exforge 5mg/80mg film coated tablets")
+    assert is_combination("Sevikar 20 mg/5 mg Film-Coated Tablets")
+    assert is_combination("Exforge 10mg/160mg film coated tablets")
+
+
+def test_a_concentration_is_still_not_a_combination() -> None:
+    """The guard on the branch above: a strength over a volume is one substance.
+
+    Six of ramipril's 31 products carry a `/` and none is a combination. Reading those as
+    combinations would drop three manufacturers that publish only oral solutions.
+    """
+    assert not is_combination("Ramipril 2.5 mg/5 ml Oral solution")
+    assert not is_combination("Amlodipine 10mg/5ml Oral Solution")
+    assert not is_combination("Amlodipine 1 mg/ml Oral Suspension")
