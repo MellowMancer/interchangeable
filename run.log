@@ -287,3 +287,112 @@ naproxen: 19 products, fetching 10 from 10 manufacturers
   11105: 172 occurrences
   2099: 168 occurrences
 skipping the collector health check (--no-heal)
+ibuprofen: 119 products, fetching 10 from 10 manufacturers
+  100492: 161 occurrences
+  8086: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  13498: 151 occurrences
+  13024: 183 occurrences
+  11166: 200 occurrences
+  1891: 140 occurrences
+  10261: 132 occurrences
+  6174: 141 occurrences
+  6608: 154 occurrences
+  4903: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+skipping the collector health check (--no-heal)
+tramadol: 39 products, fetching 10 from 10 manufacturers
+  9524: 87 occurrences
+  11609: 106 occurrences
+  14589: 110 occurrences
+  11799: 110 occurrences
+  81: 107 occurrences
+  7123: 118 occurrences
+  6982: 98 occurrences
+  101082: 104 occurrences
+  4291: 86 occurrences
+  2988: 114 occurrences
+skipping the collector health check (--no-heal)
+prednisolone: 23 products, fetching 10 from 10 manufacturers
+  14675: 86 occurrences
+  14313: 101 occurrences
+  2427: 106 occurrences
+  102342: 87 occurrences
+  11715: 95 occurrences
+  1753: 84 occurrences
+  101838: 90 occurrences
+  101742: 27 occurrences
+  3744: 19 occurrences
+  9149: 98 occurrences
+skipping the collector health check (--no-heal)
+salbutamol: 15 products, fetching 10 from 6 manufacturers
+  1423: 53 occurrences
+  4557: FAILED — collector returned no clinical section content — expected one of ['section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation'], got ['active_substance', 'atc_code', 'company_id', 'discontinued', 'emc_last_updated', 'ingredient_id', 'input', 'last_updated', 'legal_status', 'ma_holder', 'product_name', 'section_3_pharmaceutical_form', 'section_4_1_indications', 'section_4_3_contraindications', 'section_4_4_warnings', 'section_4_5_interactions', 'section_4_6_pregnancy_lactation', 'section_6_1_excipients', 'section_6_3_shelf_life', 'section_6_4_storage', 'section_8_ma_number']. A renamed field is a break, not a label without contraindications.
+  10257: 40 occurrences
+  6340: 43 occurrences
+  2070: 90 occurrences
+  2192: 38 occurrences
+  852: 37 occurrences
+  849: 35 occurrences
+  12983: 59 occurrences
+  6339: 43 occurrences
+skipping the collector health check (--no-heal)
+montelukast: 20 products, fetching 10 from 8 manufacturers
+  1222: 41 occurrences
+  9918: 40 occurrences
+  198: 39 occurrences
+  13555: 42 occurrences
+  3494: 41 occurrences
+  2622: 34 occurrences
+  101340: 39 occurrences
+  14561: 42 occurrences
+  3043: 30 occurrences
+  100604: 31 occurrences
+skipping the collector health check (--no-heal)
+citalopram: 24 products, fetching 10 from 10 manufacturers
+  13053: 188 occurrences
+  550: 186 occurrences
+  992: 187 occurrences
+  4955: 177 occurrences
+  14239: 197 occurrences
+  101314: 185 occurrences
+  13911: 190 occurrences
+  3349: 182 occurrences
+  14338: 170 occurrences
+  10602: 181 occurrences
+skipping the collector health check (--no-heal)
+escitalopram: 27 products, fetching 10 from 9 manufacturers
+  15937: 159 occurrences
+  9907: 159 occurrences
+  15024: 168 occurrences
+  7069: 165 occurrences
+  101944: 161 occurrences
+  7718: 157 occurrences
+  102179: 163 occurrences
+  10854: 161 occurrences
+  100551: 162 occurrences
+  15938: 159 occurrences
+skipping the collector health check (--no-heal)
+fluoxetine: 20 products, fetching 10 from 10 manufacturers
+  14304: 143 occurrences
+  13515: 154 occurrences
+  10658: 133 occurrences
+  11909: 146 occurrences
+  100982: 149 occurrences
+  3716: 129 occurrences
+  5358: 148 occurrences
+  14172: 141 occurrences
+  10286: 161 occurrences
+  4564: 144 occurrences
+skipping the collector health check (--no-heal)
+mirtazapine: 14 products, fetching 10 from 5 manufacturers
+  101330: 93 occurrences
+  100083: 100 occurrences
+  535: 93 occurrences
+  100724: 95 occurrences
+  2023: 100 occurrences
+  100725: 93 occurrences
+  534: 85 occurrences
+  100723: 94 occurrences
+  531: 93 occurrences
+  536: 93 occurrences
+skipping the collector health check (--no-heal)
+amitriptyline: 20 products, fetching 10 from 7 manufacturers

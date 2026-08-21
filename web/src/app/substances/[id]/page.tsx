@@ -406,9 +406,30 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
 
   return (
     <section className="max-w-prose space-y-3">
-      <Kicker>{agreed ? "What it is for" : "What it is for — the labels differ"}</Kicker>
+      <Kicker>
+        {agreed
+          ? "What it is for"
+          : `What it is for — ${groups.length} labels word this differently`}
+      </Kicker>
+      {/* Sideways, not stacked. Ten wordings of one description is a screenful before the
+          reader reaches the comparison, and each is a paraphrase of the last — so they
+          cost one card's height between them and the reader moves along only if the
+          differences interest them. Scroll snapping, no script. */}
+      {!agreed && (
+        <p className="font-mono text-kicker text-ink-muted">
+          scroll for all {groups.length} wordings →
+        </p>
+      )}
+      <ul
+        className={
+          agreed ? "" : "flex snap-x items-start gap-6 overflow-x-auto pb-2"
+        }
+      >
       {groups.map((group) => (
-        <div key={group.manufacturers.join("|")} className="space-y-2">
+        <li
+          key={group.manufacturers.join("|")}
+          className={agreed ? "space-y-2" : "w-96 shrink-0 snap-start space-y-2"}
+        >
           {!agreed && (
             <p className="font-mono text-kicker text-ink-muted">
               as stated by {group.manufacturers.join(", ")}
@@ -430,8 +451,9 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
               </li>
             ))}
           </ul>
-        </div>
+        </li>
       ))}
+      </ul>
       <p className="text-kicker text-ink-muted">
         Section 4.1, verbatim, collected for {carrying} of {total} labels.{" "}
         {agreed
