@@ -107,8 +107,11 @@ letting Render build from the repo would produce a service with empty databases.
 echo $GH_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
 
 # every release: build, push, and tell Render to pull the new tag
-GH_USER=<github-user> RENDER_DEPLOY_HOOK='<hook-url>' make release
+make release
 ```
+
+`make release` reads `GH_USER` and `RENDER_DEPLOY_HOOK` from `.env`, which is gitignored;
+pass them in the environment instead if you keep them elsewhere.
 
 Create the service once as a Render **web service from an existing image** — not a
 private service, which only other Render services can reach — pointing at

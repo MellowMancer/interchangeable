@@ -32,13 +32,18 @@ add-js:
 # The corpus lives only on this machine — `data/` is gitignored — so CI has nothing to
 # bake into the image and the build has to happen here. Render's image-backed services
 # do not redeploy themselves when a tag is pushed, hence the third step.
-# GHCR rejects uppercase repository names, and GitHub usernames may contain them.
-IMAGE ?= ghcr.io/$(shell echo '$(GH_USER)' | tr '[:upper:]' '[:lower:]')/ixq-api
-TAG   := $(shell git rev-parse --short HEAD)
+#
+# `.env` is sourced rather than included: its values are quoted, which Make would carry
+# into the image name verbatim. Keeping the hook a shell variable also stops Make from
+# echoing a secret that triggers a deploy for anyone who reads it.
+TAG := $(shell git rev-parse --short HEAD)
 
 release:
-	@test -n "$(GH_USER)" || { echo "GH_USER is unset"; exit 1; }
-	@test -n "$(RENDER_DEPLOY_HOOK)" || { echo "RENDER_DEPLOY_HOOK is unset"; exit 1; }
-	docker build --platform linux/amd64 --provenance=false -f api/Dockerfile -t $(IMAGE):$(TAG) .
-	docker push $(IMAGE):$(TAG)
-	curl -fsS "$(RENDER_DEPLOY_HOOK)&imgURL=$(IMAGE):$(TAG)"
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	test -n "$$GH_USER" || { echo "GH_USER is unset (add it to .env)"; exit 1; }; \
+	test -n "$$RENDER_DEPLOY_HOOK" || { echo "RENDER_DEPLOY_HOOK is unset (add it to .env)"; exit 1; }; \
+	IMAGE=ghcr.io/$$(echo "$$GH_USER" | tr '[:upper:]' '[:lower:]')/ixq-api:$(TAG); \
+	echo "releasing $$IMAGE"; \
+	docker build --platform linux/amd64 --provenance=false -f api/Dockerfile -t "$$IMAGE" . && \
+	docker push "$$IMAGE" && \
+	curl -fsS "$$RENDER_DEPLOY_HOOK&imgURL=$$IMAGE" && echo "" && echo "deploy triggered"
