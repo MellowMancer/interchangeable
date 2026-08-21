@@ -49,7 +49,7 @@ A prefix match would eat real clauses — `2.5 mg/5 ml oral solution` and `1.5 g
 renal impairment` both open with `d.d` and are contraindications, not headings.
 """
 
-SPLITTING_GLYPHS = "•·▪▫◦●○‣⁃∙*"
+SPLITTING_GLYPHS = "•·▪▫◦●○‣⁃∙*\u2003"
 """Markers unambiguous enough to end a clause mid-line.
 
 Shared by `BULLET` and `SEGMENT` on purpose. They diverged once — `BULLET` knew `*`, `–`
@@ -57,6 +57,15 @@ and `—` while `SEGMENT` knew only `•` and `·` — so a publisher bulleting 
 had its markers trimmed at line start but never split, rebuilding exactly the
 single-clause section this module was fixed to prevent. Nothing would have caught it:
 no text is dropped, the clause is merely the wrong size.
+
+`\u2003` (EM SPACE) is the same failure with a different character. Three publishers
+bullet one shared passage three ways: `\n\n- `, `\n\n • `, and — Zentiva — `\u2003- `,
+with no newline at all. The first two split on the newline and the third did not, so
+Zentiva's §4.4 held one 730-character clause spanning eight bullets and every concept in
+it quoted all eight. Measured across the corpus before adding it: all seven em spaces
+introduce a list marker and none occurs mid-sentence, so it cannot cut a sentence in half
+and strand a pattern across the join. It is whitespace, so consuming it drops no content
+— unlike the hyphen beside it, which is why `-` is still not a splitter.
 """
 
 BULLET = re.compile(rf"^[\s ]*(?:[{re.escape(SPLITTING_GLYPHS)}\-–—]|o(?=\s))[\s ]*")

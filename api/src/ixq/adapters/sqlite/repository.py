@@ -278,6 +278,11 @@ class SqliteRepository:
             ),
         )
 
+    def delete_occurrences(self, document_sha256: str) -> None:
+        self._conn.execute(
+            "DELETE FROM occurrences WHERE document_sha256 = ?", (document_sha256,)
+        )
+
     def products_for_substance(self, substance_id: str) -> list[Product]:
         rows = self._conn.execute(
             "SELECT * FROM products WHERE substance_id = ? ORDER BY name", (substance_id,)

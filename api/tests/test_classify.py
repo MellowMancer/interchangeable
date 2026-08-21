@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from ixq.adapters.config import load_concepts
-from ixq.domain import UNCLASSIFIED, Concept, Section, clauses, prepared
+from ixq.domain import UNCLASSIFIED, Concept, Product, Section, clauses, prepared
 from ixq.domain.section import BULLET, HEADER, LEAD_IN, SPLITTING_GLYPHS
-from ixq.pipeline.classify import classify
+from ixq.pipeline.classify import classify, classify_document
+from ixq.pipeline.ports import Repository
+from conftest import DOC_SHA, SUBSTANCE_ID
 
 # Verbatim from Glucophage 500 mg, EMC product 987 — the real thing, bullets and all.
 METFORMIN_43 = Section(
@@ -103,6 +105,48 @@ def test_inline_bullets_split_even_without_newlines() -> None:
         "Hypersensitivity to the active substance.",
         "History of angioedema.",
         "Pregnancy.",
+    ]
+
+
+def test_an_em_space_bullet_splits_like_any_other() -> None:
+    """Zentiva bullets §4.4 with `\u2003-` and no newline at all.
+
+    Its two competitors write `\n\n- ` and `\n\n \u2022 `, which split on the newline.
+    Zentiva's did not, so one clause spanned eight bullets and `cardiac`, `renal`,
+    `hepatic` and `hypotension` all quoted the same 730 characters — a concept evidenced
+    by seven bullets it is not about.
+
+    The hyphen is deliberately not what splits here. It occurs inside `renin-angiotensin`
+    and between the digits of a date, so splitting on it would cut words in half. The em
+    space carries the same information and cannot appear inside a word.
+    """
+    section = Section(
+        code="4.4",
+        heading="Special warnings and precautions for use",
+        text=(
+            "medical supervision is necessary, for example in:"
+            "\u2003- patients with severe hypertension"
+            "\u2003- patients with decompensated congestive heart failure"
+        ),
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "medical supervision is necessary, for example in:",
+        "patients with severe hypertension",
+        "patients with decompensated congestive heart failure",
+    ]
+
+
+def test_an_em_space_split_does_not_cut_a_hyphenated_word() -> None:
+    """The guard on the character that was *not* added to the splitter."""
+    section = Section(
+        code="4.4",
+        heading="Special warnings and precautions for use",
+        text="Activation of the renin-angiotensin-aldosterone system is anticipated.",
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "Activation of the renin-angiotensin-aldosterone system is anticipated."
     ]
 
 
@@ -298,3 +342,42 @@ def _unexplained_drops(section: Section) -> list[str]:
         for start, end in _orphan_spans(section.text, covered)
         if not _explained(section.text[start:end], _line_around(section.text, start))
     ]
+
+
+def test_reclassifying_replaces_findings_rather_than_doubling_them(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """The reason `classify_document` clears first.
+
+    Occurrences are keyed by their character span, so a change to the clause splitter
+    gives the same finding a new span and `ON CONFLICT` never fires. Without the clear, a
+    document accumulates one set of findings per splitter it has ever been read with, and
+    a cell shows two quotes for one claim.
+    """
+    concepts = [Concept(name="renal", patterns=("renal",))]
+
+    with repository.transaction():
+        first = classify_document(DOC_SHA, repository, concepts)
+    with repository.transaction():
+        second = classify_document(DOC_SHA, repository, concepts)
+
+    assert first == second == 1
+    assert len(repository.occurrences_for_substance(SUBSTANCE_ID)) == 1
+
+
+def test_reclassifying_picks_up_a_lexicon_change_without_a_fetch(
+    repository: Repository, seeded_product: Product
+) -> None:
+    """The point of the command: stored sections answer this, so re-fetching is waste."""
+    with repository.transaction():
+        classify_document(DOC_SHA, repository, [Concept(name="renal", patterns=("renal",))])
+    before = {o.concept for o in repository.occurrences_for_substance(SUBSTANCE_ID)}
+
+    with repository.transaction():
+        classify_document(
+            DOC_SHA, repository, [Concept(name="hypersensitivity", patterns=("hypersensitiv",))]
+        )
+    after = {o.concept for o in repository.occurrences_for_substance(SUBSTANCE_ID)}
+
+    assert before == {"renal"}
+    assert after == {"hypersensitivity"}, "a concept dropped from the lexicon stops being claimed"

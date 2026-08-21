@@ -91,6 +91,15 @@ class Repository(Protocol):
         """Insert an occurrence."""
         ...
 
+    def delete_occurrences(self, document_sha256: str) -> None:
+        """Drop every occurrence of one document, so they can be derived again.
+
+        Occurrences are addressed by their character span, so a change to how clauses are
+        cut gives the same finding a different span. Re-deriving without this leaves both
+        the old row and the new one, and a cell then shows two quotes for one claim.
+        """
+        ...
+
     def products_for_substance(self, substance_id: str) -> list[Product]:
         """Every product of a substance — the columns of the comparison."""
         ...

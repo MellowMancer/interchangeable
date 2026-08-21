@@ -13,7 +13,7 @@ from ixq.adapters.config import (
 )
 from ixq.adapters.sqlite import SCHEMA_VERSION, SqliteRepository, connect, migrate
 from ixq.domain import Collector, CollectorKind
-from ixq.pipeline.classify import classify
+from ixq.pipeline.classify import classify_document
 from ixq.pipeline.collect import collect
 from ixq.pipeline.diverge import compare
 from ixq.pipeline.fetch import fetch
@@ -188,12 +188,43 @@ def _one_label(product, source, by_kind, labels, concepts, repository) -> None:
         if document is None:
             typer.echo(f"  {product.external_id}: no rows")
             return
-        found = 0
-        for section in repository.sections_for_document(document.sha256):
-            for occurrence in classify(section, document.sha256, concepts):
-                repository.save_occurrence(occurrence)
-                found += 1
+        found = classify_document(document.sha256, repository, concepts)
     typer.echo(f"  {product.external_id}: {found} occurrences")
+
+
+@app.command()
+def reclassify(
+    substance: str = typer.Option("", help="Only this substance id. Default: every one."),
+) -> None:
+    """Re-derive every finding from the sections already stored. Costs nothing.
+
+    Sections are kept verbatim, so what a clause is and what concept it carries can both
+    be recomputed from them — a change to the clause splitter or the lexicon does not need
+    the corpus fetched again. `run` would re-fetch it, which is billable and, for a
+    question already answered by stored bytes, pointless.
+
+    One transaction per document, because clearing a document's findings and re-deriving
+    them is one unit of work.
+    """
+    config = config_dir()
+    repository = SqliteRepository(connect(database_path()))
+    concepts = load_concepts(config / "concepts.yaml")
+
+    substances = load_substances(config / "substances.yaml")
+    if substance:
+        substances = [s for s in substances if s.id == substance]
+        if not substances:
+            raise typer.BadParameter(f"no substance {substance!r} in the roster")
+
+    for item in substances:
+        documents = repository.documents_for_substance(item.id)
+        if not documents:
+            continue
+        total = 0
+        for document in documents:
+            with repository.transaction():
+                total += classify_document(document.sha256, repository, concepts)
+        typer.echo(f"{item.id}: {len(documents)} labels, {total} occurrences")
 
 
 @app.command()

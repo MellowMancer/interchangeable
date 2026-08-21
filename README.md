@@ -182,6 +182,19 @@ docker compose down    # stop
 - API — http://localhost:8000 (`/health`, `/docs`)
 - Web — http://localhost:3000
 
+### Re-deriving findings without a fetch
+
+Sections are stored verbatim, so what counts as a clause and what concept it carries can
+both be recomputed from them. After a change to the clause splitter or the lexicon:
+
+```bash
+ixq reclassify              # every substance
+ixq reclassify --substance ramipril
+```
+
+`ixq run` would re-fetch the corpus to answer a question the stored bytes already answer,
+and every fetch is billable.
+
 ### Upgrading an existing database
 
 The schema is create-only and `connect()` refuses a file it does not recognise, so a
