@@ -121,7 +121,7 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
           {divergent.length > 0 ? (
             <section className="space-y-4">
               <Section>
-                Disagreements — {divergent.length}
+                Disagreements ({divergent.length})
               </Section>
               <DivergenceTable matrix={matrix} rows={divergent} products={products} />
             </section>
@@ -137,7 +137,7 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
 
           {agreeing.length > 0 && (
             <section className="section-break space-y-4">
-              <Section>Agreements — {agreeing.length}</Section>
+              <Section>Agreements ({agreeing.length})</Section>
               <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
                 {agreeing.map((row) => (
                   <li key={row.concept}>
@@ -200,7 +200,7 @@ function Chooser({
             aria-hidden
             className={`h-6 w-1.5 shrink-0 rounded-sheet ${narrowed ? "bg-accent" : "bg-ink-muted"}`}
           />
-          Comparing{" "}
+          Comparing
           <span className={narrowed ? "text-accent" : undefined}>{chosen.length}</span>{" "}
           {chosen.length === 1 ? "product" : "products"}
         </span>
@@ -293,11 +293,11 @@ function ValueSections({
           <article key={section.code} className="space-y-3">
             <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker text-ink-muted">
               <span>
-                §{section.code} — {section.heading}
+                {section.heading}
               </span>
               {section.groups.length > 1 && (
                 <span className="rounded-sheet border border-accent px-2 py-0.5 text-accent">
-                  {section.groups.length} different statements
+                  {section.groups.length} differences
                 </span>
               )}
             </h3>

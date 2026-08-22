@@ -46,7 +46,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
         href={`/substances/${detail.substance_id}`}
         className="font-mono text-kicker text-ink-muted hover:text-ink"
       >
-        ← Compare every {detail.substance_name}
+        ← Compare all {detail.substance_name}
       </Link>
 
       <Identity detail={detail} />
@@ -55,7 +55,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
         <Section>
           <span className="flex items-center gap-2">
             <Concepts />
-            Concepts — {detail.concepts.length}
+            Concepts ({detail.concepts.length})
           </span>
         </Section>
         {/* Two columns of collapsed rows: the placement is the answer, and the sentence
@@ -94,8 +94,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
           {/* Qualified deliberately: this says the labels match, which is a claim about
               two documents, not about two medicines. */}
           <p className="max-w-prose text-meta text-ink-muted">
-            Nothing that was read of these labels disagrees with this one. Every concept
-            sits in the same section, and the same sections were scanned.
+            These products do not disagree on any concept in their labels.
           </p>
           <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
             {detail.interchangeable.map((match) => (
@@ -112,12 +111,11 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
           <Section>
             <span className="flex items-center gap-2">
               <Makers />
-              Other {detail.substance_name} labels — {detail.siblings.length}
+              Other {detail.substance_name} labels ({detail.siblings.length})
             </span>
           </Section>
           <p className="max-w-prose text-meta text-ink-muted">
-            The same active substance from another manufacturer. Whether they say the same
-            things is what the comparison answers.
+            The same active substance from other manufacturers
           </p>
           {/* Horizontal because the list is a shelf, not a ranking: nothing about the
               order says one is preferable to another. */}
@@ -275,10 +273,10 @@ function Concept({
                 section's length, and drawing the bar against the quote's own end would
                 claim every quote sits at the end of its section. The bar lives on the
                 evidence screen, which has the denominator. */}
-            <p className="font-mono text-kicker text-ink-muted">
+            {/* <p className="font-mono text-kicker text-ink-muted">
               characters {evidence.char_start}–{evidence.char_end} in §
               {evidence.section_code}
-            </p>
+            </p> */}
             {sourceUrl && (
               <a
                 href={sourceUrl}
