@@ -59,26 +59,31 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-paper font-sans text-body text-ink">
         <header className="border-b border-rule">
-          <nav className="mx-auto flex max-w-7xl flex-wrap items-baseline justify-between gap-x-6 gap-y-3 px-6 py-5">
+          {/* Centred, not baselined: the row carries a wordmark, three small caps links
+              and an icon, and an icon has no baseline to sit on. */}
+          <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-5">
             <Link href="/" className="text-lg font-medium tracking-tight">
-              Interchangeable<span className="text-accent">?</span>
+              {/* The stem the whole project turns on, picked out of the word it hides in — and
+                the question mark that qualifies it, in the same colour. */}
+              Inter<span className="text-accent">change</span>able
+              <span className="text-accent">?</span>
             </Link>
-            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-3">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <Link
                 href="/"
-                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+                className="font-mono text-kicker text-ink-muted hover:text-ink"
               >
                 Home
               </Link>
               <Link
                 href="/collectors"
-                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+                className="font-mono text-kicker text-ink-muted hover:text-ink"
               >
                 Reliability
               </Link>
               <Link
                 href="/reading"
-                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+                className="font-mono text-kicker text-ink-muted hover:text-ink"
               >
                 How to read this
               </Link>
@@ -101,7 +106,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <div key={style.label} className="flex items-center gap-2">
                   <dt>
                     <span
-                      className={`inline-flex min-w-16 items-baseline justify-center rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className}`}
+                      className={`inline-flex min-w-16 items-baseline justify-center rounded-sheet border px-2 py-1 text-kicker tracking-wide ${style.className}`}
                     >
                       {style.section ? (
                         style.label

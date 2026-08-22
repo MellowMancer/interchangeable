@@ -25,7 +25,18 @@ const DWELL_MS = 7000;
 /** Matches the `gap-6` between cards, so a step lands one card along rather than near it. */
 const GAP_PX = 24;
 
-export function Carousel({ children, label }: { children: ReactNode; label: string }) {
+export function Carousel({
+  children,
+  label,
+  heading,
+  count,
+}: {
+  children: ReactNode;
+  label: string;
+  /** Rendered on the control row, so the arrows sit beside what they move. */
+  heading?: ReactNode;
+  count?: number;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState(false);
 
@@ -61,6 +72,8 @@ export function Carousel({ children, label }: { children: ReactNode; label: stri
       onBlurCapture={() => setHeld(false)}
       className="min-w-0 space-y-2"
     >
+      {heading}
+
       <div
         ref={track}
         onScroll={() => setHeld(true)}
@@ -69,10 +82,19 @@ export function Carousel({ children, label }: { children: ReactNode; label: stri
       >
         {children}
       </div>
-      <div className="flex gap-2">
+
+      {/* Centred beneath the shelf, where a reader looks for them. Left-aligned under a
+          tall track they read as leftover page furniture rather than as the control that
+          moves the cards. */}
+      <div className="flex items-center justify-center gap-3 pt-1">
         <Arrow onClick={() => step(-1)} label="Previous">
           ←
         </Arrow>
+        {count !== undefined && (
+          <span className="font-mono text-kicker text-ink-muted">
+            {count} in all
+          </span>
+        )}
         <Arrow onClick={() => step(1)} label="Next">
           →
         </Arrow>
@@ -93,7 +115,7 @@ const Arrow = ({
   <button
     type="button"
     onClick={onClick}
-    className="rounded-sheet border border-rule px-3 py-1 font-mono text-kicker text-ink-muted hover:border-accent hover:text-accent"
+    className="flex size-8 items-center justify-center rounded-full border border-rule bg-paper text-ink-muted transition-colors hover:border-accent hover:bg-accent hover:text-paper"
   >
     <span aria-hidden>{children}</span>
     <span className="sr-only">{label}</span>

@@ -189,7 +189,7 @@ export function AppearanceStrip({ products }: { products: ProductColumn[] }) {
 
   return (
     <section className="space-y-6 border-t border-rule pt-10">
-      <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+      <h2 className="font-mono text-kicker text-ink-muted">
         What each manufacturer says its product looks like
       </h2>
 
@@ -263,7 +263,7 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+      <h2 className="font-mono text-kicker text-ink-muted">
         Quick links
       </h2>
 

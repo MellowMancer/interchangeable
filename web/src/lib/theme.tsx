@@ -79,7 +79,6 @@ export async function ThemeToggle() {
   const next = THEMES[(THEMES.indexOf(active) + 1) % THEMES.length];
   const description = `Colour theme: ${active}. Switch to ${next}.`;
 
-  // The nav aligns on the baseline; an icon has none, so it centres itself.
   return (
     <form action={chooseTheme} className="flex self-center">
       <button

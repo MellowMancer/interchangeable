@@ -320,6 +320,19 @@ body {
  * One rule, no stagger. A whole screen arriving in sequence reads as a loading state, and
  * everything here is server-rendered and complete before the first frame.
  */
+/*
+ * A native menu paints itself from the OS, not the page.
+ *
+ * Its popup is drawn by the platform and takes almost no CSS — but it does read
+ * `color-scheme`, so declaring the element's own scheme is what stops a light system menu
+ * dropping out of a dark page, or a blue system highlight arriving in the middle of this
+ * palette.
+ */
+select {
+  color-scheme: light dark;
+  accent-color: var(--accent);
+}
+
 @keyframes rise {
   from {
     opacity: 0;

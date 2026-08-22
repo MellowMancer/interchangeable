@@ -128,7 +128,7 @@ const LabelCard = ({
       side === "left" ? "stage-left" : "stage-right"
     }`}
   >
-    <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{substance}</p>
+    <p className="font-mono text-kicker text-ink-muted">{substance}</p>
     {product.appearance && (
       <span className="flex h-8 items-center">
         <DosageGlyph appearance={product.appearance} />
