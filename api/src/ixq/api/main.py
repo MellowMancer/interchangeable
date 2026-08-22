@@ -269,12 +269,79 @@ class ValueSection(BaseModel):
     total: int
 
 
+class ContextWindow(BaseModel):
+    """The stored section text around one quote, with the quote's span inside it.
+
+    A window rather than the whole section, and never on the matrix. `GET
+    /substances/{id}` carries every cell of every row, so section bodies there would be
+    read once per concept per product on every navigation — the regression
+    `counts_by_substance` exists to undo. One concept across a substance, or one label's
+    concepts, are both bounded reads.
+
+    Offsets are relative to `text`, so the screen highlights by slicing. Re-finding the
+    quote by searching the window instead marks the wrong instance wherever a clause
+    repeats within a section, and the highlight then sits on a sentence the cell does not
+    quote. The absolute offsets stay on `Evidence`, and `char_start - quote_start` is
+    where this window begins in the section.
+
+    `truncated_start` and `truncated_end` say which ends were cut. Unmarked, a window
+    that stops mid-sentence reads as a section that ends there — an invitation to
+    conclude the label says nothing further, which is the one claim this project refuses
+    to make.
+    """
+
+    text: str
+    quote_start: int
+    quote_end: int
+    truncated_start: bool
+    truncated_end: bool
+    section_length: int
+
+
+class ConceptCell(Cell):
+    """A matrix cell with the label text its quote was sliced from.
+
+    `context` is `None` in exactly the cases `evidence` is. A cell with no match has no
+    text to surround, and an empty window rendered in the same frame as a real one would
+    make an absence look like something that was read and found wanting. What an absence
+    is defensible against is `scanned` on the column, never a window.
+    """
+
+    context: ContextWindow | None = None
+
+
+class ConceptDetail(BaseModel):
+    """One concept across every manufacturer, each quote shown where it was found.
+
+    Its own endpoint rather than a field on `Matrix`: the matrix answers for every
+    concept at once, so section text attached there is paid for the whole grid to render
+    the one cell a reader opened.
+
+    Self-contained, so the screen makes one request. The columns travel with the cells
+    because `absent` cannot be read without the sections scanned for that column, and
+    fetching the matrix alongside for them would give back everything the split saved.
+    """
+
+    substance_id: str
+    substance_name: str
+    concept: str
+    diverges: bool
+    products: list[ProductColumn]
+    cells: list[ConceptCell]
+
+
 class ProductConcept(BaseModel):
-    """Where one concept sits in one label, with the sentence that put it there."""
+    """Where one concept sits in one label, with the sentence that put it there.
+
+    The quote travels with the text around it, because on its own a clause is often not a
+    statement: "They will, however, decrease the effects of anticholinesterases" says
+    nothing without the sentence it answers. The concept screen made the same judgement.
+    """
 
     concept: str
     placement: Placement
     evidence: Evidence | None = None
+    context: ContextWindow | None = None
 
 
 class ValueStatement(BaseModel):
@@ -349,71 +416,13 @@ class Matrix(BaseModel):
     """
 
 
-class ContextWindow(BaseModel):
-    """The stored section text around one quote, with the quote's span inside it.
-
-    A window rather than the whole section, and only on this endpoint. `GET
-    /substances/{id}` carries every cell of every row, so section bodies there would be
-    read once per concept per product on every navigation — the regression
-    `counts_by_substance` exists to undo.
-
-    Offsets are relative to `text`, so the screen highlights by slicing. Re-finding the
-    quote by searching the window instead marks the wrong instance wherever a clause
-    repeats within a section, and the highlight then sits on a sentence the cell does not
-    quote. The absolute offsets stay on `Evidence`, and `char_start - quote_start` is
-    where this window begins in the section.
-
-    `truncated_start` and `truncated_end` say which ends were cut. Unmarked, a window
-    that stops mid-sentence reads as a section that ends there — an invitation to
-    conclude the label says nothing further, which is the one claim this project refuses
-    to make.
-    """
-
-    text: str
-    quote_start: int
-    quote_end: int
-    truncated_start: bool
-    truncated_end: bool
-    section_length: int
-
-
-class ConceptCell(Cell):
-    """A matrix cell with the label text its quote was sliced from.
-
-    `context` is `None` in exactly the cases `evidence` is. A cell with no match has no
-    text to surround, and an empty window rendered in the same frame as a real one would
-    make an absence look like something that was read and found wanting. What an absence
-    is defensible against is `scanned` on the column, never a window.
-    """
-
-    context: ContextWindow | None = None
-
-
-class ConceptDetail(BaseModel):
-    """One concept across every manufacturer, each quote shown where it was found.
-
-    Its own endpoint rather than a field on `Matrix`: the matrix answers for every
-    concept at once, so section text attached there is paid for the whole grid to render
-    the one cell a reader opened.
-
-    Self-contained, so the screen makes one request. The columns travel with the cells
-    because `absent` cannot be read without the sections scanned for that column, and
-    fetching the matrix alongside for them would give back everything the split saved.
-    """
-
-    substance_id: str
-    substance_name: str
-    concept: str
-    diverges: bool
-    products: list[ProductColumn]
-    cells: list[ConceptCell]
-
-
-CONTEXT_RADIUS = 400
+CONTEXT_RADIUS = 200
 """Characters of section text shown either side of a quote.
 
-Enough to carry the sentences a clause sits between, which is the whole reason to open
-the screen, and bounded so a §4.4 running to several kilobytes never arrives whole.
+Enough to carry the sentence a clause sits between and the one before it — which is what
+makes "They will, however, decrease the effects of…" a statement — and no more. At twice
+this the window stopped being context and became the section, and the quote it exists to
+frame was the smaller half of what a reader had to read.
 """
 
 
@@ -786,6 +795,7 @@ def product(
                     concept=row.concept,
                     placement=row.placements[product_external_id],
                     evidence=_evidence(row.evidence.get(product_external_id), document),
+                    context=_context(row.evidence.get(product_external_id), repo),
                 )
                 for row in result.rows
             ),

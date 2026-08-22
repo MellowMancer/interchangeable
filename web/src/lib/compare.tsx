@@ -306,7 +306,7 @@ function ValueSections({
                 a muted line underneath read as one table; the question is which brands say
                 which thing, so each answer is its own object with its brands stacked in
                 it. */}
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="animate-deal grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {[...section.groups]
                 .sort((a, b) => b.manufacturers.length - a.manufacturers.length)
                 .map((group) => (
@@ -464,7 +464,7 @@ function DivergenceTable({
                     <td key={product.external_id} className="px-1 py-2 text-center">
                       {cell &&
                         (compact ? (
-                          <PlacementChip placement={cell.placement} />
+                          <PlacementChip placement={cell.placement} delayMs={order * 70} />
                         ) : (
                           <PlacementBadge
                             placement={cell.placement}

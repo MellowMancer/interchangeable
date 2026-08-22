@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { PLACEMENT_LEGEND } from "@/lib/placement";
 import { Primer } from "@/lib/primer";
+import { ScrollMemory } from "@/lib/scroll";
 import { currentTheme, ThemeToggle } from "@/lib/theme";
 import "./globals.css";
 
@@ -119,6 +120,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </footer>
 
+        <ScrollMemory />
         <Primer />
       </body>
     </html>

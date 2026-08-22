@@ -73,7 +73,7 @@ export default function ReadingPage() {
           is itself a claim. A fact in §4.3 bars the medicine outright; the same fact in
           §4.4 permits it with care. That difference is the finding.
         </p>
-        <dl className="divide-y divide-rule border-y border-rule">
+        <dl className="animate-deal divide-y divide-rule border-y border-rule">
           {EVERY_PLACEMENT.map((placement) => (
             <div key={placement} className="grid gap-3 py-5 sm:grid-cols-[16rem_1fr]">
               <dt>
@@ -105,7 +105,7 @@ export default function ReadingPage() {
           <strong className="font-medium text-ink">strongest</strong> placement, because
           showing the weakest would understate what the label says.
         </p>
-        <ol className="flex flex-wrap items-center gap-x-3 gap-y-3">
+        <ol className="animate-deal flex flex-wrap items-center gap-x-3 gap-y-3">
           {SECTION_PLACEMENTS.map((placement, index) => (
             <li key={placement} className="flex items-center gap-3">
               {index > 0 && <span aria-hidden className="text-ink-muted">&rsaquo;</span>}

@@ -131,12 +131,20 @@ export function PlacementPip({ placement }: { placement: string }) {
  * Absence keeps its own treatment here as everywhere: unfilled, dashed, and never a
  * colour. Shrinking a cell is a reason to say less, never a reason to say it differently.
  */
-export function PlacementChip({ placement }: { placement: string }) {
+export function PlacementChip({
+  placement,
+  delayMs,
+}: {
+  placement: string;
+  /** Entrance delay, so a row of chips lands in the order the table reads. */
+  delayMs?: number;
+}) {
   const style = placementStyle(placement);
   return (
     <span
       title={style.detail}
-      className={`inline-flex min-h-7 items-center justify-center rounded-sheet border px-2 py-1 text-center text-kicker tracking-wide uppercase ${style.className}`}
+      style={delayMs === undefined ? undefined : { animationDelay: `${delayMs}ms` }}
+      className={`animate-land inline-flex min-h-7 items-center justify-center rounded-sheet border px-2 py-1 text-center text-kicker tracking-wide uppercase ${style.className}`}
     >
       {/* The word, not the section code. The row already names the concept, so what a
           cell has to carry is how binding the filing is — and a bare code sends the

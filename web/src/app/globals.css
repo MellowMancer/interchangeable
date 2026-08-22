@@ -253,14 +253,49 @@ body {
   transform: rotateY(-15deg) rotateX(5deg) rotateZ(3deg) translateZ(30px);
 }
 
-/* The pair straightens and comes forward under the pointer — the two boxes being picked
-   up and compared, which is the whole gesture the scene stands for. */
-.stage:hover .stage-left {
-  transform: rotateY(11deg) rotateX(4deg) rotateZ(-2deg) translateZ(0);
+/*
+ * The cards drift, and twitch when looked at.
+ *
+ * Three nested elements, each owning one transform: the card holds its place in the
+ * perspective scene, a wrapper drifts, and a wrapper inside that shivers. One element
+ * cannot do two, because both are `transform` and the second would simply replace the
+ * first — which is why hover used to stop the drift instead of adding to it.
+ *
+ * Slow and small on purpose: a hero that bobs is alive, a hero that bounces is a
+ * distraction from a search box eight inches below it.
+ */
+@keyframes drift {
+  50% {
+    transform: translateY(-9px);
+  }
 }
 
-.stage:hover .stage-right {
-  transform: rotateY(-8deg) rotateX(3deg) rotateZ(1deg) translateZ(46px);
+@keyframes shiver {
+  0%,
+  100% {
+    transform: translate(-1.5px, 0) rotate(-0.35deg);
+  }
+  50% {
+    transform: translate(1.5px, -2px) rotate(0.35deg);
+  }
+}
+
+.drift {
+  animation: drift 7s ease-in-out infinite;
+}
+
+.drift:nth-of-type(2) {
+  animation-delay: -3.2s;
+}
+
+/* Added to the drift, not swapped for it. Offset so the two cards never twitch in
+   lockstep — a pair moving as one reads as a single object. */
+.stage:hover .shiver {
+  animation: shiver 1.4s ease-in-out infinite;
+}
+
+.stage:hover .drift:nth-of-type(2) .shiver {
+  animation-delay: -0.62s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -268,6 +303,32 @@ body {
   .stage:hover .stage-card {
     transform: none;
   }
+
+  .drift,
+  .stage:hover .shiver {
+    animation: none;
+  }
+}
+
+/*
+ * The page settles rather than appears.
+ *
+ * On the page's own wrapper, not on `main`: the router swaps a route's content beneath a
+ * `main` that never remounts, so an animation there plays once on a cold load and never
+ * again on any navigation — which looked exactly like no animation at all.
+ *
+ * One rule, no stagger. A whole screen arriving in sequence reads as a loading state, and
+ * everything here is server-rendered and complete before the first frame.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+main > * {
+  animation: rise 380ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
 }
 
 @keyframes land {
@@ -299,6 +360,37 @@ body {
   .animate-grow-x {
     transform-origin: left;
     animation: grow-x 520ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+  }
+
+  /*
+   * A grid of answers arriving in order.
+   *
+   * Six steps then stop: past that a stagger stops reading as sequence and starts reading
+   * as a page that has not finished loading, which is the one thing this must not imply —
+   * everything here is server-rendered and complete before the first frame.
+   */
+  .animate-deal > * {
+    animation: land 320ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+  }
+
+  .animate-deal > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .animate-deal > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .animate-deal > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+
+  .animate-deal > *:nth-child(5) {
+    animation-delay: 240ms;
+  }
+
+  .animate-deal > *:nth-child(n + 6) {
+    animation-delay: 300ms;
   }
 
   /* The matched clause filling in across the text it was sliced from. */

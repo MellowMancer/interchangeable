@@ -93,6 +93,7 @@ export type ProductConcept = {
   concept: string;
   placement: string;
   evidence: Evidence | null;
+  context: ContextWindow | null;
 };
 
 /** One value section as a single label states it. */
