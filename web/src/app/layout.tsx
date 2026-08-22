@@ -22,14 +22,6 @@ const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
 });
 
-/**
- * No screen in this app may be prerendered: every one reads live pipeline state, and a
- * build-time snapshot of it would be a stale page rather than an error. Declared once
- * here because route segment config is inherited by every segment beneath it — asserting
- * it per page means the next page added silently freezes.
- */
-export const dynamic = "force-dynamic";
-
 const DESCRIPTION =
   "Where the manufacturers of the same active substance disagree about its label — with the quoted text behind every claim.";
 
@@ -49,6 +41,11 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Reading the theme cookie is what makes every route dynamic, and it is inherited by
+  // each segment beneath this layout — so no screen can be prerendered, whatever any of
+  // them declares. `force-dynamic` used to say so explicitly and was removed: it added
+  // nothing to that guarantee, and it forced `no-store` onto every corpus fetch, which
+  // is the one thing here worth caching.
   const theme = await currentTheme();
 
   return (

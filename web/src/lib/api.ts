@@ -207,8 +207,21 @@ export type ConceptDetail = {
   cells: ConceptCell[];
 };
 
+/**
+ * How long a corpus response may be reused.
+ *
+ * The corpus is baked into the API image, so a response cannot change until the next
+ * `make release`. Caching it is a description of the data rather than a staleness trade,
+ * and without it every navigation recomputed the same answer on a tenth of a CPU.
+ *
+ * A window rather than `force-cache`: the Data Cache outlives a deployment, and a release
+ * redeploys only the API, so an indefinite entry would keep serving a corpus the API no
+ * longer has, with nothing to signal it. Five minutes heals that without a purge.
+ */
+const CORPUS: RequestInit = { next: { revalidate: 300 } };
+
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`);
+  const response = await fetch(`${BASE}${path}`, CORPUS);
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -219,7 +232,7 @@ export const getBenchmark = () => get<BenchRun[]>("/benchmark");
 
 /** `null` rather than a throw: an unknown product is a 404 the page renders. */
 export async function getProduct(id: string): Promise<ProductDetail | null> {
-  const response = await fetch(`${BASE}/products/${encodeURIComponent(id)}`);
+  const response = await fetch(`${BASE}/products/${encodeURIComponent(id)}`, CORPUS);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`/products/${id} responded ${response.status}`);
   return response.json() as Promise<ProductDetail>;
@@ -231,7 +244,7 @@ export async function getConceptDetail(
   concept: string,
 ): Promise<ConceptDetail | null> {
   const path = `/substances/${encodeURIComponent(id)}/concepts/${encodeURIComponent(concept)}`;
-  const response = await fetch(`${BASE}${path}`);
+  const response = await fetch(`${BASE}${path}`, CORPUS);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
   return response.json() as Promise<ConceptDetail>;
@@ -246,7 +259,7 @@ export async function getConceptDetail(
  */
 export async function getMatrix(id: string): Promise<Matrix | null> {
   const path = `/substances/${encodeURIComponent(id)}`;
-  const response = await fetch(`${BASE}${path}`);
+  const response = await fetch(`${BASE}${path}`, CORPUS);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`${path} responded ${response.status}`);
   return response.json() as Promise<Matrix>;
