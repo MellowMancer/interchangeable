@@ -7,7 +7,7 @@ import pytest
 
 from ixq.adapters.config import load_concepts
 from ixq.domain import UNCLASSIFIED, Concept, Product, Section, clauses, prepared
-from ixq.domain.section import BULLET, HEADER, LEAD_IN, SPLITTING_GLYPHS
+from ixq.domain.section import SEGMENT, BULLET, HEADER, LEAD_IN, SPLITTING_GLYPHS
 from ixq.pipeline.classify import classify, classify_document
 from ixq.pipeline.ports import Repository
 from conftest import DOC_SHA, SUBSTANCE_ID
@@ -337,15 +337,24 @@ def test_no_section_collapses_into_a_single_clause(
 
 
 def _marker_runs(text: str) -> int:
-    """Bullet markers, counting a run of adjacent ones as the one boundary it produces."""
+    """Boundaries the splitter itself sees, a run of adjacent ones counted once.
+
+    Asks `SEGMENT` rather than a hand-listed glyph set, because the two were not the same
+    set and the difference was the guard's blind side: `SPLITTING_GLYPHS` contains none of
+    `-`, `–` or `—`, while `SEGMENT` splits on `-` and `BULLET` strips all three — 1,267
+    hyphen strips across this corpus. Every dash-bulleted section therefore scored zero,
+    never reached the `>= 3` gate, and was never inspected at all, including §4.3 sections
+    carrying eight or nine contraindications each.
+
+    Counting the splitter's own matches also means this guard cannot drift from it again:
+    a change to how items are recognised changes what is checked, by construction.
+    """
     runs = 0
-    previous = -2
-    for index, character in enumerate(text):
-        if character not in SPLITTING_GLYPHS:
-            continue
-        if not (previous >= 0 and not text[previous + 1 : index].strip()):
+    previous = -1
+    for match in SEGMENT.finditer(text):
+        if previous < 0 or text[previous : match.start()].strip():
             runs += 1
-        previous = index
+        previous = match.end()
     return runs
 
 
