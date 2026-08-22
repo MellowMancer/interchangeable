@@ -49,7 +49,34 @@ A prefix match would eat real clauses — `2.5 mg/5 ml oral solution` and `1.5 g
 renal impairment` both open with `d.d` and are contraindications, not headings.
 """
 
-SPLITTING_GLYPHS = "•·▪▫◦●○‣⁃∙*\u2003"
+BULLET_GLYPHS = "•▪▫●○‣⁃∙"
+"""Characters with no use but a list marker. Always a boundary, attached or not.
+
+Attachment cannot be required of these. One label writes its §4.3 as
+`... section 6.1• cardiogenic shock• uncontrolled heart failure• ...` — every bullet glued
+to the word before it — so a rule that demanded whitespace in front collapsed ten
+contraindications into three clauses."""
+
+AMBIGUOUS_GLYPHS = "*◦·"
+"""Characters that are a list marker *or* typography, decided by what precedes them.
+
+`◦` is U+25E6 WHITE BULLET and is also how one label writes a degree sign, so
+`Store below 25◦ C` split into `Store below 25` and a `C` that was then dropped for
+carrying no word — a storage temperature severed from its unit and half-lost. `*` is a
+bullet and also a trademark mark, so `Bedranol* SR` shed its suffix the same way. `·` is a
+bullet and also a decimal point in British usage.
+
+All three are unambiguous when they open an item, because a list marker never attaches to
+the token before it. That is the whole rule, and it is why these three are separated from
+the glyphs above rather than treated alike."""
+
+MARK_GLYPHS = BULLET_GLYPHS + AMBIGUOUS_GLYPHS
+
+FREE_GLYPHS = "\u2003"
+"""Whitespace that marks a list item. Always a boundary, because splitting on whitespace
+can strand nothing: it belongs to neither side."""
+
+SPLITTING_GLYPHS = MARK_GLYPHS + FREE_GLYPHS
 """Markers unambiguous enough to end a clause mid-line.
 
 Shared by `BULLET` and `SEGMENT` on purpose. They diverged once — `BULLET` knew `*`, `–`
@@ -79,7 +106,17 @@ shown to the user.
 
 CROSS_REFERENCE = re.compile(r"\(\s*see (?:also )?sections?[^)]*\)?", re.I)
 WHITESPACE = re.compile(r"\s+")
-HAS_WORD = re.compile(r"[A-Za-z]{3,}")
+HAS_CONTENT = re.compile(r"[0-9A-Za-z]")
+"""A fragment asserts something if it carries any letter or digit at all.
+
+This was a three-letter floor, which is right for prose and wrong for the specification
+sections added later. §3 and §6.1 state alternatives as a bare `OR`, strengths as `80` and
+`2 mg:`, and a specification as `pH: 4.0 – 8.0` — none of which contains a three-letter run,
+so each was dropped whole. Measured across the corpus, the lower floor admits exactly those
+six fragments and loses nothing: it is not a loosening that lets noise in, it is the removal
+of an assumption that only ever held for the four sections this parser started with.
+
+A marker or punctuation on its own still carries nothing and is still dropped."""
 
 LEAD_IN = re.compile(
     r"^general contraindications(?:\s*\([^)]*\))?:?\s*$|^contraindicat\w*$", re.I
@@ -99,8 +136,23 @@ Dropping them is a correctness one: an unclassified clause is a visible gap, a d
 clause is an invisible false absence.
 """
 
-SEGMENT = re.compile(rf"[\n{re.escape(SPLITTING_GLYPHS)}]|(?:(?<=[.;:)])\s|^)-(?=\s+[A-Za-z])")
-"""Newline, a bullet glyph, or a hyphen being used as one.
+SEGMENT = re.compile(
+    rf"[\n{re.escape(FREE_GLYPHS + BULLET_GLYPHS)}]"
+    rf"|(?<![0-9A-Za-z])[{re.escape(AMBIGUOUS_GLYPHS)}]"
+    rf"|(?:(?<=[.;:)])\s|^)-(?=\s+[A-Za-z])"
+)
+"""Newline, a bullet glyph opening an item, or a hyphen being used as one.
+
+**An *ambiguous* glyph attached to the preceding token is not a bullet.** A list marker
+never attaches to the token before it, so `25◦ C` and `Bedranol* SR` are a degree sign and
+a trademark mark — and cutting there severed a temperature from its unit and a product name
+from its suffix, each remainder then dropped for carrying no word.
+
+The lookbehind applies **only** to `AMBIGUOUS_GLYPHS`. Requiring it of every glyph was
+tried and was wrong: one publisher writes `shock• uncontrolled heart failure•` with no
+space before any bullet, and the universal rule collapsed ten contraindications into three
+clauses. `\u2003` is exempt for a different reason — it is whitespace, so it cannot attach
+to anything, and Zentiva writes `in:\u2003- patients` with no space in front.
 
 The hyphen arm was added 2026-08-21 after §4.1 tripped
 `test_no_section_collapses_into_a_single_clause`: EMC writes top-level indications as
@@ -154,7 +206,7 @@ def _emit(text: str, lo: int, hi: int, found: list[Clause]) -> None:
     if end <= start:
         return
     body = text[start:end]
-    if not HAS_WORD.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
+    if not HAS_CONTENT.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
         return
     found.append(Clause(start=start, end=end, text=body))
 
