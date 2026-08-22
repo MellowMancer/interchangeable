@@ -61,19 +61,19 @@ export default function ReadingPage() {
 
       <Section kicker="Substance" title="The active ingredient, and the reason a comparison is possible">
         <p>
-          A substance is the molecule that does the therapeutic work — ramipril,
-          metformin, atorvastatin. It is what a prescription is really for.
+          A substance is the molecule that does the therapeutic work (ramipril,
+          metformin, ibuprofen). It is what a prescription is really for.
         </p>
         <p>
           A <strong className="font-medium text-ink">product</strong> is one
           manufacturer&rsquo;s authorised package of that substance:{" "}
           <em>Ramipril 5mg Tablets</em> from one holder, <em>Ramipril 5mg Hard Capsules</em>{" "}
-          from another. One substance, many products — and those products are the columns.
+          from another. One substance, many products, and those products are the columns.
         </p>
         <p>
-          The substance is what makes the question well posed. Asking whether one
-          manufacturer&rsquo;s ramipril can stand in for another&rsquo;s is answerable.
-          Asking whether ramipril can stand in for atorvastatin is not a question.
+          Asking whether one
+          manufacturer&rsquo;s ibuprofen can stand in for another&rsquo;s is answerable.
+          Asking whether ramipril can stand in for ibuprofen is not a question.
         </p>
         <Aside>
           <Distinction term="Not a brand">
@@ -96,9 +96,8 @@ export default function ReadingPage() {
 
       <Section kicker="Placement" title="Where a label files a fact — and how strongly it means it">
         <p>
-          European labels are numbered by regulation, so the section a statement appears in
-          is itself a claim. A fact in §4.3 bars the medicine outright; the same fact in
-          §4.4 permits it with care. That difference is the finding.
+          European labels are numbered and segregated by regulation. A fact in §4.3 (Contraindicated) bars the medicine outright; the same fact in
+          §4.4 (Warning) permits it with care.
         </p>
         <dl className="animate-deal divide-y divide-rule border-y border-rule">
           {EVERY_PLACEMENT.map((placement) => (
@@ -112,17 +111,17 @@ export default function ReadingPage() {
             </div>
           ))}
         </dl>
-        <Aside tone="accent">
+        {/* <Aside tone="accent">
           <p>
             <strong className="font-medium text-ink">
               Absence is the claim to read most carefully.
             </strong>{" "}
             It means the concept was not found in the sections that were scanned{" "}
-            <em>for that manufacturer</em> — never that the label omits it. A statement
+            <em>for that manufacturer</em> not that the label omits it. A statement
             missing from §4.3 is very often present in §4.4, and the sections actually read
             are listed on every column for exactly this reason.
           </p>
-        </Aside>
+        </Aside> */}
       </Section>
 
       <Section kicker="Precedence" title="Which section wins when a concept sits in several">
@@ -141,17 +140,13 @@ export default function ReadingPage() {
           ))}
         </ol>
         <p>
-          An absolute bar outranks a warning, which outranks the sections that qualify
-          rather than prohibit. Excipients rank last: §6.1 states what is{" "}
-          <em>in</em> the product rather than who must avoid it, so a concept named in both
-          §4.3 and §6.1 is a restriction that happens to name an ingredient — not an
-          ingredient that happens to be restricted.
+          An absolute bar outranks a warning, which outranks the placements after it. Excipients rank last, as it implies that the concept is merely an ingredient.
         </p>
       </Section>
 
       <Section kicker="Concept" title="What a clause is about">
         <p>
-          A concept is a clinical category — <span className="font-mono">renal</span>,{" "}
+          A concept is a clinical category: <span className="font-mono">renal</span>,{" "}
           <span className="font-mono">angioedema</span>,{" "}
           <span className="font-mono">pregnancy</span> — identified by word stems in the
           label&rsquo;s own prose. Matching is deterministic and hand-maintained; no

@@ -77,7 +77,7 @@ export function QuotePosition({
         />
       </div>
       <figcaption className="font-mono text-kicker text-ink-muted">
-        characters {charStart}–{charEnd} of {sectionLength} in §{sectionCode}
+        {charStart}–{charEnd} of {sectionLength} characters
       </figcaption>
     </figure>
   );

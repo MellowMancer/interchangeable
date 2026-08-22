@@ -92,9 +92,8 @@ function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
         {attempts.length} {attempts.length === 1 ? "attempt" : "attempts"}: {detected}{" "}
         detected, {repaired} repaired, {verified} verified against the old layout.
       </span>{" "}
-      Every attempt is listed below, including the ones nothing caught. A signal chip is filled when
-      that detector fired, outlined when it was expected and stayed silent — an outlined
-      chip is a published coverage gap. <em>Non-regression</em> means the repair still works
+      Every type of mutation/test is given below. A signal chip is filled when
+      that detector fired, outlined when it was expected and stayed silent. <em>Non-regression</em> means the repair still works
       against the layout it was built for, so it was not overfitted to the break.
     </p>
   );

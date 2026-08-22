@@ -89,7 +89,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         <Section>
           <span className="flex items-center gap-2">
             <Makers />
-            Every {matrix.substance_name} label — {matrix.products.length}
+            All {matrix.substance_name} products ({matrix.products.length})
           </span>
         </Section>
         <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
@@ -139,7 +139,7 @@ const Wordings = ({
   ) : (
     <Carousel
       label={`${count} wordings of what this substance is for`}
-      heading={<Section>Indications — {count} wordings</Section>}
+      heading={<Section>Indications ({count})</Section>}
       count={count}
     >
       {children}
@@ -235,8 +235,7 @@ function Classification({ products }: { products: ProductColumn[] }) {
     <p className="max-w-prose border-l-2 border-accent pl-4 text-meta text-ink-muted">
       These products carry <span className="text-ink">different ATC codes</span> (
       <span className="font-mono break-all">{codes.join(", ")}</span>), so they may not be
-      alternatives to one another. A divergence below may be that rather than a
-      disagreement.
+      alternatives to one another.
     </p>
   );
 }

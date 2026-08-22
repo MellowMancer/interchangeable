@@ -226,7 +226,7 @@ function Card({ substance }: { substance: SubstanceSummary }) {
 
       <p className="mt-auto text-meta text-accent">
         {remaining > 0
-          ? `Compare all ${substance.concepts} concepts — ${remaining} more disagreement${remaining === 1 ? "" : "s"} →`
+          ? `Compare all ${substance.concepts} concepts  |  ${remaining} more disagreement${remaining === 1 ? "" : "s"} →`
           : `Compare all ${substance.concepts} concepts →`}
       </p>
     </Link>

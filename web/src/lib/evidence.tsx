@@ -60,11 +60,11 @@ export function Evidence({ detail }: { detail: ConceptDetail }) {
 
   return (
     <>
-      {narrowed && (
+      {/* {narrowed && (
         <p className="font-mono text-kicker text-accent">
-          {products.length} of {detail.products.length} labels — as chosen on the comparison
+          {products.length} of {detail.products.length} labels
         </p>
-      )}
+      )} */}
 
       <PlacementSpectrum cells={cells} products={products} />
 

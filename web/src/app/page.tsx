@@ -42,21 +42,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           version is on the shelf, and everyone assumes same drug, same information.{" "}
           <span className="text-ink">Interchangeable?</span> compares the UK Summaries of
           Product Characteristics of every authorised product sharing an active substance
-          and shows where the manufacturers disagree — with the quoted text behind every
+          and shows where the manufacturers differ, with the quoted text behind every
           claim.
         </p>
         <p className="max-w-prose text-meta text-ink-muted">
           The question mark is deliberate. This asks whether these products really are
-          interchangeable; it does not assert that they are not.
+          interchangeable.
         </p>
-        {/* Offered before the list, not buried in the nav: a grid of coloured badges is
-            guessable, and the likeliest guess — that an unmarked cell means the label
-            omits something — is the one reading this project exists to prevent. */}
         <Link
           href="/reading"
           className="inline-flex items-baseline gap-2 border-b border-accent pb-1 text-meta text-accent hover:border-ink hover:text-ink"
         >
-          New here? Read how to read this first
+          New here? Learn how to read this first
           <span aria-hidden>→</span>
         </Link>
         </div>
