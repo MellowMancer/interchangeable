@@ -44,7 +44,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
     <article className="space-y-12">
       <Link
         href={`/substances/${detail.substance_id}`}
-        className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+        className="font-mono text-kicker text-ink-muted hover:text-ink"
       >
         ← Compare every {detail.substance_name}
       </Link>
@@ -80,6 +80,30 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
               <Value key={value.code} value={value} />
             ))}
           </div>
+        </section>
+      )}
+
+      {detail.interchangeable.length > 0 && (
+        <section className="section-break space-y-4">
+          <Section>
+            <span className="flex items-center gap-2">
+              <Makers />
+              Interchangeable — {detail.interchangeable.length}
+            </span>
+          </Section>
+          {/* Qualified deliberately: this says the labels match, which is a claim about
+              two documents, not about two medicines. */}
+          <p className="max-w-prose text-meta text-ink-muted">
+            Nothing that was read of these labels disagrees with this one. Every concept
+            sits in the same section, and the same sections were scanned.
+          </p>
+          <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
+            {detail.interchangeable.map((match) => (
+              <li key={match.external_id} className="w-64 shrink-0 snap-start">
+                <Sibling product={match} />
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -120,7 +144,7 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
     <header className="grid gap-8 border border-rule p-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:p-8">
       <div className="space-y-4">
         <div className="space-y-1">
-          <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+          <p className="font-mono text-kicker text-ink-muted">
             {detail.substance_name}
           </p>
           <h1 className="line-clamp-3 font-serif text-title font-normal tracking-tight">
@@ -198,7 +222,7 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
 
 const Fact = ({ term, value }: { term: string; value: string }) => (
   <>
-    <dt className="uppercase">{term}</dt>
+    <dt>{term}</dt>
     <dd className="text-ink">{value}</dd>
   </>
 );
@@ -281,7 +305,7 @@ function Concept({
 function Value({ value }: { value: ValueStatement }) {
   return (
     <article className="space-y-3">
-      <h3 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
+      <h3 className="font-mono text-kicker text-ink-muted">
         §{value.code} — {value.heading}
       </h3>
       <div className="space-y-1 border-y border-rule py-3 font-serif text-body">
