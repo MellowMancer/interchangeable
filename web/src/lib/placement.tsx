@@ -144,7 +144,7 @@ export function PlacementChip({
     <span
       title={style.detail}
       style={delayMs === undefined ? undefined : { animationDelay: `${delayMs}ms` }}
-      className={`animate-land inline-flex min-h-7 items-center justify-center rounded-sheet border px-2 py-1 text-center text-kicker tracking-wide uppercase ${style.className}`}
+      className={`animate-land inline-flex min-h-7 items-center justify-center rounded-sheet border px-2 py-1 text-center text-kicker tracking-wide ${style.className}`}
     >
       {/* The word, not the section code. The row already names the concept, so what a
           cell has to carry is how binding the filing is — and a bare code sends the
@@ -178,7 +178,7 @@ export function PlacementBadge({
     <span
       title={style.detail}
       style={delayMs === undefined ? undefined : { animationDelay: `${delayMs}ms` }}
-      className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className} ${className}`}
+      className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide ${style.className} ${className}`}
     >
       {/* The mark the footer's guide draws. Spelling out "Not in scanned sections" here
           left a reader looking up a phrase the guide no longer shows. */}

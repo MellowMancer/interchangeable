@@ -82,7 +82,7 @@ export function Roster({
       <form action="/" className="space-y-3">
         <label
           htmlFor="q"
-          className="block font-mono text-kicker tracking-widest text-ink-muted uppercase"
+          className="block font-mono text-kicker text-ink-muted"
         >
           Search {substances.length} substances
         </label>
@@ -100,7 +100,7 @@ export function Roster({
               search, and it is also the page's only filled control. */}
           <button
             type="submit"
-            className="shrink-0 rounded-sheet border border-accent bg-accent px-6 py-3.5 font-mono text-kicker tracking-widest text-paper uppercase hover:border-ink hover:bg-ink"
+            className="shrink-0 rounded-sheet border border-accent bg-accent px-6 py-3.5 font-mono text-kicker text-paper hover:border-ink hover:bg-ink"
           >
             Search
           </button>
@@ -119,7 +119,7 @@ export function Roster({
       {/* Beside the search rather than inside it: these narrow and reorder a list, which
           is a different act from looking something up, and the form still has to work
           without scripting. */}
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-kicker tracking-widest text-ink-muted uppercase">
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-kicker text-ink-muted">
         <label htmlFor="order" className="sr-only">
           Order the roster
         </label>
@@ -130,7 +130,7 @@ export function Roster({
           id="order"
           value={order}
           onChange={(event) => setOrder(event.target.value as Order)}
-          className="rounded-sheet border border-rule bg-paper px-2 py-1 font-mono text-kicker tracking-widest text-ink uppercase hover:border-accent focus:border-accent focus:outline-none"
+          className="rounded-sheet border border-rule bg-paper px-2 py-1 font-mono text-kicker text-ink hover:border-accent focus:border-accent focus:outline-none"
         >
           {ORDER_LABELS.map(([value, label]) => (
             <option key={value} value={value}>

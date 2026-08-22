@@ -758,3 +758,42 @@ def test_a_company_name_collected_as_an_atc_code_is_not_served_as_one(
     codes = [c["atc_code"] for c in client.get(f"/substances/{SUBSTANCE_ID}").json()["products"]]
 
     assert "Morningside Healthcare Ltd See contact details" not in codes
+
+
+def test_the_nesting_markers_are_the_splitter_s_own(
+    client: TestClient, repository: Repository
+) -> None:
+    """Restating the splitter's vocabulary let the two drift apart.
+
+    `_MARKERS` had gained the dashes and lost the em space independently of `BULLET`, so a
+    clause the splitter opened on one marker could be read here as opening on another —
+    and the published indentation of five §4.1 sections moved when `SEGMENT` changed
+    underneath it, with nothing in this suite observing it.
+    """
+    from ixq.api.main import _MARKERS
+    from ixq.domain.section import SPLITTING_GLYPHS
+
+    missing = [glyph for glyph in SPLITTING_GLYPHS if glyph not in _MARKERS]
+
+    assert not missing, f"the splitter opens items on {missing}, nesting would not see them"
+
+
+def test_two_unread_labels_are_not_interchangeable(
+    client: TestClient, repository: Repository
+) -> None:
+    """Absence is not agreement.
+
+    Two labels that state nothing about every concept have identical placements, and a
+    plain equality check calls that a perfect match. It is the reading the whole project
+    exists to prevent, on the one screen that would state it as a recommendation.
+    """
+    divergent_corpus(repository)
+
+    body = client.get("/products/1").json()
+    matches = {column["external_id"] for column in body["interchangeable"]}
+
+    for column in body["interchangeable"]:
+        assert column["scanned"] == body["product"]["scanned"], (
+            "identical placements over different scopes are not the same claim"
+        )
+    assert body["product"]["external_id"] not in matches, "a label is not its own alternative"
