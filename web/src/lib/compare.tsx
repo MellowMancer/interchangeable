@@ -204,14 +204,14 @@ function Chooser({
           <span className={narrowed ? "text-accent" : undefined}>{chosen.length}</span>{" "}
           {chosen.length === 1 ? "product" : "products"}
         </span>
-        <span className="rounded-sheet border border-rule bg-paper px-3 py-1 font-mono text-kicker tracking-widest text-ink-muted uppercase group-hover:border-accent group-hover:text-accent">
+        <span className="rounded-sheet border border-rule bg-paper px-3 py-1 font-mono text-kicker text-ink-muted group-hover:border-accent group-hover:text-accent">
           <span className="group-open:hidden">Choose ↓</span>
           <span className="hidden group-open:inline">Collapse ↑</span>
         </span>
       </summary>
 
       <div className="mt-4 space-y-3">
-        <div className="flex gap-4 font-mono text-kicker tracking-widest uppercase">
+        <div className="flex gap-4 font-mono text-kicker">
           <button
             type="button"
             onClick={() => onChange(all)}
@@ -291,7 +291,7 @@ function ValueSections({
       <div className="space-y-8">
         {sections.map((section) => (
           <article key={section.code} className="space-y-3">
-            <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker tracking-widest text-ink-muted uppercase">
+            <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker text-ink-muted">
               <span>
                 §{section.code} — {section.heading}
               </span>
@@ -389,6 +389,21 @@ function DivergenceTable({
       <div className="overflow-x-auto">
         <table className="w-max min-w-full border-collapse">
           <thead>
+            {/* The axes, named once. A grid of coloured cells does not say what its rows
+                and columns are, and a reader who has to infer it infers wrong — the two
+                things being crossed here are the whole idea. */}
+            <tr className="font-mono text-kicker text-ink-muted">
+              <th scope="col" className="sticky left-0 z-20 bg-paper px-2 pb-2 text-left font-normal">
+                Concepts
+              </th>
+              <th
+                scope="colgroup"
+                colSpan={ordered.length}
+                className="border-l border-rule px-2 pb-2 text-left font-normal"
+              >
+                Manufacturers
+              </th>
+            </tr>
             <tr>
               <th className="sticky left-0 z-20 bg-paper p-2 text-left font-normal">
                 <span className="sr-only">Concept</span>
