@@ -1,0 +1,987 @@
+{
+  "base_page": "base.html",
+  "base_path": "/interchangeable",
+  "origin": "https://mellowmancer.github.io",
+  "fields": [
+    "ref",
+    "name",
+    "category",
+    "updated",
+    "href"
+  ],
+  "base_golden": [
+    {
+      "ref": "RF-001",
+      "name": "Cobalt Spindle Bracket",
+      "category": "Brackets",
+      "updated": "2026-01-14",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+    },
+    {
+      "ref": "RF-002",
+      "name": "Tessellated Damper Ring",
+      "category": "Dampers",
+      "updated": "2026-01-22",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+    },
+    {
+      "ref": "RF-003",
+      "name": "Verdigris Coupling Sleeve",
+      "category": "Couplings",
+      "updated": "2026-02-03",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+    },
+    {
+      "ref": "RF-004",
+      "name": "Halcyon Torsion Bar",
+      "category": "Bars",
+      "updated": "2026-02-11",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+    },
+    {
+      "ref": "RF-005",
+      "name": "Quillon Bearing Cage",
+      "category": "Bearings",
+      "updated": "2026-02-27",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+    },
+    {
+      "ref": "RF-006",
+      "name": "Ardent Flange Collar",
+      "category": "Flanges",
+      "updated": "2026-03-08",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+    },
+    {
+      "ref": "RF-007",
+      "name": "Petrichor Seal Gasket",
+      "category": "Seals",
+      "updated": "2026-03-19",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+    },
+    {
+      "ref": "RF-008",
+      "name": "Marbled Idler Pulley",
+      "category": "Pulleys",
+      "updated": "2026-04-02",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+    },
+    {
+      "ref": "RF-009",
+      "name": "Selvage Tension Clip",
+      "category": "Clips",
+      "updated": "2026-04-15",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+    },
+    {
+      "ref": "RF-010",
+      "name": "Ferrous Guide Rail",
+      "category": "Rails",
+      "updated": "2026-04-30",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+    },
+    {
+      "ref": "RF-011",
+      "name": "Lambent Shim Plate",
+      "category": "Shims",
+      "updated": "2026-05-12",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+    },
+    {
+      "ref": "RF-012",
+      "name": "Umbral Retaining Washer",
+      "category": "Washers",
+      "updated": "2026-05-25",
+      "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+    }
+  ],
+  "control": {
+    "page": "control.html",
+    "golden": [
+      {
+        "ref": "RF-001",
+        "name": "Cobalt Spindle Bracket",
+        "category": "Brackets",
+        "updated": "2026-01-14",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+      },
+      {
+        "ref": "RF-002",
+        "name": "Tessellated Damper Ring",
+        "category": "Dampers",
+        "updated": "2026-01-22",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+      },
+      {
+        "ref": "RF-003",
+        "name": "Verdigris Coupling Sleeve",
+        "category": "Couplings",
+        "updated": "2026-02-03",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+      },
+      {
+        "ref": "RF-004",
+        "name": "Halcyon Torsion Bar",
+        "category": "Bars",
+        "updated": "2026-02-11",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+      },
+      {
+        "ref": "RF-005",
+        "name": "Quillon Bearing Cage",
+        "category": "Bearings",
+        "updated": "2026-02-27",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+      },
+      {
+        "ref": "RF-006",
+        "name": "Ardent Flange Collar",
+        "category": "Flanges",
+        "updated": "2026-03-08",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+      },
+      {
+        "ref": "RF-007",
+        "name": "Petrichor Seal Gasket",
+        "category": "Seals",
+        "updated": "2026-03-19",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+      },
+      {
+        "ref": "RF-008",
+        "name": "Marbled Idler Pulley",
+        "category": "Pulleys",
+        "updated": "2026-04-02",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+      },
+      {
+        "ref": "RF-009",
+        "name": "Selvage Tension Clip",
+        "category": "Clips",
+        "updated": "2026-04-15",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+      },
+      {
+        "ref": "RF-010",
+        "name": "Ferrous Guide Rail",
+        "category": "Rails",
+        "updated": "2026-04-30",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+      },
+      {
+        "ref": "RF-011",
+        "name": "Lambent Shim Plate",
+        "category": "Shims",
+        "updated": "2026-05-12",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+      },
+      {
+        "ref": "RF-012",
+        "name": "Umbral Retaining Washer",
+        "category": "Washers",
+        "updated": "2026-05-25",
+        "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "mutation": "class_rename",
+      "page": "class_rename.html",
+      "expected_signals": [
+        "row_count",
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "table_to_div",
+      "page": "table_to_div.html",
+      "expected_signals": [
+        "row_count",
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "column_reorder",
+      "page": "column_reorder.html",
+      "expected_signals": [
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "link_label",
+      "page": "link_label.html",
+      "expected_signals": [],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Details",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Details",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Details",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Details",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Details",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Details",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Details",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Details",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Details",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Details",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Details",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Details",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "url_pattern",
+      "page": "url_pattern.html",
+      "expected_signals": [
+        "null_rate",
+        "schema"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-001?ref=list"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-002?ref=list"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-003?ref=list"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-004?ref=list"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-005?ref=list"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-006?ref=list"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-007?ref=list"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-008?ref=list"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-009?ref=list"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-010?ref=list"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-011?ref=list"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/v2/interchangeable/register/rf-012?ref=list"
+        }
+      ]
+    },
+    {
+      "mutation": "date_format",
+      "page": "date_format.html",
+      "expected_signals": [
+        "null_rate",
+        "schema"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "14/01/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "22/01/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "03/02/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "11/02/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "27/02/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "08/03/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "19/03/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "02/04/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "15/04/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "30/04/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "12/05/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "25/05/2026",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "field_split_merge",
+      "page": "field_split_merge.html",
+      "expected_signals": [
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "wrapper_nesting",
+      "page": "wrapper_nesting.html",
+      "expected_signals": [
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        },
+        {
+          "ref": "RF-007",
+          "name": "Petrichor Seal Gasket",
+          "category": "Seals",
+          "updated": "2026-03-19",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-007"
+        },
+        {
+          "ref": "RF-008",
+          "name": "Marbled Idler Pulley",
+          "category": "Pulleys",
+          "updated": "2026-04-02",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-008"
+        },
+        {
+          "ref": "RF-009",
+          "name": "Selvage Tension Clip",
+          "category": "Clips",
+          "updated": "2026-04-15",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-009"
+        },
+        {
+          "ref": "RF-010",
+          "name": "Ferrous Guide Rail",
+          "category": "Rails",
+          "updated": "2026-04-30",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-010"
+        },
+        {
+          "ref": "RF-011",
+          "name": "Lambent Shim Plate",
+          "category": "Shims",
+          "updated": "2026-05-12",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-011"
+        },
+        {
+          "ref": "RF-012",
+          "name": "Umbral Retaining Washer",
+          "category": "Washers",
+          "updated": "2026-05-25",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-012"
+        }
+      ]
+    },
+    {
+      "mutation": "pagination",
+      "page": "pagination.html",
+      "expected_signals": [
+        "row_count",
+        "skeleton"
+      ],
+      "golden": [
+        {
+          "ref": "RF-001",
+          "name": "Cobalt Spindle Bracket",
+          "category": "Brackets",
+          "updated": "2026-01-14",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-001"
+        },
+        {
+          "ref": "RF-002",
+          "name": "Tessellated Damper Ring",
+          "category": "Dampers",
+          "updated": "2026-01-22",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-002"
+        },
+        {
+          "ref": "RF-003",
+          "name": "Verdigris Coupling Sleeve",
+          "category": "Couplings",
+          "updated": "2026-02-03",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-003"
+        },
+        {
+          "ref": "RF-004",
+          "name": "Halcyon Torsion Bar",
+          "category": "Bars",
+          "updated": "2026-02-11",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-004"
+        },
+        {
+          "ref": "RF-005",
+          "name": "Quillon Bearing Cage",
+          "category": "Bearings",
+          "updated": "2026-02-27",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-005"
+        },
+        {
+          "ref": "RF-006",
+          "name": "Ardent Flange Collar",
+          "category": "Flanges",
+          "updated": "2026-03-08",
+          "href": "https://mellowmancer.github.io/interchangeable/register/rf-006"
+        }
+      ]
+    }
+  ]
+}
