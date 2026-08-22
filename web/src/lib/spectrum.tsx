@@ -14,11 +14,9 @@
  * already says so, with an empty column.
  */
 
+import Link from "next/link";
 import { manufacturer, type Cell, type ProductColumn } from "./api";
 import { placementStyle, SECTION_PLACEMENTS } from "./placement";
-
-/** The plain half of a placement's detail — the part after the term it explains. */
-const gloss = (detail: string) => detail.split(" — ").slice(1).join(" — ");
 
 /** Stagger between marks, so a row fills in the order it reads. */
 const LAND_STEP_MS = 90;
@@ -33,7 +31,6 @@ export function PlacementSpectrum({
   className?: string;
 }) {
   const filedAt = new Map(cells.map((cell) => [cell.product_external_id, cell.placement]));
-  const absent = products.filter((product) => filedAt.get(product.external_id) === "absent");
 
   return (
     <figure className={`space-y-3 ${className}`}>
@@ -51,13 +48,18 @@ export function PlacementSpectrum({
                 <span className="sr-only">Section</span>
               </th>
               {products.map((product) => (
-                <th key={product.external_id} scope="col" className="p-2 text-left font-normal">
+                <th key={product.external_id} scope="col" className="p-0 text-left font-normal">
+                  <Link
+                    href={`/products/${product.external_id}`}
+                    className="block h-full p-2 hover:bg-rule/40 hover:text-accent"
+                  >
                   <span className="block leading-tight">{manufacturer(product)}</span>
                   {/* A holder may hold several products, and they need not agree —
                       without the variant two of its columns read as one label twice. */}
                   <span className="block font-mono text-kicker text-ink-muted">
                     {product.variant ?? product.name}
                   </span>
+                  </Link>
                 </th>
               ))}
             </tr>
@@ -72,7 +74,7 @@ export function PlacementSpectrum({
                   <th scope="row" className="p-2 text-left font-normal">
                     <span className="block text-ink">{style.label}</span>
                     <span className="block text-kicker text-ink-muted">
-                      {gloss(style.detail)}
+                      {style.detail}
                     </span>
                   </th>
                   {products.map((product, order) => (
@@ -94,28 +96,6 @@ export function PlacementSpectrum({
           </tbody>
         </table>
       </div>
-      {absent.length > 0 && <AbsenceNote products={absent} />}
     </figure>
-  );
-}
-
-/**
- * Who was looked at and not found, stated rather than drawn.
- *
- * Beneath the grid on purpose: a mark inside it would place absence somewhere on the
- * document axis, and "not in the sections we read" is not a location in a label.
- */
-function AbsenceNote({ products }: { products: ProductColumn[] }) {
-  const scanned = products[0].scanned ?? [];
-  const named = products.map((product) => {
-    const variant = product.variant ?? product.name;
-    return variant ? `${manufacturer(product)} ${variant}` : manufacturer(product);
-  });
-
-  return (
-    <figcaption className="text-kicker text-ink-muted">
-      Not found in {scanned.length ? scanned.join(", ") : "any section"} as read here:{" "}
-      {named.join(" · ")}. Not the same as the label being silent.
-    </figcaption>
   );
 }

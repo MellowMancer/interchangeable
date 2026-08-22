@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Section } from "@/lib/heading";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -10,6 +11,7 @@ import {
   type ValueStatement,
 } from "@/lib/api";
 import { DosageGlyph, undrawnBecause } from "@/lib/appearance";
+import { Concepts, Makers } from "@/lib/icons";
 import { PlacementBadge } from "@/lib/placement";
 
 /**
@@ -49,8 +51,13 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
 
       <Identity detail={detail} />
 
-      <section className="space-y-6">
-        <Kicker>What this label says about each concept</Kicker>
+      <section className="space-y-4">
+        <Section>
+          <span className="flex items-center gap-2">
+            <Concepts />
+            Concepts — {detail.concepts.length}
+          </span>
+        </Section>
         {/* Two columns of collapsed rows: the placement is the answer, and the sentence
             behind it is one click away rather than thirty stacked quotes deep. */}
         <ul className="grid border-t border-rule lg:grid-cols-2">
@@ -66,8 +73,8 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
       </section>
 
       {detail.values.length > 0 && (
-        <section className="space-y-6 border-t border-rule pt-10">
-          <Kicker>How it is kept</Kicker>
+        <section className="section-break space-y-4">
+          <Section>Storage and shelf life</Section>
           <div className="grid gap-10 lg:grid-cols-2">
             {detail.values.map((value) => (
               <Value key={value.code} value={value} />
@@ -77,11 +84,13 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
       )}
 
       {detail.siblings.length > 0 && (
-        <section className="space-y-4 border-t border-rule pt-10">
-          <Kicker>
-            Also dispensed as {detail.substance_name} — {detail.siblings.length} other
-            labels
-          </Kicker>
+        <section className="section-break space-y-4">
+          <Section>
+            <span className="flex items-center gap-2">
+              <Makers />
+              Other {detail.substance_name} labels — {detail.siblings.length}
+            </span>
+          </Section>
           <p className="max-w-prose text-meta text-ink-muted">
             The same active substance from another manufacturer. Whether they say the same
             things is what the comparison answers.
@@ -101,10 +110,6 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
   );
 }
 
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
-);
-
 /** What the box is: the drawing, the substance and strength, and what it is for. */
 function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }) {
   if (!detail) return null;
@@ -118,7 +123,9 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
           <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
             {detail.substance_name}
           </p>
-          <h1 className="font-serif text-title font-normal tracking-tight">{product.name}</h1>
+          <h1 className="line-clamp-3 font-serif text-title font-normal tracking-tight">
+            {product.name}
+          </h1>
           <p className="font-mono text-meta text-ink-muted">
             {manufacturer(product)}
             {product.variant && ` · ${product.variant}`}
@@ -128,7 +135,12 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
         {drawable && product.appearance && (
           <div className="space-y-2">
             <DosageGlyph appearance={product.appearance} />
-            <p className="max-w-prose text-kicker text-ink-muted">
+            {/* Three lines, then a title: one ibuprofen description runs to four
+                sentences and pushed everything under it off the first screen. */}
+            <p
+              title={product.appearance.source_text}
+              className="line-clamp-3 max-w-prose text-kicker text-ink-muted"
+            >
               {product.appearance.source_text}
             </p>
           </div>
@@ -157,7 +169,7 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
       </div>
 
       <div className="space-y-3">
-        <Kicker>What it is for</Kicker>
+        <Section>Indications</Section>
         {detail.indications.length > 0 ? (
           <ul className="space-y-1">
             {detail.indications.map((statement) => (

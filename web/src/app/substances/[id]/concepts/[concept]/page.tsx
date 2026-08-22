@@ -71,7 +71,7 @@ export default async function ConceptPage({
       {/* One block per distinct wording, two abreast. A block per label turned ten
           manufacturers into a page nobody reaches the end of — and most of those blocks
           were the same sentence, because generics copy an SmPC verbatim. */}
-      <ul className="grid border-t border-rule lg:grid-cols-2">
+      <ul className="section-break grid border-t border-rule lg:grid-cols-2">
         {groups.map((group) => (
           <li
             key={`${group.placement}|${group.cells[0].product_external_id}`}
@@ -167,7 +167,18 @@ function Speaker({
 
   return (
     <li className="space-y-1">
-      <p className="font-medium">{product ? manufacturer(product) : cell.product_external_id}</p>
+      <p className="font-medium">
+        {product ? (
+          <Link
+            href={`/products/${product.external_id}`}
+            className="hover:text-accent hover:underline hover:underline-offset-4"
+          >
+            {manufacturer(product)}
+          </Link>
+        ) : (
+          cell.product_external_id
+        )}
+      </p>
       <p className="font-mono text-meta text-ink-muted">
         {product?.variant ?? product?.name}
         {product?.revised ? ` · revised ${product.revised}` : " · revision unknown"}

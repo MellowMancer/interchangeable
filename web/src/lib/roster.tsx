@@ -14,9 +14,11 @@
  */
 
 import { useState } from "react";
+import { Section } from "@/lib/heading";
 import Link from "next/link";
 import { conceptLabel, type SubstanceSummary } from "./api";
 import { rankedPreviews } from "./finding";
+import { Concepts, Diverges, Makers } from "./icons";
 import { PlacementPip } from "./placement";
 
 /** How many disagreements a card advertises before it defers to the comparison itself. */
@@ -140,9 +142,9 @@ export function Roster({
 
       {collected.length > 0 && (
         <section className="space-y-6">
-          <Kicker>
+          <Section>
             {term ? `Collected — ${collected.length} matching` : `Collected — ${collected.length}`}
-          </Kicker>
+          </Section>
           <ul className="grid border-t border-rule md:grid-cols-2">
             {collected.map((substance) => (
               <li
@@ -158,7 +160,7 @@ export function Roster({
 
       {uncollected.length > 0 && (
         <section className="space-y-4 border-t border-rule pt-10">
-          <Kicker>On the roster, not yet collected — {uncollected.length}</Kicker>
+          <Section>On the roster, not yet collected — {uncollected.length}</Section>
           <p className="max-w-prose text-meta text-ink-muted">
             Configured but not yet fetched, so there is nothing to compare. Not a finding
             of agreement.
@@ -180,10 +182,6 @@ export function Roster({
     </>
   );
 }
-
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
-);
 
 function Card({ substance }: { substance: SubstanceSummary }) {
   const previews = rankedPreviews(substance);
@@ -248,45 +246,12 @@ const Fact = ({
   value: number;
   accent?: boolean;
 }) => (
-  <div className="flex items-center gap-1.5">
+  // Titled on the group, so hovering the number explains it as readily as the icon.
+  <div title={`${value} ${term}`} className="flex items-center gap-1.5">
     <dt className="sr-only">{term}</dt>
     <span aria-hidden className={accent ? "text-accent" : undefined}>
       {icon}
     </span>
     <dd className={accent ? "text-accent" : undefined}>{value}</dd>
   </div>
-);
-
-/** Inline, on `currentColor`, so an icon inherits whatever the row around it is doing. */
-const Glyph = ({ children }: { children: React.ReactNode }) => (
-  <svg
-    viewBox="0 0 24 24"
-    width="14"
-    height="14"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    {children}
-  </svg>
-);
-
-const Makers = () => (
-  <Glyph>
-    <path d="M3 21V9l6 3V9l6 3V9l6 3v9z" />
-  </Glyph>
-);
-
-const Concepts = () => (
-  <Glyph>
-    <path d="M4 6h16M4 12h16M4 18h10" />
-  </Glyph>
-);
-
-const Diverges = () => (
-  <Glyph>
-    <path d="M4 12h6M14 6l6 6-6 6M10 12l4-6M10 12l4 6" />
-  </Glyph>
 );

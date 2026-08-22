@@ -59,7 +59,7 @@ export function Carousel({ children, label }: { children: ReactNode; label: stri
       onMouseLeave={() => setHeld(false)}
       onFocusCapture={() => setHeld(true)}
       onBlurCapture={() => setHeld(false)}
-      className="space-y-2"
+      className="min-w-0 space-y-2"
     >
       <div
         ref={track}

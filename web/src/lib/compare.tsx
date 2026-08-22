@@ -16,7 +16,8 @@
  * so narrowing to a selection is a filter, never a request.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Section } from "@/lib/heading";
 import Link from "next/link";
 import {
   conceptLabel,
@@ -27,19 +28,57 @@ import {
   type ValueSection,
 } from "./api";
 import { holderGroups, partition } from "./finding";
+import { Makers } from "./icons";
 import { PlacementBadge, PlacementChip } from "./placement";
-
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
-);
 
 export function Comparison({ matrix }: { matrix: Matrix }) {
   const [chosen, setChosen] = useState<string[]>(() =>
     matrix.products.map((product) => product.external_id),
   );
 
+  /**
+   * A narrowed comparison survives leaving the page and coming back.
+   *
+   * Held per substance for the session only: which two labels someone is holding is a
+   * question they are asking now, not a preference worth remembering next week. Read after
+   * mount rather than during render, because the server has no session storage and a
+   * differing first paint would be a hydration mismatch.
+   */
+  const remembered = `chosen:${matrix.substance_id}`;
+
+  useEffect(() => {
+    try {
+      const held = window.sessionStorage.getItem(remembered);
+      if (!held) return;
+      const ids: string[] = JSON.parse(held);
+      const live = ids.filter((id) => matrix.products.some((p) => p.external_id === id));
+      // Reading a browser store after mount is precisely what an effect is for; the rule
+      // guards against effects that drive renders, and this runs once per substance.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (live.length) setChosen(live);
+    } catch {
+      // Storage can be unavailable or hold something stale; the full comparison is a
+      // correct answer either way, so there is nothing to report.
+    }
+  }, [remembered, matrix.products]);
+
+  const choose = (ids: string[]) => {
+    setChosen(ids);
+    try {
+      window.sessionStorage.setItem(remembered, JSON.stringify(ids));
+    } catch {
+      // Not being able to remember is not a reason to refuse the change.
+    }
+  };
+
   const products = matrix.products.filter((product) => chosen.includes(product.external_id));
   const holders = new Set(products.map((product) => manufacturer(product)));
+
+  // Value sections name holders, not products. A holder with several labels resolves to
+  // its first: the page it opens carries the others in its own shelf.
+  const labelOf = new Map(
+    [...matrix.products].reverse().map((product) => [manufacturer(product), product.external_id]),
+  );
 
   // Recomputed over the chosen labels, never filtered from the whole set: two products
   // that agree can both diverge from a third, and carrying the full comparison's verdict
@@ -70,7 +109,7 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
 
   return (
     <>
-      <Chooser products={matrix.products} chosen={chosen} onChange={setChosen} />
+      <Chooser products={matrix.products} chosen={chosen} onChange={choose} />
 
       {products.length < 2 ? (
         <p className="max-w-prose text-ink-muted">
@@ -80,15 +119,15 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
       ) : (
         <>
           {divergent.length > 0 ? (
-            <section className="space-y-6">
-              <Kicker>
-                Where they disagree — {divergent.length} of {rows.length} concepts
-              </Kicker>
+            <section className="space-y-4">
+              <Section>
+                Disagreements — {divergent.length}
+              </Section>
               <DivergenceTable matrix={matrix} rows={divergent} products={products} />
             </section>
           ) : (
             <section className="space-y-4">
-              <Kicker>Where they disagree</Kicker>
+              <Section>Disagreements</Section>
               <p className="max-w-prose text-ink-muted">
                 Nowhere that was scanned. Every concept below sits in the same section on
                 every label chosen.
@@ -97,9 +136,9 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
           )}
 
           {agreeing.length > 0 && (
-            <section className="space-y-6 border-t border-rule pt-10">
-              <Kicker>Where they agree — {agreeing.length} concepts</Kicker>
-              <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            <section className="section-break space-y-4">
+              <Section>Agreements — {agreeing.length}</Section>
+              <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
                 {agreeing.map((row) => (
                   <li key={row.concept}>
                     <Link
@@ -115,7 +154,7 @@ export function Comparison({ matrix }: { matrix: Matrix }) {
             </section>
           )}
 
-          <ValueSections sections={values} />
+          <ValueSections sections={values} labelOf={labelOf} />
         </>
       )}
     </>
@@ -145,22 +184,33 @@ function Chooser({
   const narrowed = chosen.length < products.length;
 
   return (
-    <details className="group space-y-3 border-t border-rule pt-8">
-      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <span className="font-mono text-kicker tracking-widest uppercase">
-          <span className={narrowed ? "text-accent" : "text-ink-muted"}>
-            Comparing {chosen.length} of {products.length} labels
-          </span>
+    // Bordered and filled, because it is the one thing on the page a reader acts on.
+    // Set like every other heading it read as another block of text and nobody found it.
+    // Open by default: the labels being compared are part of reading the page, not a
+    // setting behind a control. Collapsing is the reader's move once they have seen them.
+    <details
+      open
+      className={`group rounded-sheet border bg-rule/30 px-5 py-4 ${
+        narrowed ? "border-accent" : "border-rule"
+      }`}
+    >
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <span className="flex items-center gap-3 font-serif text-quote text-ink">
+          <span
+            aria-hidden
+            className={`h-6 w-1.5 shrink-0 rounded-sheet ${narrowed ? "bg-accent" : "bg-ink-muted"}`}
+          />
+          Comparing{" "}
+          <span className={narrowed ? "text-accent" : undefined}>{chosen.length}</span>{" "}
+          {chosen.length === 1 ? "product" : "products"}
         </span>
-        <span className="font-mono text-kicker tracking-widest text-ink-muted uppercase group-open:hidden">
-          choose ↓
-        </span>
-        <span className="hidden font-mono text-kicker tracking-widest text-ink-muted uppercase group-open:inline">
-          done ↑
+        <span className="rounded-sheet border border-rule bg-paper px-3 py-1 font-mono text-kicker tracking-widest text-ink-muted uppercase group-hover:border-accent group-hover:text-accent">
+          <span className="group-open:hidden">Choose ↓</span>
+          <span className="hidden group-open:inline">Collapse ↑</span>
         </span>
       </summary>
 
-      <div className="mt-3 space-y-3">
+      <div className="mt-4 space-y-3">
         <div className="flex gap-4 font-mono text-kicker tracking-widest uppercase">
           <button
             type="button"
@@ -226,87 +276,79 @@ const COMPACT_ABOVE = 5;
  * require different things: "Do not store above 25°C" and "Store below 25°C" are the same
  * instruction, and only the reader can tell that apart from a real difference.
  */
-function ValueSections({ sections }: { sections: ValueSection[] }) {
+function ValueSections({
+  sections,
+  labelOf,
+}: {
+  sections: ValueSection[];
+  labelOf: Map<string, string>;
+}) {
   if (sections.length === 0) return null;
 
   return (
-    <section className="space-y-6 border-t border-rule pt-10">
-      <Kicker>What the labels state, in their own words</Kicker>
-      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
+    <section className="section-break space-y-4">
+      <Section>Storage and shelf life</Section>
+      <div className="space-y-8">
         {sections.map((section) => (
-          <article key={section.code} className="space-y-2">
-            {/* The app's voice, in the app's face: everything below is the label's own
-                words in serif, and a heading set like them reads as one of them. */}
+          <article key={section.code} className="space-y-3">
             <h3 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-kicker tracking-widest text-ink-muted uppercase">
               <span>
                 §{section.code} — {section.heading}
               </span>
-              {/* Said at the top, not inferred from the bottom. Two statements stacked
-                  read as a list of properties unless something says they are rival
-                  answers to one question. */}
               {section.groups.length > 1 && (
                 <span className="rounded-sheet border border-accent px-2 py-0.5 text-accent">
                   {section.groups.length} different statements
                 </span>
               )}
             </h3>
-            {/* Commonest first, and led by how many labels say it. "Six say this, two say
-                that" is the shape of the answer; a stack of equal paragraphs makes the
-                reader count for themselves. */}
-            <ul className="divide-y divide-rule border-y border-rule">
+
+            {/* A card each, not rows of a list. A run of statements with their holders on
+                a muted line underneath read as one table; the question is which brands say
+                which thing, so each answer is its own object with its brands stacked in
+                it. */}
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {[...section.groups]
                 .sort((a, b) => b.manufacturers.length - a.manufacturers.length)
                 .map((group) => (
                   <li
                     key={group.text}
-                    className="grid grid-cols-[3.5rem_1fr] items-baseline gap-x-4 py-2.5"
+                    className={`flex flex-col gap-3 rounded-sheet border p-4 ${
+                      section.groups.length > 1 ? "border-accent/40" : "border-rule"
+                    }`}
                   >
-                    <span
-                      className={`font-mono text-meta ${
-                        section.groups.length > 1 ? "text-accent" : "text-ink-muted"
-                      }`}
-                    >
-                      {group.manufacturers.length}
-                      <span className="sr-only"> labels state</span>
-                      <span aria-hidden className="text-ink-muted">
-                        /{section.collected}
-                      </span>
+                    <span className="space-y-0.5 font-serif text-body">
+                      {group.text
+                        .split(/\n+/)
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                        .map((line) => (
+                          <span key={line} className="block">
+                            {line}
+                          </span>
+                        ))}
                     </span>
-                    <span className="block min-w-0 space-y-0.5">
-                      {/* The label's own words, in the label's own face. */}
-                      <span className="block space-y-0.5 font-serif text-body">
-                        {group.text
-                          .split(/\n+/)
-                          .map((line) => line.trim())
-                          .filter(Boolean)
-                          .map((line) => (
-                            <span key={line} className="block">
-                              {line}
-                            </span>
-                          ))}
+                    <span className="mt-auto space-y-1 border-t border-rule pt-2">
+                      <span className="flex items-center gap-1.5 font-mono text-kicker text-accent">
+                        <Makers />
+                        From {group.manufacturers.length}{" "}
+                        {group.manufacturers.length === 1 ? "manufacturer" : "manufacturers"}
                       </span>
-                      <span
-                        title={group.manufacturers.join(", ")}
-                        className="block truncate font-mono text-kicker text-ink-muted"
-                      >
-                        {group.manufacturers.join(" · ")}
-                      </span>
+                      {group.manufacturers.map((name) => (
+                        <span key={name} className="block truncate font-mono text-kicker text-ink-muted">
+                          <Maker name={name} labelOf={labelOf} />
+                        </span>
+                      ))}
                     </span>
                   </li>
                 ))}
             </ul>
-            {/* Stated rather than implied: a section three labels carry is not a section
-                the other four contradict. */}
-            {/* "Stated by all 3 labels" meant all three state a shelf life; it read as
-                all three stating the same one. Coverage and agreement are different
-                claims and are now made separately. */}
-            <p className="text-kicker text-ink-muted">
-              {section.groups.length > 1
-                ? `These ${section.collected} labels do not word this the same way.`
-                : `All ${section.collected} labels word this the same way.`}
-              {section.collected < section.total &&
-                ` The other ${section.total - section.collected} have no ${section.heading.toLowerCase()} collected.`}
-            </p>
+
+            {section.collected < section.total && (
+              <p className="text-kicker text-ink-muted">
+                {section.total - section.collected} of {section.total} have no §{section.code}{" "}
+                collected — not evidence they state nothing.
+              </p>
+            )}
           </article>
         ))}
       </div>
@@ -345,10 +387,10 @@ function DivergenceTable({
         scroll for all {ordered.length} products →
       </p>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-max min-w-full border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-paper p-2 text-left font-normal">
+              <th className="sticky left-0 z-20 bg-paper p-2 text-left font-normal">
                 <span className="sr-only">Concept</span>
               </th>
               {groups.map((group) => (
@@ -356,9 +398,14 @@ function DivergenceTable({
                   key={group.name}
                   colSpan={group.products.length}
                   scope="colgroup"
-                  className="border-l border-rule px-2 pt-2 text-left align-bottom font-medium first:border-l-0"
+                  className="border-l border-rule p-0 text-left align-bottom font-medium first:border-l-0"
                 >
-                  {group.name}
+                  <Link
+                    href={`/products/${group.products[0].external_id}`}
+                    className="block h-full px-2 pt-2 hover:bg-rule/40 hover:text-accent"
+                  >
+                    {group.name}
+                  </Link>
                 </th>
               ))}
             </tr>
@@ -368,23 +415,34 @@ function DivergenceTable({
                 <th
                   key={product.external_id}
                   scope="col"
-                  className="px-2 pb-2 text-left align-bottom font-normal"
+                  className="min-w-36 p-0 text-left align-bottom font-normal"
                 >
+                  {/* The cell is the target, not the text in it. A column heading is a
+                      small thing to aim at, and the space around it was dead. */}
                   <Link
                     href={`/products/${product.external_id}`}
-                    className="block font-mono text-meta underline underline-offset-4 hover:text-accent"
+                    className="block h-full px-2 pt-2 pb-2 hover:bg-rule/40 hover:text-accent"
                   >
-                    {product.variant ?? product.name}
+                    {/* Truncated: one eye-drop presentation ran to sixty characters and
+                        widened its column past every other one on the page. */}
+                    <span
+                      title={product.variant ?? product.name}
+                      className="block max-w-44 truncate font-mono text-meta underline underline-offset-4"
+                    >
+                      {product.variant ?? product.name}
+                    </span>
+                    <span className="block font-mono text-kicker text-ink-muted">
+                      {product.revised ? product.revised : "revision unknown"}
+                    </span>
+                    {product.discontinued && (
+                      <span className="block font-mono text-kicker text-accent">discontinued</span>
+                    )}
+                    {!compact && product.ma_number && (
+                      <span className="block font-mono text-kicker text-ink-muted">
+                        {product.ma_number}
+                      </span>
+                    )}
                   </Link>
-                  <div className="font-mono text-kicker text-ink-muted">
-                    {product.revised ? product.revised : "revision unknown"}
-                  </div>
-                  {product.discontinued && (
-                    <div className="font-mono text-kicker text-accent">discontinued</div>
-                  )}
-                  {!compact && product.ma_number && (
-                    <div className="font-mono text-kicker text-ink-muted">{product.ma_number}</div>
-                  )}
                 </th>
               ))}
             </tr>
@@ -392,7 +450,7 @@ function DivergenceTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.concept} className="border-b border-rule align-top">
-                <th className="sticky left-0 z-10 bg-paper p-2 pr-4 text-left font-normal">
+                <th className="sticky left-0 z-20 min-w-40 bg-paper p-2 pr-4 text-left font-normal">
                   <Link
                     href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
                     className="underline underline-offset-4 hover:text-accent"
@@ -403,7 +461,7 @@ function DivergenceTable({
                 {ordered.map((product, order) => {
                   const cell = row.cells.find((c) => c.product_external_id === product.external_id);
                   return (
-                    <td key={product.external_id} className="px-1 py-2">
+                    <td key={product.external_id} className="px-1 py-2 text-center">
                       {cell &&
                         (compact ? (
                           <PlacementChip placement={cell.placement} />
@@ -423,5 +481,17 @@ function DivergenceTable({
         </table>
       </div>
     </div>
+  );
+}
+
+
+/** A holder's name, linked to one of its labels wherever the name appears. */
+export function Maker({ name, labelOf }: { name: string; labelOf: Map<string, string> }) {
+  const id = labelOf.get(name);
+  if (!id) return <>{name}</>;
+  return (
+    <Link href={`/products/${id}`} className="hover:text-accent hover:underline">
+      {name}
+    </Link>
   );
 }

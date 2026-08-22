@@ -1,13 +1,8 @@
-import type { CSSProperties } from "react";
-import { getSubstances } from "@/lib/api";
-import { PLACEMENT_LEGEND } from "@/lib/placement";
+import Link from "next/link";
+import { getMatrix, getSubstances, manufacturer, type Matrix, type ProductColumn } from "@/lib/api";
+import { DosageGlyph, undrawnBecause } from "@/lib/appearance";
+import { featuredSubstance } from "@/lib/finding";
 import { Roster } from "@/lib/roster";
-
-/** Degrees of splay between neighbouring chips in the placement fan. */
-const ANGLE_PER_CHIP = 18;
-
-/** How far each chip lifts out of the stack, along its own axis, in pixels. */
-const LIFT_PER_CHIP = 18;
 
 /**
  * The roster, and what a comparison of each substance would show.
@@ -24,10 +19,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
 
   const substances = await getSubstances();
+  // One extra read, for the hero: the roster carries names but not what a tablet looks
+  // like, and the scene is two boxes rather than two strings.
+  //
+  // The substance whose labels disagree most, so the pair on show is a real pair — and
+  // never at the cost of the page: the roster is the reason to be here, so a failing
+  // matrix costs the decoration, not the list.
+  const featured = featuredSubstance(substances);
+  const staged = featured && featured.divergent > 0 ? await staged_for(featured.id) : null;
 
   return (
     <div className="space-y-12">
-      <header className="grid items-center gap-10 lg:grid-cols-[1fr_minmax(0,22rem)]">
+      <header className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)]">
         <div className="space-y-5">
         {/* Its own measure: inside the prose column a display size wraps to three uneven
             lines, and the strapline is the one thing on the page that must land cleanly. */}
@@ -46,8 +49,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           The question mark is deliberate. This asks whether these products really are
           interchangeable; it does not assert that they are not.
         </p>
+        {/* Offered before the list, not buried in the nav: a grid of coloured badges is
+            guessable, and the likeliest guess — that an unmarked cell means the label
+            omits something — is the one reading this project exists to prevent. */}
+        <Link
+          href="/reading"
+          className="inline-flex items-baseline gap-2 border-b border-accent pb-1 text-meta text-accent hover:border-ink hover:text-ink"
+        >
+          New here? Read how to read this first
+          <span aria-hidden>→</span>
+        </Link>
         </div>
-        <PlacementFan />
+        <SameDrug matrix={staged} />
       </header>
 
       <Roster substances={substances} query={query} />
@@ -55,46 +68,88 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   );
 }
 
+
+
 /**
- * The vocabulary itself, fanned out.
+ * The proposition, staged.
  *
- * Every cell on every comparison is one of these, so showing them here teaches the whole
- * grid before a reader meets it — and the header's right half was empty.
+ * Two real labels of one substance, drawn as they describe themselves, with a not-equals
+ * between them. Nothing is invented — the products, the manufacturers and the tablets all
+ * come from the corpus, so the scene changes as it grows.
  *
- * Rendered from `PLACEMENT_LEGEND`, so it is necessarily the set the tables actually draw
- * and cannot drift from them. It asserts nothing about the corpus: these are the places a
- * concept can be filed, not a finding about any substance.
+ * Rotated in a perspective scene rather than given a drawn shadow: the point is two boxes
+ * on a counter, and depth says that faster than prose can. Decorative and `aria-hidden`;
+ * the strapline beside it makes the same claim in words.
  */
-function PlacementFan() {
-  const chips = PLACEMENT_LEGEND.filter((style) => style.section);
-  const middle = (chips.length - 1) / 2;
+function SameDrug({ matrix }: { matrix: Matrix | null }) {
+  const drawable = (matrix?.products ?? []).filter(
+    (product) => product.appearance && undrawnBecause(product.appearance).length === 0,
+  );
+  // One card per holder: two strengths from one manufacturer, shown side by side as the
+  // page's illustration of "different manufacturer", would be neither.
+  const seen = new Set<string>();
+  const distinct = drawable.filter((product) => {
+    const holder = manufacturer(product);
+    if (seen.has(holder)) return false;
+    seen.add(holder);
+    return true;
+  });
+  if (!matrix || distinct.length < 2) return null;
+  const [first, second] = distinct;
 
   return (
-    <ul aria-hidden className="relative hidden h-52 lg:block">
-      {chips.map((style, index) => {
-        const offset = index - middle;
-        return (
-          <li
-            key={style.label}
-            style={
-              {
-                // Every card pivots on the same point at its left edge, so they splay
-                // like a hand held at one corner. About their own centres they would
-                // cross over. The lift is in the card's own rotated frame, so it clears
-                // its neighbour rather than sliding along it; `.fan-chip` assembles both
-                // into the transform and adds the hover slide.
-                transformOrigin: "0% 50%",
-                "--fan-angle": `${offset * ANGLE_PER_CHIP}deg`,
-                "--fan-lift": `${offset * LIFT_PER_CHIP}px`,
-                zIndex: index,
-              } as CSSProperties
-            }
-            className={`fan-chip absolute top-1/2 left-0 flex w-60 items-baseline justify-end rounded-sheet border px-4 py-3 font-mono text-meta ${style.className}`}
-          >
-            <span>{style.label}</span>
-          </li>
-        );
-      })}
-    </ul>
+    <div aria-hidden className="stage hidden items-center justify-center gap-6 lg:flex">
+      <LabelCard substance={matrix.substance_name} product={first} side="left" />
+      <LabelCard substance={matrix.substance_name} product={second} side="right" />
+    </div>
   );
+}
+
+const LabelCard = ({
+  substance,
+  product,
+  side,
+}: {
+  substance: string;
+  product: ProductColumn;
+  side: "left" | "right";
+}) => (
+  <article
+    className={`stage-card w-40 shrink-0 space-y-2 rounded-sheet border border-rule bg-paper p-4 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.55)] ${
+      side === "left" ? "stage-left" : "stage-right"
+    }`}
+  >
+    <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{substance}</p>
+    {product.appearance && (
+      <span className="flex h-8 items-center">
+        <DosageGlyph appearance={product.appearance} />
+      </span>
+    )}
+    <p className="truncate font-serif text-body">{presentation(substance, product)}</p>
+    <p className="truncate font-mono text-kicker text-ink-muted">{manufacturer(product)}</p>
+  </article>
+);
+
+
+/**
+ * What to call a product on a card the width of a box.
+ *
+ * `variant` is the strength and form and is what one wants — but it is null whenever the
+ * name does not carry both, and falling back to the whole name put "Prednisolone 5…" on a
+ * card beside "5mg Tablets". Stripping the substance the card already names leaves the two
+ * reading alike.
+ */
+function presentation(substance: string, product: ProductColumn): string {
+  if (product.variant) return product.variant;
+  const stripped = product.name.replace(new RegExp(`^${substance}\\s*`, "i"), "").trim();
+  return stripped || product.name;
+}
+
+/** The hero's matrix, or nothing. A decorative read must not be able to fail the page. */
+async function staged_for(id: string): Promise<Matrix | null> {
+  try {
+    return await getMatrix(id);
+  } catch {
+    return null;
+  }
 }

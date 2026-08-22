@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Section } from "@/lib/heading";
 import { getBenchmark, getCollectors, type BenchCase, type BenchRun, type Heal } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Reliability" };
@@ -29,7 +30,7 @@ export default async function CollectorsPage() {
       </header>
 
       <section className="space-y-6">
-        <Kicker>Live collectors</Kicker>
+        <Section>Live collectors</Section>
         <div className="divide-y divide-rule border-y border-rule">
           {collectors.map((collector) => (
             <article key={collector.id} className="space-y-3 py-6">
@@ -59,7 +60,7 @@ export default async function CollectorsPage() {
       </section>
 
       <section className="space-y-6 border-t border-rule pt-10">
-        <Kicker>Controlled benchmark</Kicker>
+        <Section>Controlled benchmark</Section>
         <p className="max-w-prose text-ink-muted">
           <span className="font-mono text-meta text-ink">medicines.org.uk</span> cannot be
           broken on cue, so the repair loop is measured against a fixture site we control —
@@ -109,10 +110,6 @@ function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
     </p>
   );
 }
-
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
-);
 
 /**
  * One run's cases, with the run's own arithmetic above them.

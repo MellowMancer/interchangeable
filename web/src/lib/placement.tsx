@@ -24,8 +24,9 @@ export type PlacementStyle = {
    *  where the list is being read: §4.3 tells a reader nothing they do not already get
    *  from the word beside it. */
   section: string | null;
-  /** The same thing in words anyone has. The regulatory term is the finding and stays,
-   *  but nothing is served by it standing alone in front of a reader who lacks it. */
+  /** The same thing in words anyone has: one sentence, sentence case, standing on its own
+   *  so it reads the same beside a chip, in a tooltip, or under a row label. The
+   *  regulatory term is the finding and stays; this is for the reader who lacks it. */
   detail: string;
   className: string;
 };
@@ -35,37 +36,37 @@ const STYLES: Record<Placement, PlacementStyle> = {
   "4.3": {
     label: "Contraindicated",
     section: "§4.3",
-    detail: "Contraindicated — the label says it must not be used",
+    detail: "The label says it must not be used.",
     className: "bg-p43 text-p43-on border-p43",
   },
   "4.4": {
     label: "Warning",
     section: "§4.4",
-    detail: "Warning — the label says it can be used, with care",
+    detail: "The label says it can be used, with care.",
     className: "bg-p44 text-p44-on border-p44",
   },
   "4.5": {
     label: "Interaction",
     section: "§4.5",
-    detail: "Interaction — the label says another medicine affects it",
+    detail: "The label says another medicine affects it.",
     className: "bg-p45 text-p45-on border-p45",
   },
   "4.6": {
     label: "Pregnancy",
     section: "§4.6",
-    detail: "Pregnancy — the label gives advice for pregnancy or breastfeeding",
+    detail: "The label gives advice for pregnancy or breastfeeding.",
     className: "bg-p46 text-p46-on border-p46",
   },
   "6.1": {
     label: "Excipient",
     section: "§6.1",
-    detail: "Excipient — listed as an ingredient, not a clinical restriction",
+    detail: "The label lists it as an ingredient, not a restriction.",
     className: "bg-p61 text-p61-on border-p61",
   },
   absent: {
     label: "Not in scanned sections",
     section: null,
-    detail: "Not found in the sections collected — not evidence the label omits it",
+    detail: "Not found in the sections collected. Not evidence the label omits it.",
     className: "bg-p-absent text-ink-muted border-dashed border-rule",
   },
 };
@@ -74,7 +75,7 @@ const STYLES: Record<Placement, PlacementStyle> = {
 const UNKNOWN: PlacementStyle = {
   label: "Unrecognised",
   section: null,
-  detail: "The API reported a placement this build does not know how to render",
+  detail: "The API reported a placement this build does not know how to render.",
   className: "bg-p-unknown text-p-unknown-on border-p-unknown",
 };
 
@@ -171,7 +172,16 @@ export function PlacementBadge({
       style={delayMs === undefined ? undefined : { animationDelay: `${delayMs}ms` }}
       className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className} ${className}`}
     >
-      {style.label}
+      {/* The mark the footer's guide draws. Spelling out "Not in scanned sections" here
+          left a reader looking up a phrase the guide no longer shows. */}
+      {style.section ? (
+        style.label
+      ) : (
+        <>
+          <span aria-hidden>&mdash;</span>
+          <span className="sr-only">{style.label}</span>
+        </>
+      )}
     </span>
   );
 }

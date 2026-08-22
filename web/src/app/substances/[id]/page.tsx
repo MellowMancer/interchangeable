@@ -1,26 +1,21 @@
 import type { Metadata } from "next";
+import { Section } from "@/lib/heading";
 import Link from "next/link";
 import { AppearanceRail } from "@/lib/appearance";
-import { Comparison } from "@/lib/compare";
+import { Concepts, Diverges, Makers } from "@/lib/icons";
+import { Comparison, Maker } from "@/lib/compare";
 import { Carousel } from "@/lib/carousel";
 import { notFound } from "next/navigation";
 import {
   getMatrix,
-  type ClauseCoverage,
+  manufacturer,
   type IndicationGroup,
-  type Matrix,
   type ProductColumn,
 } from "@/lib/api";
 import {
   holderGroups,
   partition,
-  sharedScanned,
-  UNCLASSIFIED,
 } from "@/lib/finding";
-import {
-  ABSENT,
-  PLACEMENT_LEGEND,
-} from "@/lib/placement";
 
 /**
  * Every concept, across every manufacturer.
@@ -62,16 +57,24 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         <h1 className="font-serif text-title font-normal tracking-tight">
           {matrix.substance_name}
         </h1>
-        <p className="font-mono text-meta text-ink-muted">
-          {holders} manufacturers · {matrix.products.length} products · {concepts} concepts
-          · {divergent.length === 0 ? "none disagree" : `${divergent.length} disagree`}
-        </p>
+        {/* The same three marks the roster card uses, so a substance reads the same on
+            the list it came from and the page it opens. */}
+        <dl className="flex flex-wrap items-center gap-x-5 font-mono text-meta text-ink-muted">
+          <Count icon={<Makers />} term="manufacturers" value={holders} />
+          <Count icon={<Concepts />} term="concepts read" value={concepts} />
+          <Count
+            icon={<Diverges />}
+            term="concepts they disagree about"
+            value={divergent.length}
+            accent={divergent.length > 0}
+          />
+        </dl>
         {/* The links start level with the caveat, not below the indications: the column
             beside a three-line warning was otherwise empty. */}
-        <div className="grid gap-10 lg:grid-cols-[1fr_minmax(0,18rem)]">
-          <div className="space-y-5">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
+          <div className="min-w-0 space-y-5">
             <Classification products={matrix.products} />
-            <Indications groups={matrix.indications} total={matrix.products.length} />
+            <Indications groups={matrix.indications} products={matrix.products} />
           </div>
           <AppearanceRail products={matrix.products} />
         </div>
@@ -79,16 +82,9 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
 
       <Comparison matrix={matrix} />
 
-      <RecallGap clauses={matrix.clauses} substanceId={id} />
-
-      <Provenance matrix={matrix} />
     </div>
   );
 }
-
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
-);
 
 
 /** How many of a wording's statements a card shows before deferring to the label itself. */
@@ -97,70 +93,6 @@ const STATEMENTS_SHOWN = 5;
 
 
 
-/**
- * The recall gap, published rather than tuned away.
- *
- * Two counts drawn to scale, never a percentage: a ratio here would read as a claim about
- * how well the lexicon performs in general, and one substance cannot support that. The bar
- * says how much of this corpus fell through, which is a measurement of our own parser.
- *
- * `unclassified` is kept out of the concept list above for the same reason it is shown
- * here: it is not a clinical concept, and sorting it among real ones would present a
- * parser gap as a clinical finding.
- */
-function RecallGap({ clauses, substanceId }: { clauses: ClauseCoverage; substanceId: string }) {
-  const total = clauses.classified + clauses.unclassified;
-  if (total === 0) return null;
-
-
-  return (
-    <section className="max-w-prose space-y-3 border-t border-rule pt-10">
-      <Kicker>Recall gap</Kicker>
-
-      <div className="flex h-6 overflow-hidden rounded-sheet border border-rule">
-        <div
-          className="animate-grow-x bg-p45"
-          style={{ width: `${(clauses.classified / total) * 100}%` }}
-          title={`${clauses.classified} clauses matched a concept`}
-        />
-        <div
-          className="border-l border-dashed border-rule"
-          style={{ width: `${(clauses.unclassified / total) * 100}%` }}
-          title={`${clauses.unclassified} clauses matched nothing`}
-        />
-      </div>
-
-      <dl className="flex flex-wrap gap-x-6 font-mono text-meta">
-        <div className="flex gap-2">
-          <dt className="text-ink-muted">matched a concept</dt>
-          <dd>{clauses.classified}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-ink-muted">matched nothing</dt>
-          <dd>{clauses.unclassified}</dd>
-        </div>
-      </dl>
-
-      <p className="text-meta text-ink-muted">
-        Clauses matching no concept in the lexicon are recorded as{" "}
-        <code className="font-mono text-ink">unclassified</code> rather than dropped. A
-        visible gap is worth more than a clean-looking result that quietly lost what it
-        could not parse.
-      </p>
-
-      {/* The API only builds a row for concepts that matched, so with nothing unmatched
-          this link would lead to a 404 — an invitation to inspect an empty gap. */}
-      {clauses.unclassified > 0 && (
-        <Link
-          href={`/substances/${substanceId}/concepts/${encodeURIComponent(UNCLASSIFIED)}`}
-          className="inline-block text-meta text-accent underline underline-offset-4"
-        >
-          Inspect what went unmatched →
-        </Link>
-      )}
-    </section>
-  );
-}
 
 /**
  * What the labels say this substance is for.
@@ -189,18 +121,25 @@ const Wordings = ({
     <Carousel label={`${count} wordings of what this substance is for`}>{children}</Carousel>
   );
 
-function Indications({ groups, total }: { groups: IndicationGroup[]; total: number }) {
+function Indications({
+  groups,
+  products,
+}: {
+  groups: IndicationGroup[];
+  products: ProductColumn[];
+}) {
+  // Every holder named here is a label a reader can open.
+  const labelOf = new Map(
+    [...products].reverse().map((product) => [manufacturer(product), product.external_id]),
+  );
   if (groups.length === 0) return null;
-  const carrying = groups.reduce((n, g) => n + g.manufacturers.length, 0);
   const agreed = groups.length === 1;
 
   return (
     <section className="max-w-prose space-y-3">
-      <Kicker>
-        {agreed
-          ? "What it is for"
-          : `What it is for — ${groups.length} labels word this differently`}
-      </Kicker>
+      <Section>
+        {agreed ? "Indications" : `Indications — ${groups.length} wordings`}
+      </Section>
       {/* Sideways, not stacked. Ten wordings of one description is a screenful before the
           reader reaches the comparison, and each is a paraphrase of the last — so they
           cost one card's height between them and the reader moves along only if the
@@ -219,7 +158,13 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
         >
           {!agreed && (
             <p className="font-mono text-kicker text-ink-muted">
-              as stated by {group.manufacturers.join(", ")}
+              as stated by{" "}
+              {group.manufacturers.map((name, at) => (
+                <span key={name}>
+                  {at > 0 && ", "}
+                  <Maker name={name} labelOf={labelOf} />
+                </span>
+              ))}
             </p>
           )}
           {/* Indented as the label indents it. Ten equal lines said this substance is
@@ -248,12 +193,6 @@ function Indications({ groups, total }: { groups: IndicationGroup[]; total: numb
         </div>
       ))}
       </Wordings>
-      <p className="text-kicker text-ink-muted">
-        Section 4.1, verbatim, collected for {carrying} of {total} labels.{" "}
-        {agreed
-          ? "Every one of those states these."
-          : "Those labels do not state the same set."}
-      </p>
     </section>
   );
 }
@@ -272,44 +211,30 @@ function Classification({ products }: { products: ProductColumn[] }) {
   return (
     <p className="max-w-prose border-l-2 border-accent pl-4 text-meta text-ink-muted">
       These products carry <span className="text-ink">different ATC codes</span> (
-      <span className="font-mono">{codes.join(", ")}</span>), so they may not be
+      <span className="font-mono break-all">{codes.join(", ")}</span>), so they may not be
       alternatives to one another. A divergence below may be that rather than a
       disagreement.
     </p>
   );
 }
 
-function Provenance({ matrix }: { matrix: Matrix }) {
-  const shared = sharedScanned(matrix.products);
-  return (
-    <section className="space-y-6 border-t border-rule pt-10">
-      <p className="max-w-prose text-meta text-ink-muted">
-        {shared ? (
-          <>
-            Sections read: <span className="font-mono text-ink">{shared.join(" · ")}</span>.{" "}
-          </>
-        ) : (
-          <>Sections read differ by manufacturer. </>
-        )}
-        <em>{ABSENT.label}</em> means not found in what was read for that manufacturer —
-        not that the label omits it.
-      </p>
-
-      <dl className="flex flex-wrap gap-x-6 gap-y-3 text-meta text-ink-muted">
-        {PLACEMENT_LEGEND.map((style) => (
-          <div key={style.label} className="flex items-center gap-2">
-            <dt>
-              <span
-                className={`inline-flex items-baseline gap-1.5 rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className}`}
-              >
-                {style.label}
-                {style.section && <span className="font-mono opacity-80">{style.section}</span>}
-              </span>
-            </dt>
-            <dd className="text-kicker text-ink-muted">{style.detail}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
+/** One number about this substance, named for a screen reader and drawn for everyone else. */
+const Count = ({
+  icon,
+  term,
+  value,
+  accent = false,
+}: {
+  icon: React.ReactNode;
+  term: string;
+  value: number;
+  accent?: boolean;
+}) => (
+  <div title={`${value} ${term}`} className="flex items-center gap-1.5">
+    <dt className="sr-only">{term}</dt>
+    <span aria-hidden className={accent ? "text-accent" : undefined}>
+      {icon}
+    </span>
+    <dd className={accent ? "text-accent" : undefined}>{value}</dd>
+  </div>
+);
