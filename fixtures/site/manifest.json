@@ -1,5 +1,5 @@
 {
-  "base_page": "index.html",
+  "base_page": "base.html",
   "base_path": "/interchangeable",
   "origin": "https://mellowmancer.github.io",
   "fields": [

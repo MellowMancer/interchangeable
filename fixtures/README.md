@@ -12,17 +12,22 @@ Do not repurpose these pages to represent anything real.
 ## How it works
 
 ```
-data.json  ──►  render.py  ──►  site/index.html          the base ("old") layout
+data.json  ──►  render.py  ──►  site/base.html           the base ("old") layout
                      │
                      └────────►  site/<mutation>.html    one page per bdheal mutation class
-                     └────────►  site/pages.html         a human index of the above
+                     └────────►  site/index.html         a human index of the above
                      └────────►  site/manifest.json      pages, expected signals, goldens
 ```
 
-`pages.html` is the only page here meant to be clicked. It links to every fixture and no
-fixture links back, so a collector anchored on a fixture can never reach it and the
-single-page rule below is untouched. It is not a benchmark page and is absent from the
-manifest.
+`index.html` is the only page here meant to be clicked, and it is what GitHub Pages serves
+at the site root — a visitor gets an index that says what this site is, rather than the
+benchmark's base layout with no context. It links to every fixture and no fixture links
+back, so a collector anchored on a fixture can never reach it and the single-page rule
+below is untouched. It is not a benchmark page and is absent from the manifest.
+
+The base layout is `base.html`. Every consumer reads that name from
+`manifest["base_page"]`, so renaming it touched no downstream code — and `render.py` does
+not prune, so a renamed page lingers in `site/` until it is deleted by hand.
 
 One dataset is the single source of truth. The base page is rendered from it; each mutated
 page is that same base page put through one of `bdheal`'s own generators in

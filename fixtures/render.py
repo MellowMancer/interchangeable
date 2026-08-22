@@ -40,10 +40,19 @@ from bdheal.bench.mutate import (
 )
 from bdheal.vocabulary import MutationClass
 
-BASE_PAGE = "index.html"
+BASE_PAGE = "base.html"
 CONTROL_PAGE = "control.html"
 PAGE_TWO = "pagination-2.html"
-NAV_PAGE = "pages.html"
+NAV_PAGE = "index.html"
+"""The human index, and deliberately the file GitHub Pages serves at the site root.
+
+A visitor to the root should land on something that explains what this site is, not on a
+benchmark fixture — the base layout used to sit here, so anyone opening the URL met a
+synthetic component register with no context. The base page is `base.html` instead; every
+consumer reads its name from `manifest["base_page"]`, so nothing downstream hardcodes it.
+
+It still links to every fixture while no fixture links back, which is what keeps a
+collector anchored on a fixture from ever reaching it."""
 MANIFEST = "manifest.json"
 DOCTYPE = "<!doctype html>\n"
 VIEWPORT = '<meta name="viewport" content="width=device-width,initial-scale=1">'
