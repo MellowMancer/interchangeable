@@ -696,7 +696,12 @@ def _value_sections(
             text = stated.get(document.sha256, {}).get(spec.code) if document else None
             if not text or not text.strip():
                 continue
-            groups.setdefault(text.strip(), []).append(product.ma_holder or product.external_id)
+            # Deduped like `_indications`: a holder shipping two strengths with identical
+            # text is one manufacturer saying one thing, not two agreeing.
+            named = groups.setdefault(text.strip(), [])
+            holder = product.ma_holder or product.external_id
+            if holder not in named:
+                named.append(holder)
 
         if not groups:
             continue
