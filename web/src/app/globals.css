@@ -152,11 +152,44 @@
   a,
   button,
   input,
+  select,
   summary {
     transition:
       color 120ms ease,
       background-color 120ms ease,
-      border-color 120ms ease;
+      border-color 120ms ease,
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+
+  /*
+   * Every control acknowledges the press itself, not only the result of it.
+   *
+   * Declared once here for the same reason the focus ring is: a roster card, a nav link
+   * and the search button are all pressed the same way, and a rule per component means
+   * the next control added is silently mute.
+   *
+   * Opacity carries it because `transform` does nothing to an inline element, and most
+   * links on these pages are inline text. The transform still earns its place on the
+   * block-level ones — the cards, the buttons — where it reads as the thing going down
+   * under the finger, and cancels the lift a card takes on hover.
+   *
+   * Instant down, eased back up: a press that fades in over 120ms is the delay this
+   * exists to answer.
+   *
+   * `label` is in the list because the column filter is a row of labelled checkboxes and
+   * the label is what a reader actually hits; every other handler in the application
+   * already sits on a button or a link.
+   */
+  a:active,
+  button:active,
+  summary:active,
+  select:active,
+  label:active,
+  [role="button"]:active {
+    opacity: 0.62;
+    transform: translateY(1px);
+    transition-duration: 0s;
   }
 
   /* Motion is a courtesy, never load-bearing: nothing here conveys meaning by moving. */
