@@ -55,9 +55,25 @@ def _serialise(root: HtmlElement) -> str:
     return lxml.html.tostring(root, encoding="unicode")
 
 
+RAW_TEXT_TAGS = frozenset({"style", "script"})
+"""Elements whose content is not markup, and must not be mutated as though it were.
+
+A mutation models a publisher rebuilding a *layout*. Rewriting the text inside `<style>`
+models nothing: `field_split_merge` wrapped every run of CSS in `<span class="part">`,
+which does not restructure the page so much as destroy its stylesheet — the fixture then
+renders unstyled, which is a broken page rather than a moved one. The extracted values
+were unaffected, so no benchmark number was ever wrong; the page simply lied about what
+the mutation had done to it.
+"""
+
+
 def _elements(root: HtmlElement) -> list[HtmlElement]:
-    """Every element from `root` down, comments and processing instructions excluded."""
-    return [node for node in root.iter() if isinstance(node.tag, str)]
+    """Every element from `root` down, excluding comments, PIs and raw-text elements."""
+    return [
+        node
+        for node in root.iter()
+        if isinstance(node.tag, str) and node.tag not in RAW_TEXT_TAGS
+    ]
 
 
 def _children(node: HtmlElement) -> list[HtmlElement]:
