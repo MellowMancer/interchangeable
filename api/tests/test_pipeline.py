@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from ixq.domain import COMPARABLE, Product, Source, Substance
-from ixq.pipeline.collect import collect, is_combination
+from ixq.pipeline.collect import collect, is_combination, shortlist
 from ixq.domain.sections import STORED_ONLY
 from ixq.pipeline.fetch import SECTIONS, fetch
 from ixq.pipeline.ports import Repository
@@ -475,3 +475,89 @@ def test_a_row_of_only_stored_only_sections_is_still_a_break(repository: Reposit
 
     with pytest.raises(ValueError, match="no clinical section content"):
         fetch(product, SOURCE, "c_product", StubLabels([row]), repository)
+
+
+def test_a_branded_combination_is_excluded_by_its_two_strengths() -> None:
+    """`Exforge 5mg/80mg` is amlodipine and valsartan, and names neither.
+
+    The word-either-side rule cannot see it: there is no ingredient in the name to join.
+    Of the 32 products EMC returns for amlodipine, seven are combinations and that rule
+    caught none of them.
+    """
+    assert is_combination("Exforge 5mg/80mg film coated tablets")
+    assert is_combination("Sevikar 20 mg/5 mg Film-Coated Tablets")
+    assert is_combination("Exforge 10mg/160mg film coated tablets")
+
+
+def test_a_concentration_is_still_not_a_combination() -> None:
+    """The guard on the branch above: a strength over a volume is one substance.
+
+    Six of ramipril's 31 products carry a `/` and none is a combination. Reading those as
+    combinations would drop three manufacturers that publish only oral solutions.
+    """
+    assert not is_combination("Ramipril 2.5 mg/5 ml Oral solution")
+    assert not is_combination("Amlodipine 10mg/5ml Oral Solution")
+    assert not is_combination("Amlodipine 1 mg/ml Oral Suspension")
+
+
+def _product(external_id: str, name: str, holder: str) -> Product:
+    return Product(
+        source_id="emc",
+        external_id=external_id,
+        substance_id="example",
+        name=name,
+        ma_holder=holder,
+    )
+
+
+def test_the_shortlist_prefers_a_new_manufacturer_over_another_of_the_same() -> None:
+    """Discovery order spent three of ramipril's seven fetches on one holder.
+
+    A column is a manufacturer, so a second product from a holder already represented
+    buys nothing the comparison can use while another holder goes uncollected.
+    """
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 5mg Tablets", "Alpha"),
+        _product("3", "Ex 5mg Tablets", "Beta"),
+    ]
+
+    chosen = shortlist(products, 2)
+
+    assert {p.ma_holder for p in chosen} == {"Alpha", "Beta"}
+
+
+def test_the_shortlist_holds_one_presentation_where_it_can() -> None:
+    """Mixing forms imports differences that are not the manufacturer's choice.
+
+    Ramipril's one refrigerated label is an oral solution and the rest are tablets;
+    reading them side by side invites "these disagree about storage" when what differs
+    is the formulation.
+    """
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 1mg/ml Oral Solution", "Beta"),
+        _product("3", "Ex 5mg Tablets", "Gamma"),
+    ]
+
+    chosen = shortlist(products, 2)
+
+    assert [p.name for p in chosen] == ["Ex 5mg Tablets", "Ex 5mg Tablets"]
+
+
+def test_the_shortlist_fills_its_cap_rather_than_starving() -> None:
+    """Once every holder at the chosen presentation is taken, the rest still count."""
+    products = [
+        _product("1", "Ex 5mg Tablets", "Alpha"),
+        _product("2", "Ex 1mg/ml Oral Solution", "Alpha"),
+        _product("3", "Ex 10mg Tablets", "Alpha"),
+    ]
+
+    assert len(shortlist(products, 3)) == 3
+    assert len(shortlist(products, 2)) == 2
+
+
+def test_the_shortlist_returns_everything_when_under_the_cap() -> None:
+    products = [_product("1", "Ex 5mg Tablets", "Alpha")]
+    assert shortlist(products, 10) == products
+    assert shortlist(products, 0) == products

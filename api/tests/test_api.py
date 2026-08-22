@@ -1,5 +1,6 @@
 """The seam the UI reads. Shapes are the contract; the UI never opens SQLite."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,7 @@ def test_the_roster_reports_how_much_has_been_collected(
             "concepts": 2,
             "divergent": 1,
             "divergences": [{"concept": "renal", "placements": ["4.3", "absent"]}],
+            "labels": ["Ex 1", "Alpha Ltd", "Ex 2", "Beta Ltd"],
         }
     ]
 
@@ -512,7 +514,10 @@ def test_indications_are_grouped_by_what_the_labels_state(
     groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
 
     assert len(groups) == 1, "spacing and a full stop are not a difference of indication"
-    assert groups[0]["statements"] == ["Treatment of hypertension.", "Renal disease."]
+    assert [s["text"] for s in groups[0]["statements"]] == [
+        "Treatment of hypertension.",
+        "Renal disease.",
+    ]
     assert len(groups[0]["manufacturers"]) == 2
 
 
@@ -538,3 +543,218 @@ def test_labels_stating_different_indications_are_not_merged(
 
     assert len(groups) == 2
     assert {len(g["statements"]) for g in groups} == {1, 2}
+
+
+def _state_values(repository: Repository, stated: dict[str, tuple[str, str]]) -> None:
+    """Give each label a §6.3 and a §6.4, committed so the API's connection sees them."""
+    with repository.transaction():
+        for sha, (shelf_life, storage) in stated.items():
+            repository.save_section(
+                sha, Section(code="6.3", heading="Shelf life", text=shelf_life)
+            )
+            repository.save_section(
+                sha,
+                Section(
+                    code="6.4", heading="Special precautions for storage", text=storage
+                ),
+            )
+
+
+def test_labels_wording_a_value_section_alike_become_one_group(
+    client: TestClient, repository: Repository
+) -> None:
+    """Generics copy an SmPC verbatim, and two copies of one sentence are one statement."""
+    divergent_corpus(repository)
+    _state_values(
+        repository,
+        {
+            "1".rjust(64, "0"): ("  24 months  ", "Do not store above 25 °C."),
+            "2".rjust(64, "0"): ("24 months", "Do not store above 25 °C."),
+        },
+    )
+
+    values = client.get(f"/substances/{SUBSTANCE_ID}").json()["values"]
+    shelf_life = next(section for section in values if section["code"] == "6.3")
+
+    assert len(shelf_life["groups"]) == 1, "surrounding whitespace is not a difference"
+    assert len(shelf_life["groups"][0]["manufacturers"]) == 2
+
+
+def test_labels_stating_different_values_are_never_merged(
+    client: TestClient, repository: Repository
+) -> None:
+    """The finding itself: one label needs refrigerating and another needs nothing."""
+    divergent_corpus(repository)
+    _state_values(
+        repository,
+        {
+            "1".rjust(64, "0"): ("24 months", "Store in a refrigerator (2-8°C)."),
+            "2".rjust(64, "0"): (
+                "3 years",
+                "This medicinal product does not require any special storage conditions.",
+            ),
+        },
+    )
+
+    values = client.get(f"/substances/{SUBSTANCE_ID}").json()["values"]
+
+    assert {section["code"] for section in values} == {"6.3", "6.4"}
+    for section in values:
+        assert len(section["groups"]) == 2
+        assert all(len(group["manufacturers"]) == 1 for group in section["groups"])
+
+
+def test_a_value_section_reports_how_many_labels_stated_it(
+    client: TestClient, repository: Repository
+) -> None:
+    """Three labels stating a shelf life is not four labels having none."""
+    divergent_corpus(repository)
+    _state_values(repository, {"1".rjust(64, "0"): ("24 months", "Do not freeze.")})
+
+    values = client.get(f"/substances/{SUBSTANCE_ID}").json()["values"]
+
+    assert all(section["collected"] == 1 for section in values)
+    assert all(section["total"] > section["collected"] for section in values)
+
+
+def test_a_value_section_is_never_a_placement(
+    client: TestClient, repository: Repository
+) -> None:
+    """The invariant the whole design rests on.
+
+    `Placement` doubles as the vocabulary of comparable section codes, so a value section
+    leaking into it would file a shelf life as though it were a safety concept — and would
+    silently widen `scanned`, which is what every absence claim is measured against.
+    """
+    divergent_corpus(repository)
+    _state_values(
+        repository, {"1".rjust(64, "0"): ("24 months", "Store below 25 °C.")}
+    )
+
+    body = client.get(f"/substances/{SUBSTANCE_ID}").json()
+
+    assert all(
+        code not in column["scanned"] for column in body["products"] for code in ("6.3", "6.4")
+    )
+    assert all(
+        cell["placement"] not in ("6.3", "6.4")
+        for row in body["rows"]
+        for cell in row["cells"]
+    )
+
+
+def test_the_roster_carries_the_names_on_a_box(
+    client: TestClient, repository: Repository
+) -> None:
+    """A reader searches for what they were handed, which is rarely the substance name.
+
+    The product and its holder are what a box says, so the roster carries both. Current
+    revisions only — a name from a superseded revision is one nobody would recognise.
+    """
+    divergent_corpus(repository)
+
+    roster = client.get("/substances").json()
+    found = next(row for row in roster if row["id"] == SUBSTANCE_ID)
+
+    assert found["labels"], "a collected substance must be searchable by its labels"
+    assert len(found["labels"]) >= found["products"]
+
+
+def test_indications_keep_the_nesting_the_label_wrote(
+    client: TestClient, repository: Repository
+) -> None:
+    """Publishers indent §4.1, and flattening it overstates what a licence covers.
+
+    Three labels in the real corpus mark a nested item three different ways — an em space
+    then a bullet, a newline then a bullet, and the bare letter "o" — so the rule reads
+    which kind of marker sits before a clause, never which character.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        for sha, text in (
+            (
+                "1".rjust(64, "0"),
+                "- Treatment of renal disease:\n\no Incipient nephropathy,\n"
+                " • Manifest nephropathy.\n- Treatment of hypertension.",
+            ),
+        ):
+            repository.save_section(
+                sha, Section(code="4.1", heading="Therapeutic indications", text=text)
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+    depths = [(s["text"][:20], s["depth"]) for s in groups[0]["statements"]]
+
+    assert [depth for _, depth in depths] == [0, 1, 1, 0], depths
+
+
+def test_nesting_is_read_relative_to_the_label_not_from_fixed_characters(
+    client: TestClient, repository: Repository
+) -> None:
+    """One publisher's outer marker is another's inner one.
+
+    Across the real ramipril labels the top level is written "-" three times and "▪" once,
+    and the nested level an em space then "•", a newline then "•", a bare "o", and an em
+    space then "o". Naming particular characters as nested read the "▪" label's top level
+    as its second, and indented every statement it had.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        repository.save_section(
+            "1".rjust(64, "0"),
+            Section(
+                code="4.1",
+                heading="Therapeutic indications",
+                text="▪ Treatment of renal disease:\n\n o Incipient nephropathy,\n"
+                "▪ Treatment of hypertension.",
+            ),
+        )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+    depths = [s["depth"] for s in groups[0]["statements"]]
+
+    assert depths == [0, 1, 0], "the marker that opens the section is its top level"
+
+
+def test_a_holder_with_several_products_is_named_once(
+    client: TestClient, repository: Repository
+) -> None:
+    """"Sandoz, Sandoz" reads as two manufacturers agreeing; it is one listed twice."""
+    divergent_corpus(repository)
+    with repository.transaction():
+        for sha in ("1".rjust(64, "0"), "2".rjust(64, "0")):
+            repository.save_section(
+                sha,
+                Section(
+                    code="4.1", heading="Therapeutic indications", text="- Hypertension."
+                ),
+            )
+
+    groups = client.get(f"/substances/{SUBSTANCE_ID}").json()["indications"]
+
+    for group in groups:
+        assert len(group["manufacturers"]) == len(set(group["manufacturers"]))
+
+
+def test_a_company_name_collected_as_an_atc_code_is_not_served_as_one(
+    client: TestClient, repository: Repository
+) -> None:
+    """One metronidazole label's `atc_code` is "Morningside Healthcare Ltd See contact
+    details" — a company block read from the wrong element.
+
+    Served as a code it becomes a third distinct value, and `Classification` then warns
+    that these products may not be alternatives to one another. A parsing error must not
+    produce a clinical-sounding claim.
+    """
+    divergent_corpus(repository)
+    with repository.transaction():
+        repository.save_document(
+            replace(
+                next(d for d in repository.documents_for_substance(SUBSTANCE_ID)),
+                atc_code="Morningside Healthcare Ltd See contact details",
+            )
+        )
+
+    codes = [c["atc_code"] for c in client.get(f"/substances/{SUBSTANCE_ID}").json()["products"]]
+
+    assert "Morningside Healthcare Ltd See contact details" not in codes

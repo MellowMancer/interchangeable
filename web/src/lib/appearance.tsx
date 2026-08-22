@@ -17,6 +17,7 @@
  * could not parse.
  */
 
+import Link from "next/link";
 import { manufacturer, type Appearance, type ProductColumn } from "./api";
 
 /**
@@ -263,40 +264,50 @@ export function AppearanceRail({ products }: { products: ProductColumn[] }) {
   return (
     <section className="space-y-3">
       <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-        What they look like
+        Quick links
       </h2>
 
+      {/* One column: this sits in a narrow column beside the indications, and the caller
+          passes only the labels the comparison draws, so it is a short list rather than
+          the six hundred pixels ten products made of it. */}
       <ul className="space-y-2">
         {described.map((product) => {
           const appearance = product.appearance;
           if (!appearance) return null;
           const undrawn = undrawnBecause(appearance);
           return (
-            <li key={product.external_id} className="flex items-center gap-3">
-              <span className="flex h-8 w-24 shrink-0 items-center">
+            <li key={product.external_id}>
+              <Link
+                href={`/products/${product.external_id}`}
+                className="flex items-center gap-3 rounded-sheet py-1 hover:bg-rule/40 hover:text-accent"
+              >
+              <span className="flex h-8 w-20 shrink-0 items-center">
                 {undrawn.length === 0 ? (
                   <DosageGlyph appearance={appearance} />
                 ) : (
-                  <span className="font-mono text-kicker text-ink-muted">not drawn</span>
+                  // The same mark an unfilled cell carries elsewhere. The reason stays
+                  // reachable rather than printed, so a rail of drawings is not broken up
+                  // by a sentence.
+                  <span title={undrawn.join(", ")} className="w-full text-center font-mono text-ink-muted">
+                    <span aria-hidden>&mdash;</span>
+                    <span className="sr-only">not drawn: {undrawn.join(", ")}</span>
+                  </span>
                 )}
               </span>
-              <span className="text-meta">
-                <span className="block">{manufacturer(product)}</span>
-                <span className="block font-mono text-kicker text-ink-muted">
+              <span className="min-w-0 text-meta">
+                <span className="block truncate">{manufacturer(product)}</span>
+                <span className="block truncate font-mono text-kicker text-ink-muted">
                   {product.variant ?? product.name}
                 </span>
-              </span>
+                </span>
+              </Link>
             </li>
           );
         })}
       </ul>
 
       <p className="text-kicker text-ink-muted">
-        Drawn from each label&apos;s section 3, never photographed — no photograph of any
-        product in this corpus exists.
-        {described.length < products.length && (
-          <> {described.length} of {products.length} labels have one collected.</>
-        )}
+        Drawn from each label&apos;s physical description. Actual tablet may vary.
       </p>
     </section>
   );

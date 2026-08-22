@@ -10,3 +10,6 @@ data/
 /fixtures/run/
 
 .claude/worktrees/
+
+# Pipeline run logs are build artefacts, not source.
+*.log

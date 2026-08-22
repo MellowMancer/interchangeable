@@ -113,6 +113,44 @@ class Repository(Protocol):
         """
         ...
 
+    def value_sections_for_substance(
+        self, substance_id: str
+    ) -> dict[str, dict[str, str]]:
+        """Per document sha, its §6.3 and §6.4 text, keyed by section code.
+
+        Both codes in one method and one query because both are a single short line and a
+        screen that shows one shows the other. Narrow for the same reason as the two
+        methods above: a general "any section" reader here would invite pulling §4.4,
+        which is kilobytes per label on every navigation.
+
+        A document with neither section stored is absent rather than empty-valued, and a
+        document with only one carries only that key — a label nobody collected a shelf
+        life for has not stated it has none.
+        """
+        ...
+
+    def substance_of(self, product_external_id: str) -> str | None:
+        """Which substance a product belongs to, or None when no such product is stored.
+
+        A product's own page is reached by its id alone, and everything else about it —
+        its placements, its siblings, what it is compared against — is scoped to the
+        substance. This is the one lookup that turns the id in a URL into that scope.
+        """
+        ...
+
+    def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
+        """Per substance, the names a reader might search for: products and their holders.
+
+        Counted alongside the roster's numbers rather than by building comparisons, for
+        the same reason `counts_by_substance` exists: the index screen covers every
+        substance, and reading each one's documents to list a few names would read the
+        whole corpus on every navigation.
+
+        Only current revisions, so a product renamed between revisions is searchable by
+        the name its label carries now and not by one nobody would recognise.
+        """
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 

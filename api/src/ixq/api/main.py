@@ -4,6 +4,7 @@ The UI never opens SQLite: every shape it renders is a response model declared h
 the domain can change without breaking a screen and vice versa.
 """
 
+import re
 from collections.abc import Iterator, Mapping, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -28,8 +29,8 @@ from ixq.domain import (
     in_context,
     variant,
 )
-from ixq.domain.sections import INDICATIONS_CODE
-from ixq.pipeline.diverge import Comparison, ConceptRow, compare
+from ixq.domain.sections import INDICATIONS_CODE, VALUE_SECTIONS
+from ixq.pipeline.diverge import PRECEDENCE, Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
 
@@ -90,6 +91,13 @@ class SubstanceSummary(BaseModel):
     concepts: int
     divergent: int
     divergences: list[DivergencePreview] = []
+    labels: list[str] = []
+    """Product names and MA holders on this substance's current labels.
+
+    Carried so the roster can be searched by the thing a reader actually holds — a box
+    saying Zentiva or Ramipril 5mg Tablets — rather than only by the active substance.
+    Names, not counts: the search is over what is written on a label.
+    """
 
 
 class Evidence(BaseModel):
@@ -205,6 +213,19 @@ class ClauseCoverage(BaseModel):
     unclassified: int
 
 
+class IndicationStatement(BaseModel):
+    """One indication, and how deeply the label itself nested it.
+
+    Depth is read from the marker the publisher wrote, never inferred from the sentence.
+    §4.1 is routinely two levels — a heading like "Treatment of renal disease:" followed
+    by the nephropathies it covers — and flattening them states that a label lists nine
+    equal indications when it lists five, two of which are qualified.
+    """
+
+    text: str
+    depth: int
+
+
 class IndicationGroup(BaseModel):
     """One §4.1 wording, and the manufacturers whose labels carry it.
 
@@ -215,8 +236,74 @@ class IndicationGroup(BaseModel):
     the point.
     """
 
-    statements: list[str]
+    statements: list[IndicationStatement]
     manufacturers: list[str]
+
+
+class ValueGroup(BaseModel):
+    """One wording of a value section, and the manufacturers whose labels carry it."""
+
+    text: str
+    manufacturers: list[str]
+
+
+class ValueSection(BaseModel):
+    """One value section across a substance's labels, grouped by the exact words used.
+
+    Byte-identical grouping, and no interpretation on top of it. "Do not store above 25°C"
+    and "Store below 25°C" state the same requirement, so a system that called that a
+    divergence would be asserting something false about a medicine — while "24 months"
+    beside "3 years" is a real difference any reader can see unaided. So every distinct
+    text is published verbatim and the reader judges it.
+
+    What this reports is therefore how many ways these labels word a section, never that
+    they require different things. `collected` against `total` is carried for the same
+    reason absence is everywhere else here: a section only three labels state is not a
+    section the other four are silent about.
+    """
+
+    code: str
+    heading: str
+    groups: list[ValueGroup]
+    collected: int
+    total: int
+
+
+class ProductConcept(BaseModel):
+    """Where one concept sits in one label, with the sentence that put it there."""
+
+    concept: str
+    placement: Placement
+    evidence: Evidence | None = None
+
+
+class ValueStatement(BaseModel):
+    """One value section as a single label states it."""
+
+    code: str
+    heading: str
+    text: str
+
+
+class ProductDetail(BaseModel):
+    """One label, addressable on its own.
+
+    The project's claim is that every statement can be checked against its source, and
+    until this existed a label had no URL: a product was only ever a column inside a
+    comparison, so a finding could be read but not cited.
+
+    Self-contained, like `ConceptDetail`: the siblings travel with it because "what else
+    is this substance dispensed as" is the question a reader arrives with, and fetching
+    the substance alongside to answer it would give back what the split saved.
+    """
+
+    substance_id: str
+    substance_name: str
+    product: ProductColumn
+    siblings: list[ProductColumn]
+    indications: list[IndicationStatement]
+    concepts: list[ProductConcept]
+    values: list[ValueStatement]
 
 
 class Matrix(BaseModel):
@@ -243,6 +330,15 @@ class Matrix(BaseModel):
     Shown, never diffed. §4.1 is a description of the substance rather than a place a
     safety concept is filed, so a difference here is reported as different wording and
     never as a divergence — the comparison's vocabulary does not reach it.
+    """
+
+    values: list[ValueSection]
+    """§6.3 and §6.4, grouped by wording rather than placed.
+
+    A shelf life is a value a label states once, not a place a concept can be filed, so it
+    is never given a `Placement` and never enters the divergence matrix. Reported beside
+    it instead, because two labels for the same substance disagreeing on whether it needs
+    refrigerating is an interchangeability finding in its own right.
     """
 
     clauses: ClauseCoverage
@@ -337,6 +433,7 @@ def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]
     """
     counted = repo.counts_by_substance()
     diverging = repo.divergences_by_substance()
+    named = repo.labels_by_substance()
     empty = SubstanceCounts(products=0, concepts=0, divergent=0)
     return [
         SubstanceSummary(
@@ -349,6 +446,7 @@ def substances(repo: Repository = Depends(repository)) -> list[SubstanceSummary]
                 DivergencePreview(concept=d.concept, placements=list(d.placements))
                 for d in diverging.get(substance.id, ())
             ],
+            labels=list(named.get(substance.id, ())),
         )
         for substance in load_substances(config_dir() / "substances.yaml")
     ]
@@ -369,6 +467,7 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
         substance_name=_substance_name(substance_id),
         products=_columns(result, repo.appearances_for_substance(substance_id)),
         indications=_indications(result, repo.indications_for_substance(substance_id)),
+        values=_value_sections(result, repo.value_sections_for_substance(substance_id)),
         clauses=ClauseCoverage(
             classified=counted.classified, unclassified=counted.unclassified
         ),
@@ -413,7 +512,7 @@ def _column(
         holder_id=document.holder_id if document else None,
         revised=document.last_updated if document else None,
         listing_updated=document.listing_updated if document else None,
-        atc_code=document.atc_code if document else None,
+        atc_code=_atc(document.atc_code) if document else None,
         legal_status=document.legal_status if document else None,
         ma_number=document.ma_number if document else None,
         discontinued=document.discontinued if document else None,
@@ -421,6 +520,22 @@ def _column(
         scanned=list(scanned),
         appearance=_appearance(described),
     )
+
+
+ATC_CODE = re.compile(r"^[A-Z]\d{2}[A-Z]{2}\d{2}$")
+"""The WHO shape: anatomical letter, two digits, two therapeutic letters, two digits.
+
+Checked because the collector does not always return one. Across the metronidazole labels
+one product's `atc_code` is "Morningside Healthcare Ltd See contact details" — a company
+block read out of the wrong element. Served as a code it becomes a third distinct value in
+`Classification`, which then warns that these products may not be alternatives to one
+another. That is a clinical-sounding claim produced by a parsing error.
+"""
+
+
+def _atc(code: str | None) -> str | None:
+    """An ATC code, or None when what was collected is not one."""
+    return code if code and ATC_CODE.fullmatch(code.strip()) else None
 
 
 def _evidence(occurrence: Occurrence | None, document: Document | None) -> Evidence | None:
@@ -464,6 +579,60 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
     return [column(product) for product in result.products]
 
 
+def _binding(placement: Placement) -> int:
+    """How binding a placement is, with absence ranked below every section."""
+    return PRECEDENCE.index(placement) if placement in PRECEDENCE else len(PRECEDENCE)
+
+
+#: Every character a publisher uses to open a list item, of either level.
+_MARKERS = "•·▪▫◦●○‣⁃∙*-–—"
+
+
+def _marker(text: str, start: int) -> str | None:
+    """The list marker immediately before the clause at `start`, if it has one."""
+    before = text[max(0, start - 8) : start].rstrip()
+    if not before:
+        return None
+    if before[-1] in _MARKERS:
+        return before[-1]
+    # A lone "o" is a bullet; the same letter ending a word is not.
+    standalone = len(before) == 1 or before[-2].isspace()
+    return "o" if before[-1] in "oO" and standalone else None
+
+
+def _nesting(markers: Sequence[str | None]) -> list[int]:
+    """How deeply the label nested each clause, read from the markers it wrote.
+
+    Depth is **relative to the document**, never absolute. Publishers are internally
+    consistent and disagree with each other: across four ramipril labels the outer level
+    is written "-", "-", "-" and "▪", and the inner one an em space then "•", a newline
+    then "•", a bare "o", and an em space then "o". A rule that named particular
+    characters as nested read one label's top level as its second.
+
+    So whatever marker opens the section is its top level, and anything else is one deeper.
+    A section with a single marker throughout is flat, which is what it looks like.
+    """
+    top = next((mark for mark in markers if mark is not None), None)
+    return [0 if mark is None or mark == top else 1 for mark in markers]
+
+
+def _statements(text: str | None) -> list[IndicationStatement]:
+    """§4.1 split into its statements, each carrying the nesting the label wrote.
+
+    Shared by the matrix and a product's own page, so one label's indications cannot read
+    differently depending on which screen reached them.
+    """
+    if not text:
+        return []
+    section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
+    found = clauses(section)
+    depths = _nesting([_marker(text, clause.start) for clause in found])
+    return [
+        IndicationStatement(text=clause.text, depth=depth)
+        for clause, depth in zip(found, depths, strict=True)
+    ]
+
+
 def _indications(result: Comparison, stated: Mapping[str, str]) -> list[IndicationGroup]:
     """§4.1 across a substance's current labels, grouped by what they actually say.
 
@@ -484,19 +653,71 @@ def _indications(result: Comparison, stated: Mapping[str, str]) -> list[Indicati
         text = stated.get(document.sha256) if document else None
         if not text:
             continue
-        section = Section(code=INDICATIONS_CODE, heading="Therapeutic indications", text=text)
-        statements = [clause.text for clause in clauses(section)]
-        words = prepared(" ".join(statements))
+        statements = _statements(text)
+        words = prepared(" ".join(s.text for s in statements))
         # Punctuation first, whitespace after: dropping a full stop leaves the space it
         # sat between, and collapsing before the strip leaves two where there was one.
         key = " ".join("".join(c if c.isalnum() else " " for c in words).split())
         held = groups.setdefault(key, (statements, []))
-        held[1].append(product.ma_holder or product.external_id)
+        # A holder with several products contributes once: "Sandoz, Sandoz" reads as two
+        # manufacturers agreeing when it is one label listed twice.
+        name = product.ma_holder or product.external_id
+        if name not in held[1]:
+            held[1].append(name)
 
     return [
         IndicationGroup(statements=statements, manufacturers=manufacturers)
         for statements, manufacturers in groups.values()
     ]
+
+
+def _value_sections(
+    result: Comparison, stated: Mapping[str, Mapping[str, str]]
+) -> list[ValueSection]:
+    """§6.3 and §6.4 across a substance's current labels, grouped by exact wording.
+
+    Byte-exact, unlike `_indications`, and the difference is deliberate. An indication set
+    is a claim about meaning, so normalising punctuation before comparing is right there.
+    A shelf life is a stated value, and normalising it would mean deciding that "24 months"
+    and "2 years" are the same — a units judgement this makes no attempt at, because the
+    confounds are real: values are given in months or years, some labels state one figure
+    per pack type, and §6.4 sometimes defers back to §6.3.
+
+    Leading and trailing whitespace is stripped, which cannot merge two different
+    statements, and nothing else is touched.
+    """
+    by_product = {d.product_external_id: d for d in result.documents}
+    sections: list[ValueSection] = []
+
+    for spec in VALUE_SECTIONS:
+        groups: dict[str, list[str]] = {}
+        for product in result.products:
+            document = by_product.get(product.external_id)
+            text = stated.get(document.sha256, {}).get(spec.code) if document else None
+            if not text or not text.strip():
+                continue
+            # Deduped like `_indications`: a holder shipping two strengths with identical
+            # text is one manufacturer saying one thing, not two agreeing.
+            named = groups.setdefault(text.strip(), [])
+            holder = product.ma_holder or product.external_id
+            if holder not in named:
+                named.append(holder)
+
+        if not groups:
+            continue
+        sections.append(
+            ValueSection(
+                code=spec.code,
+                heading=spec.heading,
+                groups=[
+                    ValueGroup(text=text, manufacturers=manufacturers)
+                    for text, manufacturers in groups.items()
+                ],
+                collected=sum(len(m) for m in groups.values()),
+                total=len(result.products),
+            )
+        )
+    return sections
 
 
 def _appearance(section_text: str | None) -> AppearanceView | None:
@@ -524,6 +745,60 @@ def _substance_name(substance_id: str) -> str:
     """The display name from the configured roster, or the id when it names no such one."""
     names = {s.id: s.name for s in load_substances(config_dir() / "substances.yaml")}
     return names.get(substance_id, substance_id)
+
+
+@app.get("/products/{product_external_id}", response_model=ProductDetail)
+def product(
+    product_external_id: str, repo: Repository = Depends(repository)
+) -> ProductDetail:
+    """One label: what it is, where it files each concept, and what it is stored with.
+
+    Built from the same `compare` the matrix uses rather than from a query of its own, so
+    a placement here and the same placement in the comparison cannot disagree — and the
+    evidence stays paired with the revision it was taken from.
+    """
+    substance_id = repo.substance_of(product_external_id)
+    if substance_id is None:
+        raise HTTPException(404, f"no product {product_external_id!r} is stored")
+
+    result = compare(substance_id, repo)
+    columns = _columns(result, repo.appearances_for_substance(substance_id))
+    mine = next((c for c in columns if c.external_id == product_external_id), None)
+    if mine is None:
+        raise HTTPException(404, f"no label stored for {product_external_id!r}")
+
+    document = next(
+        (d for d in result.documents if d.product_external_id == product_external_id), None
+    )
+    stated = repo.indications_for_substance(substance_id)
+    values = repo.value_sections_for_substance(substance_id)
+    held = values.get(document.sha256, {}) if document else {}
+
+    return ProductDetail(
+        substance_id=substance_id,
+        substance_name=_substance_name(substance_id),
+        product=mine,
+        siblings=[c for c in columns if c.external_id != product_external_id],
+        indications=_statements(stated.get(document.sha256)) if document else [],
+        concepts=sorted(
+            (
+                ProductConcept(
+                    concept=row.concept,
+                    placement=row.placements[product_external_id],
+                    evidence=_evidence(row.evidence.get(product_external_id), document),
+                )
+                for row in result.rows
+            ),
+            # Absence last: `PRECEDENCE` ranks the sections a concept can be filed in,
+            # and absence is not one of them.
+            key=lambda c: (_binding(c.placement), c.concept),
+        ),
+        values=[
+            ValueStatement(code=spec.code, heading=spec.heading, text=held[spec.code].strip())
+            for spec in VALUE_SECTIONS
+            if held.get(spec.code, "").strip()
+        ],
+    )
 
 
 @app.get("/substances/{substance_id}/concepts/{concept}", response_model=ConceptDetail)

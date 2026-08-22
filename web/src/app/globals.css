@@ -183,6 +183,93 @@
  * Components into client ones and ship a bundle to run entrance animations. The
  * `prefers-reduced-motion` block above neutralises all of it.
  */
+/* A shelf a reader drags or steps through; the bar underneath it is noise. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * Where one section ends and the next begins.
+ *
+ * The space is deliberately lopsided: generous above the heading, tight below it, so the
+ * heading reads as belonging to what follows rather than floating between two blocks. The
+ * rule is drawn a little stronger than `--rule` because a hairline that light, with equal
+ * air either side, announced nothing.
+ */
+.section-break {
+  margin-top: 4.5rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--ink-muted) 35%, transparent);
+}
+
+/*
+ * Only the matrix scrolls sideways, never the page.
+ *
+ * A phone that pans the whole document because one table is wider than it feels broken,
+ * and the table has its own scroller. It has to be the document root: clipping `main`
+ * left the root still scrollable, so the page panned and took the header with it.
+ *
+ * On `body` rather than `html`: body's overflow propagates to the viewport, so the page
+ * cannot pan, while the viewport stays the scroll container every `position: sticky` is
+ * measured against. `clip` was tried first and does nothing here — paired with a visible
+ * other axis it computes to `auto`, which is a scroller, not a clip.
+ */
+body {
+  overflow-x: hidden;
+}
+
+/*
+ * The hero: two labels of one substance, and the question between them.
+ *
+ * Real depth rather than a drawn shadow — the scene has perspective and the cards are
+ * rotated in it, so they catch the eye the way a physical pair of boxes on a counter
+ * would. That is the whole proposition in one image: same drug, two boxes, are they the
+ * same? Decorative, and `aria-hidden`; the sentence beside it carries the meaning.
+ */
+.stage {
+  perspective: 1100px;
+  /* Centred: an off-centre origin makes `translateZ` shift a thing sideways as
+     well as forward, which walked the sign off the gap it should sit in. */
+  perspective-origin: 50% 50%;
+  /* Without this the scene is flattened and `translateZ` changes nothing about what
+     covers what — the sign sat behind a card that came after it in the markup. */
+  transform-style: preserve-3d;
+}
+
+.stage-card {
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.stage-left {
+  transform: rotateY(19deg) rotateX(7deg) rotateZ(-4deg) translateZ(-30px);
+}
+
+.stage-right {
+  transform: rotateY(-15deg) rotateX(5deg) rotateZ(3deg) translateZ(30px);
+}
+
+/* The pair straightens and comes forward under the pointer — the two boxes being picked
+   up and compared, which is the whole gesture the scene stands for. */
+.stage:hover .stage-left {
+  transform: rotateY(11deg) rotateX(4deg) rotateZ(-2deg) translateZ(0);
+}
+
+.stage:hover .stage-right {
+  transform: rotateY(-8deg) rotateX(3deg) rotateZ(1deg) translateZ(46px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-card,
+  .stage:hover .stage-card {
+    transform: none;
+  }
+}
+
 @keyframes land {
   from {
     opacity: 0;

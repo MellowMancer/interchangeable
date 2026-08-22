@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { PLACEMENT_LEGEND } from "@/lib/placement";
+import { Primer } from "@/lib/primer";
 import { currentTheme, ThemeToggle } from "@/lib/theme";
 import "./globals.css";
 
@@ -62,6 +64,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-3">
               <Link
+                href="/"
+                className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+              >
+                Home
+              </Link>
+              <Link
                 href="/collectors"
                 className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
               >
@@ -71,21 +79,47 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 href="/reading"
                 className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
               >
-                Reading
+                How to read this
               </Link>
               <ThemeToggle />
             </div>
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-12">{children}</main>
+        {/* Clipped, not hidden: the matrix has its own scroller, and `clip` leaves the
+            sticky concept column inside it working. Without this a phone scrolls the whole
+            page sideways instead of just the table. */}
+        <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-clip px-6 py-12">{children}</main>
 
+        {/* The guide belongs to the whole site, not to one screen: the same five marks
+            are drawn on the roster, the comparison, a label and the evidence. */}
         <footer className="mt-16 border-t border-rule">
-          <p className="mx-auto max-w-7xl px-6 py-6 text-meta text-ink-muted">
-            Not medical advice. Every quote is sliced from the stored section text at the
-            character offsets shown, so any claim here can be checked against its source.
-          </p>
+          <div className="mx-auto max-w-7xl px-6 py-8">
+            <dl className="flex flex-wrap gap-x-6 gap-y-3 text-meta text-ink-muted">
+              {PLACEMENT_LEGEND.map((style) => (
+                <div key={style.label} className="flex items-center gap-2">
+                  <dt>
+                    <span
+                      className={`inline-flex min-w-16 items-baseline justify-center rounded-sheet border px-2 py-1 text-kicker tracking-wide uppercase ${style.className}`}
+                    >
+                      {style.section ? (
+                        style.label
+                      ) : (
+                        <>
+                          <span aria-hidden>&mdash;</span>
+                          <span className="sr-only">{style.label}</span>
+                        </>
+                      )}
+                    </span>
+                  </dt>
+                  <dd className="text-kicker text-ink-muted">{style.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </footer>
+
+        <Primer />
       </body>
     </html>
   );

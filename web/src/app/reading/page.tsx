@@ -189,10 +189,13 @@ const Section = ({
   title: string;
   children: React.ReactNode;
 }) => (
-  <section className="space-y-5">
-    <div className="space-y-2">
+  // Two columns: the heading holds the left margin and stays put while its prose scrolls
+  // past, which is what the empty half of the page was for. A single measure of text down
+  // the middle read as one undifferentiated wall.
+  <section className="grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+    <div className="space-y-2 lg:sticky lg:top-8 lg:self-start">
       <h2 className="font-mono text-kicker tracking-widest text-accent uppercase">{kicker}</h2>
-      <h3 className="max-w-prose font-serif text-quote font-normal tracking-tight">{title}</h3>
+      <h3 className="font-serif text-quote font-normal tracking-tight text-ink">{title}</h3>
     </div>
     <div className="max-w-prose space-y-4 text-ink-muted [&_p]:leading-relaxed">{children}</div>
   </section>

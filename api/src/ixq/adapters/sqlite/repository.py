@@ -19,7 +19,7 @@ from ixq.domain import (
     Substance,
     appearance,
 )
-from ixq.domain.sections import INDICATIONS_CODE
+from ixq.domain.sections import INDICATIONS_CODE, VALUE_CODES
 from ixq.pipeline.ports import ClauseCounts, ConceptDivergence, SubstanceCounts
 
 _SCHEMA = "schema.sql"
@@ -160,22 +160,70 @@ class SqliteRepository:
         """Every document's §4.1 text for one substance, keyed by sha."""
         return self._texts_for_substance(substance_id, INDICATIONS_CODE)
 
+    def value_sections_for_substance(self, substance_id: str) -> dict[str, dict[str, str]]:
+        """Every document's §6.3 and §6.4 text for one substance, in one query."""
+        return self._texts_by_code(substance_id, VALUE_CODES)
+
     def _texts_for_substance(self, substance_id: str, code: str) -> dict[str, str]:
-        """One short section's text across a substance's documents.
+        """One short section's text across a substance's documents."""
+        found = self._texts_by_code(substance_id, (code,))
+        return {sha: texts[code] for sha, texts in found.items()}
+
+    def _texts_by_code(
+        self, substance_id: str, codes: tuple[str, ...]
+    ) -> dict[str, dict[str, str]]:
+        """Short sections' text across a substance's documents, per sha and code.
 
         Private, and reached only through the narrow methods above. Exposing it on the port
         would invite reading §4.4 this way, and that section runs to kilobytes per label —
         the read-the-whole-corpus-per-navigation shape `counts_by_substance` exists to undo.
         """
+        slots = ",".join("?" * len(codes))
         rows = self._conn.execute(
-            "SELECT s.document_sha256 AS sha, s.text FROM sections s "
+            "SELECT s.document_sha256 AS sha, s.code, s.text FROM sections s "
             "JOIN documents d ON d.sha256 = s.document_sha256 "
             "JOIN products p ON p.source_id = d.source_id "
             "AND p.external_id = d.product_external_id "
-            "WHERE p.substance_id = ? AND s.code = ?",
-            (substance_id, code),
+            f"WHERE p.substance_id = ? AND s.code IN ({slots})",
+            (substance_id, *codes),
         ).fetchall()
-        return {row["sha"]: row["text"] for row in rows}
+
+        found: dict[str, dict[str, str]] = {}
+        for row in rows:
+            found.setdefault(row["sha"], {})[row["code"]] = row["text"]
+        return found
+
+    def substance_of(self, product_external_id: str) -> str | None:
+        """The substance a product belongs to, or None when it is not stored."""
+        row = self._conn.execute(
+            "SELECT substance_id FROM products WHERE external_id = ?",
+            (product_external_id,),
+        ).fetchone()
+        return row["substance_id"] if row else None
+
+    def labels_by_substance(self) -> dict[str, tuple[str, ...]]:
+        """Each substance's current product names and MA holders, in one query."""
+        rows = self._conn.execute(
+            """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
+            SELECT DISTINCT c.substance_id AS substance_id, p.name AS name,
+                   p.ma_holder AS holder
+            FROM current c
+            JOIN products p
+              ON p.substance_id = c.substance_id
+             AND p.external_id = c.product_external_id
+            """
+        ).fetchall()
+
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            names = found.setdefault(row["substance_id"], [])
+            for value in (row["name"], row["holder"]):
+                if value and value not in names:
+                    names.append(value)
+        return {substance: tuple(names) for substance, names in found.items()}
 
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """The roster's three numbers per substance, counted in SQL.

@@ -111,43 +111,6 @@ export function sharedScanned(products: ProductColumn[]): string[] | null {
 
 
 
-/**
- * Which other manufacturers state this in byte-identical words, per product.
- *
- * An annotation rather than a merge. Generic SmPCs are frequently copied verbatim between
- * holders, and saying so is worth doing — but two labels carrying the same sentence carry
- * it at their own offsets, in their own section, of their own length. Collapsing them into
- * one block would show one label's provenance and silently drop the other's.
- *
- * Exact string equality, never similarity: "these two say the same thing" is only a safe
- * claim when the bytes match, and a near-match is a difference worth reading.
- */
-export function identicalWording(
-  cells: { product_external_id: string; evidence: Evidence | null }[],
-  products: ProductColumn[],
-): Map<string, string[]> {
-  const byId = new Map(products.map((product) => [product.external_id, product]));
-  const name = (id: string) => {
-    const product = byId.get(id);
-    return product ? manufacturer(product) : id;
-  };
-
-  const byQuote = new Map<string, string[]>();
-  for (const cell of cells) {
-    const quote = cell.evidence?.quote;
-    if (!quote) continue;
-    byQuote.set(quote, [...(byQuote.get(quote) ?? []), cell.product_external_id]);
-  }
-
-  const shared = new Map<string, string[]>();
-  for (const ids of byQuote.values()) {
-    if (ids.length < 2) continue;
-    for (const id of ids) shared.set(id, ids.filter((other) => other !== id).map(name));
-  }
-  return shared;
-}
-
-
 /** One distinct wording, and every product whose label carries it. */
 export type WordingGroup<T> = {
   /** The shared quote, or `null` when this group is an absence. */
@@ -192,4 +155,16 @@ export function groupByWording<
   return Array.from(groups.values()).sort(
     (a, b) => rank(a.placement) - rank(b.placement) || b.cells.length - a.cells.length,
   );
+}
+
+
+export function holderGroups(products: ProductColumn[]): { name: string; products: ProductColumn[] }[] {
+  const groups: { key: string; name: string; products: ProductColumn[] }[] = [];
+  for (const product of products) {
+    const key = product.holder_id === null ? `name:${manufacturer(product)}` : `id:${product.holder_id}`;
+    const held = groups.find((g) => g.key === key);
+    if (held) held.products.push(product);
+    else groups.push({ key, name: manufacturer(product), products: [product] });
+  }
+  return groups.map(({ name, products: p }) => ({ name, products: p }));
 }

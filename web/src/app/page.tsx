@@ -1,12 +1,8 @@
 import Link from "next/link";
-import { conceptLabel, getMatrix, getSubstances, type Matrix, type Row, type SubstanceSummary } from "@/lib/api";
-import { AppearanceStrip } from "@/lib/appearance";
-import { featuredSubstance, rankedDivergences, rankedPreviews } from "@/lib/finding";
-import { PlacementSpectrum } from "@/lib/spectrum";
-import { PlacementBadge } from "@/lib/placement";
-
-/** How many disagreements a card advertises before it defers to the comparison itself. */
-const PREVIEW_LIMIT = 3;
+import { getMatrix, getSubstances, manufacturer, type Matrix, type ProductColumn } from "@/lib/api";
+import { DosageGlyph, undrawnBecause } from "@/lib/appearance";
+import { featuredSubstance } from "@/lib/finding";
+import { Roster } from "@/lib/roster";
 
 /**
  * The roster, and what a comparison of each substance would show.
@@ -14,25 +10,28 @@ const PREVIEW_LIMIT = 3;
  * A card carries its strongest disagreements rather than only a count, so the choice of
  * what to open is made on the finding rather than on the name.
  *
- * Search is a plain GET form read from the query string, not a client component: the
- * whole application is server-rendered, and a filter over a list the server already holds
- * does not need to become the first piece of client state in it.
+ * The list itself is handed to `Roster`, which filters it as the reader types. That is
+ * the one place in the application that runs in the browser; everything here, including
+ * the fetch, still happens on the server.
  */
 export default async function Home({ searchParams }: PageProps<"/">) {
   const { q } = await searchParams;
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
 
   const substances = await getSubstances();
+  // One extra read, for the hero: the roster carries names but not what a tablet looks
+  // like, and the scene is two boxes rather than two strings.
+  //
+  // The substance whose labels disagree most, so the pair on show is a real pair — and
+  // never at the cost of the page: the roster is the reason to be here, so a failing
+  // matrix costs the decoration, not the list.
   const featured = featuredSubstance(substances);
-  const matrix = featured ? await getMatrix(featured.id) : null;
-  const top = matrix ? (rankedDivergences(matrix.rows)[0] ?? null) : null;
-  const matching = substances.filter((substance) => matches(substance, query));
-  const collected = matching.filter((substance) => substance.products > 0);
-  const uncollected = matching.filter((substance) => substance.products === 0);
+  const staged = featured && featured.divergent > 0 ? await staged_for(featured.id) : null;
 
   return (
     <div className="space-y-12">
-      <header className="space-y-5">
+      <header className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)]">
+        <div className="space-y-5">
         {/* Its own measure: inside the prose column a display size wraps to three uneven
             lines, and the strapline is the one thing on the page that must land cleanly. */}
         <h1 className="max-w-3xl font-serif text-display font-normal text-balance">
@@ -50,173 +49,107 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           The question mark is deliberate. This asks whether these products really are
           interchangeable; it does not assert that they are not.
         </p>
+        {/* Offered before the list, not buried in the nav: a grid of coloured badges is
+            guessable, and the likeliest guess — that an unmarked cell means the label
+            omits something — is the one reading this project exists to prevent. */}
+        <Link
+          href="/reading"
+          className="inline-flex items-baseline gap-2 border-b border-accent pb-1 text-meta text-accent hover:border-ink hover:text-ink"
+        >
+          New here? Read how to read this first
+          <span aria-hidden>→</span>
+        </Link>
+        </div>
+        <SameDrug matrix={staged} />
       </header>
 
-      {matrix && top && <Hero matrix={matrix} row={top} />}
-
-      <Search query={query} total={substances.length} />
-
-      {collected.length > 0 && (
-        <section className="space-y-6">
-          <Kicker>
-            {query ? `Collected — ${collected.length} matching` : `Collected — ${collected.length}`}
-          </Kicker>
-          <ul className="grid border-t border-rule md:grid-cols-2">
-            {collected.map((substance) => (
-              <li
-                key={substance.id}
-                className="border-b border-rule md:odd:border-r md:odd:last:border-r-0"
-              >
-                <Card substance={substance} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {uncollected.length > 0 && (
-        <section className="space-y-4 border-t border-rule pt-10">
-          <Kicker>On the roster, not yet collected — {uncollected.length}</Kicker>
-          <p className="max-w-prose text-meta text-ink-muted">
-            Configured but not yet fetched, so there is nothing to compare. Not a finding
-            of agreement.
-          </p>
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-meta text-ink-muted">
-            {uncollected.map((substance) => (
-              <li key={substance.id}>{substance.name}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {matching.length === 0 && (
-        <p className="max-w-prose text-ink-muted">
-          Nothing on the roster matches <span className="text-ink">{query}</span>. Search
-          runs over substance names and the concepts their manufacturers disagree about.
-        </p>
-      )}
+      <Roster substances={substances} query={query} />
     </div>
   );
 }
 
-/**
- * The sharpest disagreement in the corpus, shown rather than described.
- *
- * Derived — most divergent substance, then its strongest-ranked concept — so the landing
- * screen follows the corpus instead of freezing on whatever was collected first. It is
- * the finding itself, not a link to it: a reader who never scrolls has still seen the
- * thing the project exists to show.
- */
-function Hero({ matrix, row }: { matrix: Matrix; row: Row }) {
-  return (
-    <section className="space-y-8 border-y border-rule py-10">
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">
-          {matrix.substance_name} · {conceptLabel(row.concept)}
-        </p>
-        <Link
-          href={`/substances/${matrix.substance_id}/concepts/${encodeURIComponent(row.concept)}`}
-          className="text-meta text-accent underline underline-offset-4"
-        >
-          Read the quoted text behind this →
-        </Link>
-      </div>
 
-      <PlacementSpectrum cells={row.cells} products={matrix.products} />
-
-      <AppearanceStrip products={matrix.products} />
-    </section>
-  );
-}
 
 /**
- * Matches a substance name or any concept its manufacturers disagree about.
+ * The proposition, staged.
  *
- * Searching a symptom is the question a reader actually has — "where do these labels
- * disagree about pregnancy?" — and matching only names would answer it with nothing.
+ * Two real labels of one substance, drawn as they describe themselves, with a not-equals
+ * between them. Nothing is invented — the products, the manufacturers and the tablets all
+ * come from the corpus, so the scene changes as it grows.
+ *
+ * Rotated in a perspective scene rather than given a drawn shadow: the point is two boxes
+ * on a counter, and depth says that faster than prose can. Decorative and `aria-hidden`;
+ * the strapline beside it makes the same claim in words.
  */
-function matches(substance: SubstanceSummary, query: string): boolean {
-  if (!query) return true;
-  const needle = query.toLowerCase();
+function SameDrug({ matrix }: { matrix: Matrix | null }) {
+  const drawable = (matrix?.products ?? []).filter(
+    (product) => product.appearance && undrawnBecause(product.appearance).length === 0,
+  );
+  // One card per holder: two strengths from one manufacturer, shown side by side as the
+  // page's illustration of "different manufacturer", would be neither.
+  const seen = new Set<string>();
+  const distinct = drawable.filter((product) => {
+    const holder = manufacturer(product);
+    if (seen.has(holder)) return false;
+    seen.add(holder);
+    return true;
+  });
+  if (!matrix || distinct.length < 2) return null;
+  const [first, second] = distinct;
+
   return (
-    substance.name.toLowerCase().includes(needle) ||
-    substance.divergences.some((d) => conceptLabel(d.concept).toLowerCase().includes(needle))
+    <div aria-hidden className="stage hidden items-center justify-center gap-6 lg:flex">
+      <LabelCard substance={matrix.substance_name} product={first} side="left" />
+      <LabelCard substance={matrix.substance_name} product={second} side="right" />
+    </div>
   );
 }
 
-function Search({ query, total }: { query: string; total: number }) {
-  return (
-    <form action="/" className="max-w-prose space-y-2">
-      <label htmlFor="q" className="block font-mono text-kicker tracking-widest text-ink-muted uppercase">
-        Search {total} substances
-      </label>
-      <div className="flex gap-3">
-        <input
-          id="q"
-          type="search"
-          name="q"
-          defaultValue={query}
-          placeholder="a substance, or a concept they disagree about"
-          className="w-full rounded-sheet border border-rule bg-paper px-3 py-2 text-body text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none"
-        />
-        <button
-          type="submit"
-          className="rounded-sheet border border-rule px-4 py-2 font-mono text-kicker tracking-widest uppercase hover:border-accent hover:text-accent"
-        >
-          Search
-        </button>
-      </div>
-      {query && (
-        <Link href="/" className="inline-block text-meta text-accent underline underline-offset-4">
-          Clear
-        </Link>
-      )}
-    </form>
-  );
-}
-
-const Kicker = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{children}</h2>
+const LabelCard = ({
+  substance,
+  product,
+  side,
+}: {
+  substance: string;
+  product: ProductColumn;
+  side: "left" | "right";
+}) => (
+  <article
+    className={`stage-card w-40 shrink-0 space-y-2 rounded-sheet border border-rule bg-paper p-4 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.55)] ${
+      side === "left" ? "stage-left" : "stage-right"
+    }`}
+  >
+    <p className="font-mono text-kicker tracking-widest text-ink-muted uppercase">{substance}</p>
+    {product.appearance && (
+      <span className="flex h-8 items-center">
+        <DosageGlyph appearance={product.appearance} />
+      </span>
+    )}
+    <p className="truncate font-serif text-body">{presentation(substance, product)}</p>
+    <p className="truncate font-mono text-kicker text-ink-muted">{manufacturer(product)}</p>
+  </article>
 );
 
-function Card({ substance }: { substance: SubstanceSummary }) {
-  const previews = rankedPreviews(substance);
-  const shown = previews.slice(0, PREVIEW_LIMIT);
-  const remaining = previews.length - shown.length;
 
-  return (
-    <Link
-      href={`/substances/${substance.id}`}
-      className="flex h-full flex-col gap-4 p-6 transition-transform hover:-translate-y-0.5 hover:bg-rule/30"
-    >
-      <header className="space-y-1">
-        <h3 className="font-serif text-quote">{substance.name}</h3>
-        <p className="font-mono text-meta text-ink-muted">
-          {substance.products} manufacturers · {substance.concepts} concepts ·{" "}
-          {substance.divergent === 0 ? "none disagree" : `${substance.divergent} disagree`}
-        </p>
-      </header>
+/**
+ * What to call a product on a card the width of a box.
+ *
+ * `variant` is the strength and form and is what one wants — but it is null whenever the
+ * name does not carry both, and falling back to the whole name put "Prednisolone 5…" on a
+ * card beside "5mg Tablets". Stripping the substance the card already names leaves the two
+ * reading alike.
+ */
+function presentation(substance: string, product: ProductColumn): string {
+  if (product.variant) return product.variant;
+  const stripped = product.name.replace(new RegExp(`^${substance}\\s*`, "i"), "").trim();
+  return stripped || product.name;
+}
 
-      {shown.length > 0 ? (
-        <ul className="space-y-2">
-          {shown.map((preview) => (
-            <li key={preview.concept} className="flex flex-wrap items-center gap-2">
-              <span className="min-w-40 text-meta">{conceptLabel(preview.concept)}</span>
-              {preview.placements.map((placement) => (
-                <PlacementBadge key={placement} placement={placement} />
-              ))}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-meta text-ink-muted">Agrees everywhere that was read.</p>
-      )}
-
-      <p className="mt-auto text-meta text-accent">
-        {remaining > 0
-          ? `Compare all ${substance.concepts} concepts — ${remaining} more disagreement${remaining === 1 ? "" : "s"} →`
-          : `Compare all ${substance.concepts} concepts →`}
-      </p>
-    </Link>
-  );
+/** The hero's matrix, or nothing. A decorative read must not be able to fail the page. */
+async function staged_for(id: string): Promise<Matrix | null> {
+  try {
+    return await getMatrix(id);
+  } catch {
+    return null;
+  }
 }
