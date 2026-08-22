@@ -97,7 +97,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
           </p>
           {/* Horizontal because the list is a shelf, not a ranking: nothing about the
               order says one is preferable to another. */}
-          <ul className="-mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
+          <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
             {detail.siblings.map((sibling) => (
               <li key={sibling.external_id} className="w-64 shrink-0 snap-start">
                 <Sibling product={sibling} />
@@ -215,9 +215,9 @@ function Concept({
 
   return (
     <details className="group py-4">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 hover:text-accent">
         <span className="flex items-baseline gap-2">
-          <span className="font-mono text-ink-muted group-open:text-ink">+</span>
+          <span className="font-mono text-ink-muted transition-transform group-open:rotate-45 group-open:text-accent">+</span>
           <span>{conceptLabel(concept.concept)}</span>
         </span>
         <PlacementBadge placement={concept.placement} />
@@ -226,9 +226,27 @@ function Concept({
       <div className="mt-3 space-y-2 pl-6">
         {evidence ? (
           <>
-            <blockquote className="border-l-2 border-rule pl-4 font-serif text-body">
-              &ldquo;{evidence.quote}&rdquo;
-            </blockquote>
+            {/* The clause inside what surrounds it, with the match marked. On its own a
+                clause is often not a statement — "They will, however, decrease the effects
+                of anticholinesterases" needs the sentence it answers. */}
+            {concept.context ? (
+              <blockquote className="max-w-prose border-l-2 border-rule pl-4 font-serif text-body text-ink-muted">
+                {concept.context.truncated_start && <span aria-hidden>… </span>}
+                {concept.context.text.slice(0, concept.context.quote_start)}
+                <mark className="animate-sweep bg-transparent text-ink decoration-accent/40 underline-offset-4">
+                  {concept.context.text.slice(
+                    concept.context.quote_start,
+                    concept.context.quote_end,
+                  )}
+                </mark>
+                {concept.context.text.slice(concept.context.quote_end)}
+                {concept.context.truncated_end && <span aria-hidden> …</span>}
+              </blockquote>
+            ) : (
+              <blockquote className="border-l-2 border-rule pl-4 font-serif text-body">
+                &ldquo;{evidence.quote}&rdquo;
+              </blockquote>
+            )}
             {/* Offsets without the positional bar: this response does not carry the
                 section's length, and drawing the bar against the quote's own end would
                 claim every quote sits at the end of its section. The bar lives on the
@@ -286,7 +304,7 @@ function Sibling({ product }: { product: ProductColumn }) {
   return (
     <Link
       href={`/products/${product.external_id}`}
-      className="flex h-full flex-col gap-2 border border-rule p-4 hover:border-accent hover:bg-rule/30"
+      className="flex h-full flex-col gap-2 border border-rule p-4 transition-transform hover:-translate-y-0.5 hover:border-accent hover:bg-rule/30"
     >
       <span className="flex h-8 items-center">
         {drawable && product.appearance ? (
