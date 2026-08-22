@@ -99,8 +99,17 @@ function SameDrug({ matrix }: { matrix: Matrix | null }) {
 
   return (
     <div aria-hidden className="stage hidden items-center justify-center gap-6 lg:flex">
-      <LabelCard substance={matrix.substance_name} product={first} side="left" />
-      <LabelCard substance={matrix.substance_name} product={second} side="right" />
+      {/* The wrapper drifts, the card holds its place in the scene. */}
+      <div className="drift">
+        <div className="shiver">
+          <LabelCard substance={matrix.substance_name} product={first} side="left" />
+        </div>
+      </div>
+      <div className="drift">
+        <div className="shiver">
+          <LabelCard substance={matrix.substance_name} product={second} side="right" />
+        </div>
+      </div>
     </div>
   );
 }
