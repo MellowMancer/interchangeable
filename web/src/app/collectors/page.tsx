@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Section } from "@/lib/heading";
-import { getBenchmark, getCollectors, type BenchCase, type BenchRun, type Heal } from "@/lib/api";
+import { getBenchmark, type BenchCase, type BenchRun } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Reliability" };
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Reliability" };
  * rows behind it are one query away for anyone who looks.
  */
 export default async function CollectorsPage() {
-  const [collectors, runs] = await Promise.all([getCollectors(), getBenchmark()]);
+  const runs = await getBenchmark();
 
   return (
     <div className="space-y-12">
@@ -30,41 +30,13 @@ export default async function CollectorsPage() {
       </header>
 
       <section className="space-y-6">
-        <Section>Live collectors</Section>
-        <div className="divide-y divide-rule border-y border-rule">
-          {collectors.map((collector) => (
-            <article key={collector.id} className="space-y-3 py-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <h3 className="font-mono">{collector.id}</h3>
-                <span className="font-mono text-meta text-ink-muted">
-                  {collector.source} · {collector.kind}
-                </span>
-              </div>
-
-              <p className="text-meta text-ink-muted">
-                {collector.baseline_captured_at ? (
-                  <>
-                    Baseline captured {observed(collector.baseline_captured_at)} over{" "}
-                    {collector.baseline_row_count}{" "}
-                    {collector.baseline_row_count === 1 ? "row" : "rows"}.
-                  </>
-                ) : (
-                  <>No baseline yet — never observed, which is not the same as healthy.</>
-                )}
-              </p>
-
-              <HealHistory heals={collector.heals} />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-6 border-t border-rule pt-10">
         <Section>Controlled benchmark</Section>
         <p className="max-w-prose text-ink-muted">
           <span className="font-mono text-meta text-ink">medicines.org.uk</span> cannot be
-          broken on cue, so the repair loop is measured against a fixture site we control —
-          a different store from the live collectors above, deliberately.
+          broken on cue, so the repair loop is measured against a fixture site we control,
+          whose layout can be mutated to order. Its results are kept in a store of their
+          own, deliberately: a benchmark must not be able to disturb the collectors that
+          serve the corpus.
         </p>
 
         <BenchmarkSummary runs={runs} />
@@ -75,7 +47,7 @@ export default async function CollectorsPage() {
             nothing having failed.
           </p>
         ) : (
-          runs.map((run) => <Run key={run.run_id} run={run} />)
+          <Run runs={runs} />
         )}
       </section>
     </div>
@@ -90,20 +62,37 @@ export default async function CollectorsPage() {
  * stops that ordering from reading as the final result — in either direction.
  */
 function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
-  const cases = runs.flatMap((run) => run.cases);
-  if (cases.length === 0) return null;
+  const attempts = runs.flatMap((run) => run.cases);
+  if (attempts.length === 0) return null;
 
-  const detected = cases.filter((benchCase) => benchCase.caught_by !== null).length;
-  const repaired = cases.filter((benchCase) => benchCase.healed).length;
-  const verified = cases.filter((benchCase) => benchCase.non_regression_passed === true).length;
+  /*
+   * Counted per mutation, not per attempt.
+   *
+   * Every run is the same benchmark — `--run-id` exists so an interrupted one can be
+   * resumed — so a mutation tried in two runs was one thing measured twice. Summing the
+   * attempts read as broader coverage than the fixture site actually has: `table_to_div`
+   * alone accounted for two of "6 cases".
+   *
+   * A mutation counts as detected or repaired if it ever was. That is the honest reading
+   * of a repeated attempt: the loop is capable of it, and the per-run tables below still
+   * show every attempt including the ones that failed.
+   */
+  const mutations = [...new Set(attempts.map((benchCase) => benchCase.mutation))];
+  const ever = (mutation: string, held: (c: (typeof attempts)[number]) => boolean) =>
+    attempts.some((benchCase) => benchCase.mutation === mutation && held(benchCase));
+
+  const detected = mutations.filter((m) => ever(m, (c) => c.caught_by !== null)).length;
+  const repaired = mutations.filter((m) => ever(m, (c) => c.healed)).length;
+  const verified = mutations.filter((m) => ever(m, (c) => c.non_regression_passed === true)).length;
 
   return (
     <p className="max-w-prose border-l-2 border-rule pl-4 text-meta text-ink-muted">
       <span className="text-ink">
-        {cases.length} cases across {runs.length} {runs.length === 1 ? "run" : "runs"}:{" "}
-        {detected} detected, {repaired} repaired, {verified} verified against the old layout.
+        {mutations.length} {mutations.length === 1 ? "mutation" : "mutations"} over{" "}
+        {attempts.length} {attempts.length === 1 ? "attempt" : "attempts"}: {detected}{" "}
+        detected, {repaired} repaired, {verified} verified against the old layout.
       </span>{" "}
-      Every case is listed, including the ones nothing caught. A signal chip is filled when
+      Every attempt is listed below, including the ones nothing caught. A signal chip is filled when
       that detector fired, outlined when it was expected and stayed silent — an outlined
       chip is a published coverage gap. <em>Non-regression</em> means the repair still works
       against the layout it was built for, so it was not overfitted to the break.
@@ -117,33 +106,50 @@ function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
  * The counts are computed from the cases on screen rather than stated, so the summary
  * cannot drift from the table it summarises.
  */
-function Run({ run }: { run: BenchRun }) {
-  const detected = run.cases.filter((c) => c.caught_by !== null).length;
-  const repaired = run.cases.filter((c) => c.healed).length;
-  const verified = run.cases.filter((c) => c.non_regression_passed === true).length;
+function Run({ runs }: { runs: BenchRun[] }) {
+  /*
+   * One table, because there is only one benchmark.
+   *
+   * `--run-id` exists so an interrupted run can be resumed; it names an occasion, not an
+   * instrument. A table per run put the same mutation in two places and invited the
+   * reader to compare them as though they measured different things. Sorted by mutation
+   * so a repeated attempt sits beside the one it repeats, with the run that produced it
+   * named in its own column.
+   */
+  const attempts = runs.flatMap((run) => run.cases);
+
+  /*
+   * One row per mutation, showing how far the loop ever got with it.
+   *
+   * Dropping the run column made two attempts at the same mutation two identical rows,
+   * which reads as two mutations. Collapsing them to the furthest outcome matches the
+   * count above it: a mutation the loop repaired once is a mutation it can repair, and a
+   * second attempt that stalled is not a separate finding about the fixture site.
+   */
+  const reached = (benchCase: (typeof attempts)[number]) =>
+    (benchCase.healed ? 2 : 0) + (benchCase.caught_by !== null ? 1 : 0);
+
+  const cases = [...new Set(attempts.map((benchCase) => benchCase.mutation))]
+    .map((mutation) =>
+      attempts
+        .filter((benchCase) => benchCase.mutation === mutation)
+        .reduce((best, benchCase) => (reached(benchCase) > reached(best) ? benchCase : best)),
+    )
+    .sort((a, b) => a.mutation.localeCompare(b.mutation));
 
   return (
     <article className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-rule pb-2">
-        <h3 className="font-mono text-meta tracking-widest uppercase">run {run.run_id}</h3>
-        <p className="font-mono text-meta text-ink-muted">
-          {run.cases.length} cases · {detected} detected · {repaired} repaired ·{" "}
-          {verified} verified against the old layout
-        </p>
-      </div>
-
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-meta">
+        <table className="w-full table-fixed border-collapse text-meta">
           <thead>
             <tr className="border-b border-rule text-left text-ink-muted">
-              <th className="py-2 pr-4 font-normal">Mutation</th>
-              <th className="py-2 pr-4 font-normal">Signals</th>
-              <th className="py-2 pr-4 font-normal">Outcome</th>
-              <th className="py-2 font-normal">Attempts</th>
+              <th className="w-52 py-2 pr-4 font-normal">Mutation</th>
+              <th className="w-60 py-2 pr-4 font-normal">Signals</th>
+              <th className="py-2 text-right font-normal">Outcome</th>
             </tr>
           </thead>
           <tbody>
-            {run.cases.map((benchCase) => (
+            {cases.map((benchCase) => (
               <tr key={benchCase.case_id} className="border-b border-rule align-top">
                 <td className="py-3 pr-4">
                   <span className="block font-mono">{benchCase.mutation}</span>
@@ -159,10 +165,9 @@ function Run({ run }: { run: BenchRun }) {
                     fired={benchCase.fired_kinds}
                   />
                 </td>
-                <td className="py-3 pr-4">
+                <td className="py-3 text-right">
                   <Outcome benchCase={benchCase} />
                 </td>
-                <td className="py-3 font-mono text-ink-muted">{benchCase.attempts}</td>
               </tr>
             ))}
           </tbody>
@@ -239,45 +244,4 @@ function Outcome({ benchCase }: { benchCase: BenchCase }) {
   );
 }
 
-/**
- * A timestamp a person can read. The API sends ISO because that is unambiguous to a
- * machine; microseconds and a UTC offset are noise on a status screen.
- */
-function observed(iso: string) {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime())
-    ? iso
-    : at.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-}
 
-function HealHistory({ heals }: { heals: Heal[] }) {
-  if (heals.length === 0) {
-    return <p className="text-meta text-ink-muted">No drift detected since baseline.</p>;
-  }
-  return (
-    <ol className="space-y-2">
-      {heals.map((heal) => (
-        <li
-          key={`${heal.created_at}-${heal.status}`}
-          className="flex flex-wrap items-baseline gap-x-3 text-meta"
-        >
-          <span
-            className={`rounded-sheet border px-2 py-0.5 font-mono text-kicker uppercase ${
-              heal.promoted ? "border-p45 bg-p45 text-p45-on" : "border-rule text-ink-muted"
-            }`}
-          >
-            {heal.status}
-          </span>
-          <time className="text-ink-muted">{observed(heal.created_at)}</time>
-          {heal.failure_class && (
-            <span className="text-ink-muted">
-              diagnosed {heal.failure_class.replace(/_/g, " ")}
-            </span>
-          )}
-          {heal.attempts > 1 && <span className="text-ink-muted">{heal.attempts} attempts</span>}
-          {heal.error && <span className="text-accent">{heal.error}</span>}
-        </li>
-      ))}
-    </ol>
-  );
-}
