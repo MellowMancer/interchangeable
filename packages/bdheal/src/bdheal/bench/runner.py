@@ -17,14 +17,22 @@ Three things the runner does that are decisions rather than plumbing:
   gated cycle leaves two rows before verification settles it with a third, so counting
   rows would count a gate as a heal.
 
-Nothing is caught here. A case the target refused, or one whose loop raised, is simply
-never saved — and an unsaved case is exactly what a restart re-runs.
+An unsaved case is exactly what a restart re-runs, so a case that cannot be scored is
+left unsaved rather than recorded as a failure it was not.
+
+**One exception is caught, and only one.** `VerificationIncompleteError` is the library
+saying *ask again* rather than *here is the answer*: the target served a sample it would
+not stand behind. Letting it propagate cost every case after it — a live run reached case
+five of nine, and cases six through nine were never attempted because the fifth could not
+be verified. The refused case stays unsaved and therefore resumable, while the rest of the
+run proceeds. Everything else still stops the run, because everything else is a defect.
 """
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from bdheal.errors import VerificationIncompleteError
 from bdheal.models import BenchCase, CollectorSpec, DetectVerdict, latest_settled
 from bdheal.ports import Clock, HealLoop, HealStore
 from bdheal.vocabulary import SIGNAL_PRECEDENCE, MutationClass, SignalKind
@@ -87,11 +95,16 @@ def run_benchmark(
     including the ones a previous process executed.
     """
     completed = set(store.completed_case_ids(run_id))
-    return [
-        _run_case(run_id, case, loop, store, clock)
-        for case in cases
-        if case.case_id not in completed
-    ]
+    outcomes: list[BenchCase] = []
+    for case in cases:
+        if case.case_id in completed:
+            continue
+        try:
+            outcomes.append(_run_case(run_id, case, loop, store, clock))
+        except VerificationIncompleteError:
+            # Unsaved, so a resume re-runs it; the classes after it still get their turn.
+            continue
+    return outcomes
 
 
 def _run_case(

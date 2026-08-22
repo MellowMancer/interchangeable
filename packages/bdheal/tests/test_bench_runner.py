@@ -360,18 +360,38 @@ def test_a_heal_is_read_from_the_terminal_row_and_never_from_a_row_count(
     assert outcomes[0].non_regression_passed is False
 
 
-def test_a_verification_the_target_refused_records_no_case_and_reaches_the_caller(
-    bench_clock: FixedClock,
-) -> None:
-    """verification: the check never ran, so there is no case to publish and none is invented."""
+def test_a_verification_the_target_refused_invents_no_case(bench_clock: FixedClock) -> None:
+    """verification: the check never ran, so there is no case to publish and none is invented.
+
+    Unsaved is the honest record and the resumable one — the case is unfinished, not failed,
+    and recording `healed=False` would report a repair that was never scored.
+    """
     store = InMemoryHealStore()
     cases = [case_spec(1)]
     loop = loop_for(cases, store, bench_clock, Script(refused=True))
 
-    with pytest.raises(VerificationIncompleteError):
-        run_benchmark(RUN_ID, cases, loop, store, bench_clock)
+    run_benchmark(RUN_ID, cases, loop, store, bench_clock)
 
     assert store.completed_case_ids(RUN_ID) == []
+
+
+def test_a_refused_case_does_not_cost_the_cases_after_it(bench_clock: FixedClock) -> None:
+    """A live run reached case five of nine and never attempted six through nine.
+
+    The refusal is the library asking to be run again, not a defect, so it must not end a
+    benchmark that costs hours and real credit. Every other exception still stops the run.
+    """
+    store = InMemoryHealStore()
+    cases = [case_spec(index) for index in range(1, 4)]
+    scripts = scripted(cases)
+    scripts[cases[1].spec.collector_id] = Script(refused=True)
+    loop = ScriptedLoop(store, bench_clock, scripts)
+
+    run_benchmark(RUN_ID, cases, loop, store, bench_clock)
+
+    completed = set(store.completed_case_ids(RUN_ID))
+    assert cases[1].case_id not in completed, "the refused case stays resumable"
+    assert {cases[0].case_id, cases[2].case_id} <= completed, "the others still ran"
 
 
 def test_a_restarted_run_executes_only_the_cases_left(bench_clock: FixedClock) -> None:
