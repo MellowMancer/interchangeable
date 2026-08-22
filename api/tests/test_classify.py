@@ -321,15 +321,32 @@ def test_no_section_collapses_into_a_single_clause(
     912-character clause. Every word reached the classifier and the result was still
     wrong: one blob matches every concept anywhere in it, so a concept from one bullet was
     reported against another's placement, and each quoted the whole section as evidence.
+
+    Counted in marker *runs*, not marker characters. Publishers write a single bullet as
+    `\u2003•` — two members of `SPLITTING_GLYPHS` with nothing between them — which is one
+    boundary and was being demanded as two. Every section this guard flagged had exactly
+    that shape, and the splitter was right in all of them.
     """
     blobs = [
         (section.code, markers, len(clauses(section)))
         for section in corpus_sections
-        if (markers := sum(section.text.count(g) for g in SPLITTING_GLYPHS)) >= 3
-        and len(clauses(section)) < markers
+        if (markers := _marker_runs(section.text)) >= 3 and len(clauses(section)) < markers
     ]
 
     assert not blobs, f"sections with bullets that did not split: {blobs}"
+
+
+def _marker_runs(text: str) -> int:
+    """Bullet markers, counting a run of adjacent ones as the one boundary it produces."""
+    runs = 0
+    previous = -2
+    for index, character in enumerate(text):
+        if character not in SPLITTING_GLYPHS:
+            continue
+        if not (previous >= 0 and not text[previous + 1 : index].strip()):
+            runs += 1
+        previous = index
+    return runs
 
 
 def _unexplained_drops(section: Section) -> list[str]:
@@ -406,3 +423,67 @@ def test_reclassifying_skips_the_appearance_section(
 
     codes = {o.section_code for o in repository.occurrences_for_substance(SUBSTANCE_ID)}
     assert codes == {"4.3"}, "the §3 text matched the concept and was still not stored"
+
+
+def test_a_degree_sign_is_not_a_bullet() -> None:
+    """`◦` is U+25E6 WHITE BULLET, and one label writes its storage temperature with it.
+
+    Splitting there severed `Store below 25` from its unit, and the orphaned `C` was then
+    dropped for carrying no word — so the corpus recorded a storage limit with no scale.
+    """
+    section = Section(code="6.4", heading="Special precautions for storage",
+                      text="Store below 25◦ C")
+
+    assert [c.text for c in clauses(section)] == ["Store below 25◦ C"]
+
+
+def test_a_trademark_mark_is_not_a_bullet() -> None:
+    """`*` bullets a list and also marks a trade name; only one of those opens an item."""
+    section = Section(
+        code="4.5",
+        heading="Interaction with other medicinal products",
+        text="If Bedranol* SR and clonidine are given together, clonidine should be stopped.",
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "If Bedranol* SR and clonidine are given together, clonidine should be stopped."
+    ]
+
+
+def test_a_bullet_glued_to_the_previous_word_still_splits() -> None:
+    """The counter-case that stops the fix above from becoming its own bug.
+
+    One label writes §4.3 with no space before any marker. Requiring whitespace of *every*
+    glyph collapsed ten contraindications into three clauses, which is the failure this
+    module exists to prevent — so the rule applies only to the ambiguous glyphs.
+    """
+    section = Section(
+        code="4.3",
+        heading="Contraindications",
+        text="6.1• cardiogenic shock• uncontrolled heart failure• sick sinus syndrome",
+    )
+
+    assert [c.text for c in clauses(section)] == [
+        "6.1",
+        "cardiogenic shock",
+        "uncontrolled heart failure",
+        "sick sinus syndrome",
+    ]
+
+
+def test_a_line_with_no_three_letter_word_is_still_content() -> None:
+    """§3 and §6.1 state specifications, not prose, and the old floor dropped them whole.
+
+    Each of these is a fact about the product: which of two appearances it has, what
+    strength, what pH. None survives a three-letter-word test.
+    """
+    for text in ("OR", "80", "pH: 4.0 – 8.0", "2 mg:"):
+        section = Section(code="3", heading="Pharmaceutical form", text=text)
+        assert [c.text for c in clauses(section)] == [text], f"dropped {text!r}"
+
+
+def test_a_marker_on_its_own_still_asserts_nothing() -> None:
+    """The floor was lowered, not removed: punctuation alone is still not a clause."""
+    section = Section(code="3", heading="Pharmaceutical form", text="•\n—\n:\n")
+
+    assert clauses(section) == []
