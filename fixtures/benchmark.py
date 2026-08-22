@@ -146,7 +146,7 @@ def collector_ids(path: Path, studio: BdataStudioClient, base_url: str, cases: l
             f"the collector description is {len(COLLECTOR_DESCRIPTION)} characters and "
             f"`bdata scraper create` truncates past {MAX_DESCRIPTION_CHARS}"
         )
-    known: dict[str, str] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    known = _reusable(path, base_url)
     for case in cases:
         if case in known:
             continue
@@ -156,8 +156,39 @@ def collector_ids(path: Path, studio: BdataStudioClient, base_url: str, cases: l
         # from each other and from anything else the account has ever built.
         known[case] = studio.create(base_url, COLLECTOR_DESCRIPTION, f"{NAME_PREFIX}{case}")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(known, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps({"base_url": base_url, "collectors": known}, indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
     return known
+
+
+def _reusable(path: Path, base_url: str) -> dict[str, str]:
+    """Remembered ids, but only those built against the page being used now.
+
+    A collector is created *against a URL*, and Bright Data re-derives it from that same
+    URL when it heals. An id alone cannot say which page that was, so a memo written for
+    one base page is indistinguishable from a valid one — and the collectors it names will
+    heal themselves against whatever that URL serves today.
+
+    That is not hypothetical. Renaming the base page from `index.html` to `base.html` left
+    ten memoised collectors pointed at a URL that had become the fixture *index*, so every
+    heal repaired them to scrape a list of links: previews came back as
+    `{"name": "base layout", "href": "base.html"}`, `approve` rejected them, and a full run
+    reported a heal rate of 0.00 with nothing saying why. Detection still looked right,
+    because a run takes explicit URLs and only a heal uses the collector's own target.
+
+    A memo with no recorded URL cannot prove where it came from, so it is discarded too.
+    Rebuilding costs about two minutes per collector; not rebuilding cost a whole run.
+    """
+    if not path.exists():
+        return {}
+    memo = json.loads(path.read_text(encoding="utf-8"))
+    if memo.get("base_url") != base_url:
+        print(f"rebuilding every collector: no memo built against {base_url}", flush=True)
+        return {}
+    return dict(memo.get("collectors", {}))
 
 
 def _schema(manifest: dict[str, Any]) -> type[BaseModel]:
