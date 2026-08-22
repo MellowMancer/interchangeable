@@ -22,14 +22,41 @@ import {
 export default function ReadingPage() {
   return (
     <div className="space-y-16">
-      <header className="space-y-4">
-        <h1 className="font-serif text-title font-normal tracking-tight">How to read this</h1>
-        <p className="max-w-prose text-ink-muted">
-          Every comparison is one <Term>substance</Term>, its manufacturers as columns and{" "}
-          <Term>concepts</Term> as rows. A cell says where that manufacturer&rsquo;s label
-          puts that concept — its <Term>placement</Term>. Where the columns disagree, the
-          row is a finding.
-        </p>
+      <header className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        <div className="space-y-4">
+          <h1 className="font-serif text-title font-normal tracking-tight">How to read this</h1>
+          {/* A key, not a sentence. Three definitions read as three definitions; the
+              same three in prose have to be unpicked before they can be used. */}
+          <table className="text-meta">
+            <tbody>
+              {[
+                ["Column", <Term key="m">manufacturer</Term>],
+                ["Row", <Term key="c">concept</Term>],
+                [
+                  "Cell",
+                  <span key="p">
+                    <Term>placement</Term> — contraindicated, warning, interaction…
+                  </span>,
+                ],
+              ].map(([axis, means]) => (
+                <tr key={String(axis)} className="border-b border-rule last:border-b-0">
+                  <th
+                    scope="row"
+                    className="w-24 py-2 pr-6 text-left font-mono text-kicker text-ink-muted"
+                  >
+                    {axis}
+                  </th>
+                  <td className="py-2 text-ink-muted">{means}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="max-w-prose text-ink-muted">
+            Every comparison is one <Term>substance</Term>. Where the columns of a row
+            disagree, that row is a finding.
+          </p>
+        </div>
+        <Scaffold />
       </header>
 
       <Section kicker="Substance" title="The active ingredient, and the reason a comparison is possible">
@@ -130,18 +157,12 @@ export default function ReadingPage() {
           label&rsquo;s own prose. Matching is deterministic and hand-maintained; no
           language model reads these documents.
         </p>
-        <p>
-          A clause carrying no known concept is published as{" "}
-          <span className="font-mono">unclassified</span> rather than dropped. A visible
-          recall gap is worth more than a clean-looking result that quietly lost what it
-          could not parse.
-        </p>
       </Section>
 
       <footer className="border-t border-rule pt-8">
         <Link
           href="/"
-          className="font-mono text-kicker tracking-widest text-accent uppercase hover:underline"
+          className="font-mono text-kicker text-accent hover:underline"
         >
           Browse the substances &rarr;
         </Link>
@@ -194,7 +215,7 @@ const Section = ({
   // the middle read as one undifferentiated wall.
   <section className="grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
     <div className="space-y-2 lg:sticky lg:top-8 lg:self-start">
-      <h2 className="font-mono text-kicker tracking-widest text-accent uppercase">{kicker}</h2>
+      <h2 className="font-mono text-kicker text-accent">{kicker}</h2>
       <h3 className="font-serif text-quote font-normal tracking-tight text-ink">{title}</h3>
     </div>
     <div className="max-w-prose space-y-4 text-ink-muted [&_p]:leading-relaxed">{children}</div>
@@ -225,4 +246,70 @@ const Distinction = ({ term, children }: { term: string; children: React.ReactNo
 
 const Term = ({ children }: { children: React.ReactNode }) => (
   <strong className="font-medium text-ink">{children}</strong>
+);
+
+/**
+ * The comparison's shape, drawn beside the sentence that describes it.
+ *
+ * Three manufacturers and three concepts is enough to show what is being crossed; the real
+ * grid is ten by thirty and teaches nothing at a glance. The cells use the real placement
+ * colours, so the drawing is the vocabulary the rest of the page then names — and the one
+ * disagreeing row is picked out, because a grid where every row matches would illustrate
+ * the format while hiding the point of it.
+ *
+ * Decorative and `aria-hidden`: the paragraph beside it makes the same claim in words.
+ */
+const SHAPE: Placement[][] = [
+  ["4.3", "4.3", "4.3"],
+  ["4.3", "4.5", "4.5"],
+  ["4.4", "4.4", "4.4"],
+];
+
+const Scaffold = () => (
+  <figure aria-hidden className="hidden lg:block">
+    <table className="w-full border-collapse text-kicker">
+      <thead>
+        <tr className="font-mono text-ink-muted">
+          <th className="pb-2 text-left font-normal">Concepts</th>
+          <th colSpan={3} className="border-l border-rule pb-2 pl-2 text-left font-normal">
+            Manufacturers
+          </th>
+        </tr>
+        <tr className="border-b border-rule font-mono text-ink-muted">
+          <th />
+          {["A", "B", "C"].map((maker) => (
+            <th key={maker} className="p-2 text-left font-normal">
+              {maker}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {SHAPE.map((row, at) => {
+          const diverges = new Set(row).size > 1;
+          return (
+            <tr key={at} className="border-b border-rule">
+              <th
+                scope="row"
+                className={`py-2 pr-3 text-left font-normal ${diverges ? "text-accent" : "text-ink-muted"}`}
+              >
+                {diverges ? "they disagree" : "they agree"}
+              </th>
+              {row.map((placement, column) => (
+                <td key={column} className="p-1">
+                  <span
+                    className={`block h-5 rounded-sheet border ${placementStyle(placement).className}`}
+                  />
+                </td>
+              ))}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <figcaption className="mt-3 text-kicker text-ink-muted">
+      One row, one concept. One column, one manufacturer. A row whose colours differ is a
+      finding.
+    </figcaption>
+  </figure>
 );

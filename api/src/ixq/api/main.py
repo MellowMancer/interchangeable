@@ -29,6 +29,7 @@ from ixq.domain import (
     in_context,
     variant,
 )
+from ixq.domain.section import SPLITTING_GLYPHS
 from ixq.domain.sections import INDICATIONS_CODE, VALUE_SECTIONS
 from ixq.pipeline.diverge import PRECEDENCE, Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
@@ -368,6 +369,15 @@ class ProductDetail(BaseModel):
     substance_name: str
     product: ProductColumn
     siblings: list[ProductColumn]
+    interchangeable: list[ProductColumn]
+    """Labels that file every scanned concept exactly where this one does.
+
+    A stronger claim than "no divergence found", so it is qualified twice. The two must
+    agree on at least one concept *neither* is absent from — otherwise two labels nobody
+    has read agree perfectly by saying nothing, which is the reading §14 exists to stop.
+    And the sections read must match: identical placements across different scopes is not
+    the same fact, because absence only ever means absent from what was scanned.
+    """
     indications: list[IndicationStatement]
     concepts: list[ProductConcept]
     values: list[ValueStatement]
@@ -588,13 +598,49 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
     return [column(product) for product in result.products]
 
 
+def _interchangeable(
+    result: Comparison, mine: ProductColumn, columns: list[ProductColumn]
+) -> list[ProductColumn]:
+    """The labels that place every concept exactly where this one does.
+
+    Absence is not agreement, so a pair must share at least one concept that both actually
+    state — and must have been read over the same sections, since two identical-looking
+    columns built from different scopes are not the same claim.
+    """
+    scope = set(mine.scanned)
+    here = {row.concept: row.placements[mine.external_id] for row in result.rows}
+
+    def matches(other: ProductColumn) -> bool:
+        if set(other.scanned) != scope:
+            return False
+        theirs = {row.concept: row.placements[other.external_id] for row in result.rows}
+        if theirs != here:
+            return False
+        return any(
+            placement != Placement.ABSENT and theirs[concept] != Placement.ABSENT
+            for concept, placement in here.items()
+        )
+
+    return [
+        column
+        for column in columns
+        if column.external_id != mine.external_id and matches(column)
+    ]
+
+
 def _binding(placement: Placement) -> int:
     """How binding a placement is, with absence ranked below every section."""
     return PRECEDENCE.index(placement) if placement in PRECEDENCE else len(PRECEDENCE)
 
 
-#: Every character a publisher uses to open a list item, of either level.
-_MARKERS = "•·▪▫◦●○‣⁃∙*-–—"
+#: Every character `BULLET` treats as opening a list item, derived rather than restated.
+#:
+#: Restating it let the two drift: this list was missing the em space and had gained the
+#: dashes independently, so a clause the splitter opened on one marker could be read here
+#: as opening on another — and the published indentation of five §4.1 sections moved when
+#: `SEGMENT` changed underneath it. Reading the splitter's own vocabulary is what stops a
+#: change there from silently re-nesting a label here.
+_MARKERS = SPLITTING_GLYPHS + "-–—"
 
 
 def _marker(text: str, start: int) -> str | None:
@@ -788,6 +834,7 @@ def product(
         substance_name=_substance_name(substance_id),
         product=mine,
         siblings=[c for c in columns if c.external_id != product_external_id],
+        interchangeable=_interchangeable(result, mine, columns),
         indications=_statements(stated.get(document.sha256)) if document else [],
         concepts=sorted(
             (

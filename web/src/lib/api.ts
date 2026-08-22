@@ -104,6 +104,7 @@ export type ProductDetail = {
   substance_name: string;
   product: ProductColumn;
   siblings: ProductColumn[];
+  interchangeable: ProductColumn[];
   indications: IndicationStatement[];
   concepts: ProductConcept[];
   values: ValueStatement[];

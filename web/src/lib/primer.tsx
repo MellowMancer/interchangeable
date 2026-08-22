@@ -66,7 +66,7 @@ export function Primer() {
         <button
           type="button"
           onClick={dismiss}
-          className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+          className="font-mono text-kicker text-ink-muted hover:text-ink"
         >
           Dismiss
         </button>

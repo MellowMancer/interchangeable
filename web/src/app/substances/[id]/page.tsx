@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Section } from "@/lib/heading";
 import Link from "next/link";
-import { AppearanceRail } from "@/lib/appearance";
+import { AppearanceRail, DosageGlyph, undrawnBecause } from "@/lib/appearance";
 import { Concepts, Diverges, Makers } from "@/lib/icons";
 import { Comparison, Maker } from "@/lib/compare";
 import { Carousel } from "@/lib/carousel";
@@ -50,7 +50,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
       <header className="space-y-4">
         <Link
           href="/"
-          className="inline-block font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+          className="inline-block font-mono text-kicker text-ink-muted hover:text-ink"
         >
           ← All substances
         </Link>
@@ -81,6 +81,25 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
       </header>
 
       <Comparison matrix={matrix} />
+
+      {/* The same shelf a label's own page carries, so arriving at a substance and
+          arriving at one of its products both end with the rest of them. Quick links
+          above is a list to navigate by; this is the set, drawn. */}
+      <section className="section-break space-y-4">
+        <Section>
+          <span className="flex items-center gap-2">
+            <Makers />
+            Every {matrix.substance_name} label — {matrix.products.length}
+          </span>
+        </Section>
+        <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
+          {matrix.products.map((product) => (
+            <li key={product.external_id} className="w-64 shrink-0 snap-start">
+              <ProductCard product={product} />
+            </li>
+          ))}
+        </ul>
+      </section>
 
     </div>
   );
@@ -118,7 +137,13 @@ const Wordings = ({
   agreed ? (
     <>{children}</>
   ) : (
-    <Carousel label={`${count} wordings of what this substance is for`}>{children}</Carousel>
+    <Carousel
+      label={`${count} wordings of what this substance is for`}
+      heading={<Section>Indications — {count} wordings</Section>}
+      count={count}
+    >
+      {children}
+    </Carousel>
   );
 
 function Indications({
@@ -137,9 +162,7 @@ function Indications({
 
   return (
     <section className="max-w-prose space-y-3">
-      <Section>
-        {agreed ? "Indications" : `Indications — ${groups.length} wordings`}
-      </Section>
+      {agreed && <Section>Indications</Section>}
       {/* Sideways, not stacked. Ten wordings of one description is a screenful before the
           reader reaches the comparison, and each is a paraphrase of the last — so they
           cost one card's height between them and the reader moves along only if the
@@ -238,3 +261,27 @@ const Count = ({
     <dd className={accent ? "text-accent" : undefined}>{value}</dd>
   </div>
 );
+
+/** One label of this substance, as a card on the shelf. */
+function ProductCard({ product }: { product: ProductColumn }) {
+  const drawable = product.appearance && undrawnBecause(product.appearance).length === 0;
+
+  return (
+    <Link
+      href={`/products/${product.external_id}`}
+      className="flex h-full flex-col gap-2 border border-rule p-4 transition-transform hover:-translate-y-0.5 hover:border-accent hover:bg-rule/30"
+    >
+      <span className="flex h-8 items-center">
+        {drawable && product.appearance ? (
+          <DosageGlyph appearance={product.appearance} />
+        ) : (
+          <span className="font-mono text-ink-muted">—</span>
+        )}
+      </span>
+      <span className="text-meta">{manufacturer(product)}</span>
+      <span className="font-mono text-kicker text-ink-muted">
+        {product.variant ?? product.name}
+      </span>
+    </Link>
+  );
+}

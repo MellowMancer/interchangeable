@@ -42,7 +42,7 @@ export default async function ConceptPage({
       <header className="space-y-4">
         <Link
           href={`/substances/${id}`}
-          className="font-mono text-kicker tracking-widest text-ink-muted uppercase hover:text-ink"
+          className="font-mono text-kicker text-ink-muted hover:text-ink"
         >
           ← {detail.substance_name}
         </Link>

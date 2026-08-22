@@ -61,7 +61,7 @@ export function Evidence({ detail }: { detail: ConceptDetail }) {
   return (
     <>
       {narrowed && (
-        <p className="font-mono text-kicker tracking-widest text-accent uppercase">
+        <p className="font-mono text-kicker text-accent">
           {products.length} of {detail.products.length} labels — as chosen on the comparison
         </p>
       )}
