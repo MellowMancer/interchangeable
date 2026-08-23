@@ -1,78 +1,131 @@
 # Interchangeable?
 
-Same drug, different manufacturer, different label.
+**Same drug. Different manufacturer. Different label.**
 
-When a pharmacy dispenses a generic, it substitutes whichever manufacturer's version is
-on the shelf. Everyone — patient and prescriber alike — assumes same drug, same
-information. That assumption is not always true.
+![The product index](docs/images/index.png)
+
+When a pharmacy dispenses a generic, it substitutes whichever manufacturer's version is on
+the shelf, and everyone assumes same drug, same information.
 
 **Interchangeable?** compares the UK Summaries of Product Characteristics of every
-authorised product sharing an active substance, and shows where the manufacturers
-disagree — with the exact quoted text behind every claim.
+authorised product that shares an active substance, and shows where the manufacturers
+disagree — with the quoted text behind every claim.
 
-The question mark is deliberate. The project asks whether these products really are
-interchangeable; it does not assert that they are not.
+The question mark is deliberate. It asks whether these products really are
+interchangeable. It does not claim that they are not.
+
+**80 substances · 744 labels · 1,007 disagreements.** Every substance collected so far has
+at least one thing its manufacturers file differently.
+
+---
 
 ## The finding
 
-Three UK-authorised ramipril products, same active ingredient, three manufacturers. All
-three state the same clinical fact — ramipril must not be started until 36 hours after the
-last dose of sacubitril/valsartan. They do not agree on how binding it is:
+Fourteen ramipril products, from nine manufacturers. Every one of them states the same
+clinical fact — do not start ramipril until 36 hours after the last dose of
+sacubitril/valsartan. They do not agree how binding it is:
 
-| Manufacturer | Where the washout appears |
+| Where the washout appears | Products |
 |---|---|
-| Aurobindo Pharma – Milpharm | **§4.3 Contraindications** — an absolute bar |
-| Wockhardt UK | §4.5 Interactions |
-| Zentiva | §4.5 Interactions |
+| **§4.3 Contraindications** — an absolute bar | 7 — Milpharm, Brown & Burk, Sandoz, Zydus |
+| §4.5 Interactions | 7 — Zentiva, Wockhardt, Rosemont, Sanofi, Roma |
 
-A pharmacist reading Aurobindo's label sees a contraindication. Reading Zentiva's, they
-see an interaction. Same molecule, same requirement, different regulatory weight — and
-nothing on either label says the other exists.
+A pharmacist reading one label sees a contraindication. Reading another, an interaction.
+Same molecule, same requirement, different regulatory weight — and no label mentions that
+the others file it elsewhere.
 
-That row is produced by the pipeline in this repository, with the quote behind each cell
-sliced from the stored section text at the character offsets shown, so every cell can be
-checked against its source.
+![The comparison matrix](docs/images/comparison.png)
 
-## What it will and will not say
+One row per concept, one column per manufacturer, one mark for where each label filed it.
+Three of the fourteen labels are shown here, narrowed with the page's own filter.
 
-Absence from §4.3 does not prove absence from the label: a warning missing there is often
-present in §4.4 or §4.6. So the system reports **placement**, never omission it has not
-checked, and every claim names the sections that were actually scanned.
+Every cell opens onto the sentence that earned it:
 
-The scanned sections are §4.3 contraindications, §4.4 warnings, §4.5 interactions, §4.6
-pregnancy and lactation, and §6.1 excipients. §6.1 is there because it is where two
-otherwise identical generics genuinely differ — one contains lactose or an azo colourant
-and the other does not — which is an interchangeability finding in its own right. It ranks
-below the clinical sections: a concept named in both is a restriction that happens to name
-an ingredient, not the reverse.
+![The quoted evidence behind one cell](docs/images/evidence.png)
 
-Divergence is reported as individual findings, not as a rate. Establishing a rate needs a
-far larger run than has been done.
+The quote sits inside the text that surrounds it, with the matched span marked and its
+character offsets named. Nothing is paraphrased and nothing is generated — the span is cut
+from the stored section, so every claim can be checked against its source.
 
-Clauses that match no known concept are counted and published as `unclassified` rather
-than dropped. A visible recall gap is worth more than a clean-looking result that quietly
-lost what it could not parse.
+## A second finding
 
-## How it works
+Ten rosuvastatin labels, all 5 mg tablets. Six file pregnancy under §4.3 as an absolute
+contraindication, extending to *women of childbearing potential not using appropriate
+contraceptive measures*. Four — including AstraZeneca's Crestor, the originator — place it
+only in §4.6, where it reads *not recommended*, to be weighed against the ongoing
+therapeutic need and the individual benefit risk.
 
-Labels are collected through Bright Data Scraper Studio: a collector generated from a
-one-line description returns the structured sections of a product page, and `bdheal` —
-the self-healing loop in `packages/bdheal/` — detects when a page's structure drifts,
-composes a repair prompt, verifies the fix against goldens and the previous layout, and
-promotes or rolls back. The collector ID never changes, so nothing downstream notices.
+![Rosuvastatin in pregnancy](docs/images/pregnancy.png)
 
-No language model sits in the data path. Section splitting is deterministic because the
-EU SmPC format is legally standardised, concept matching is a YAML lexicon, and every
-quote is sliced from the stored section text at exact character offsets — so a claim can
-always be checked against its source.
+These two labels were revised weeks apart in 2026, so one manufacturer lagging behind a
+labelling update does not explain it. That is why `divergences` publishes each label's
+revision date beside the finding: a one-sided result can be a stale label, and here it is
+not.
+
+## One substance
+
+![The metformin substance page](docs/images/substance.png)
+
+Ten metformin labels describe what the drug treats in ten different wordings — no two
+identical. The page prints them side by side, attributed, and never merges them into a
+house summary.
+
+Beside them, every product is drawn: shape and colour parsed from the manufacturer's own
+§3 description. No product photography exists for these labels anywhere, so each glyph is
+a schematic and reads as one.
+
+## One product
+
+![A product page](docs/images/product.png)
+
+What the label carries, in the label's own words: its indications, its licence number, its
+concepts and where each is filed. Two dates appear because the source page publishes two
+that disagree, and both are shown rather than one being chosen.
+
+## What it will not claim
+
+- **Placement, never omission.** Absent from §4.3 does not mean absent from the label — it
+  is often in §4.4 or §4.6. Every answer names the sections that were actually read.
+- **Findings, not rates.** A rate needs a far larger run than this.
+- **Nothing is dropped in silence.** A clause that matches no known concept is published as
+  `unclassified`.
+
+## A walkthrough, for readers who have never read a drug label
+
+![The first-run walkthrough](docs/images/walkthrough.png)
+
+Nine steps, from a box of painkillers to a disagreement between six real labels. It runs
+once on a first visit, and **How to read this** replays it.
+
+## Self-healing collectors
+
+Bright Data Scraper Studio collects the labels. When the structure of a page moves,
+[`bdheal`](packages/bdheal) detects the break, names the signal, composes a repair, and
+verifies it **against the old layout** to prove that it is not overfitted. The collector ID
+never changes, so no downstream component is affected.
+
+![The data source page](docs/images/reliability.png)
+
+The project measures this against a fixture site that it can break on demand — nine
+mutation classes, and it publishes the gaps rather than hides them.
+
+## Run it
+
+```bash
+docker compose watch
+```
+
+- Web — http://localhost:3000
+- API — http://localhost:8000 (`/health`, `/docs`)
 
 ## Ask it from an agent
 
-The comparison is also exposed over MCP, so an assistant can answer a dispensing question
-directly rather than being handed a dashboard:
+The project exposes the comparison over MCP, so an assistant can answer a dispensing
+question directly:
 
 ```bash
-ixq-mcp        # stdio MCP server
+ixq-mcp                                  # stdio
+POST https://<api-host>/mcp/             # streamable HTTP
 ```
 
 | Tool | Question |
@@ -80,166 +133,20 @@ ixq-mcp        # stdio MCP server
 | `label_says(substance, concept)` | Does this manufacturer's label contraindicate X? |
 | `divergences(substance)` | Where do these manufacturers disagree? |
 
-Both answers name the sections that were actually scanned, and a concept that was never
-matched comes back as `found: false` with the list of concepts that *are* known — never as
-a bare "no". `divergences` includes each label's revision date, so a one-sided finding can
-be read as a stale label rather than a real disagreement.
+## Documentation
+
+| Document | Covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The `bdheal` contract — layers, ports, detect semantics, the heal gate |
+| [`docs/BRIGHT_DATA.md`](docs/BRIGHT_DATA.md) | The `bdata` CLI surface. Each warning cost a billable call |
+| [`docs/GOLDEN_BENCHMARK.md`](docs/GOLDEN_BENCHMARK.md) | How the project measures self-healing |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Deploying, and local development |
+| [`AI_DISCLOSURE.md`](AI_DISCLOSURE.md) | Where the project used AI, and what the author directed |
 
 ## Status
 
-Working end to end across the collected corpus: collection, section splitting, concept
-classification, comparison, an HTTP API, an MCP server and the UI.
+Nothing here is ready for production. Nothing that it outputs is medical advice.
 
-As of 2026-08-23 that corpus is **80 substances and 744 products whose current label is
-stored**, carrying **1,007 concepts whose manufacturers do not file them the same way**.
-Not one of the 80 is free of them — every substance collected so far has at least one
-thing its manufacturers disagree about, which is the finding the project exists to test
-and is now measured rather than asserted.
+## Licence
 
-The front door is the product index: every collected label as a drawn pack, searchable by
-product, substance or manufacturer. A first-run walkthrough teaches the four words the
-comparison is written in — substance, product, manufacturer, placement — before a reader
-meets a grid of them.
-
-The self-healing loop has been driven through a full cycle against a controlled fixture
-site. On a real layout mutation it detected the break, named the signal, repaired the
-collector and scored the result — `field_accuracy 1.0`, and the non-regression check
-passed, meaning the repair also still works against the layout it was built for. The
-collector id was unchanged throughout, which is the property the design rests on. The
-repair was confirmed to persist by re-running the collector from a cold process. On an
-unmutated control page the detector stayed silent, which is the only measurement that can
-show it is not simply firing on everything.
-
-`medicines.org.uk` cannot be broken on cue, which is why that evidence comes from a site
-we control — see `docs/GOLDEN_BENCHMARK.md`.
-
-Nothing here is production-ready, and nothing it outputs is medical advice.
-
-## Deploying
-
-The web app goes to Vercel (root directory `web`, with `API_URL` set to the API's
-public URL); the API goes to Render as a free web service. Neither needs a card.
-
-The corpus is shipped, not scraped in place. `ixq run` writes `data/*.db` locally,
-`docker build` bakes them into the image, and refreshing the data means a rebuild and
-a redeploy. The API only ever reads, so the container needs a writable filesystem —
-`bdheal`'s schema is applied on every connection — but never a persistent one: nothing
-written at runtime outlives the request that wrote it. That is what lets it sit on a
-free tier at all, since Render's free instances have no persistent disk. It serves
-every endpoint in about 70 MB against the free instance's 512 MB.
-
-`data/` is gitignored, so the image is **built locally and pushed to a registry**;
-letting Render build from the repo would produce a service with empty databases.
-
-```bash
-# one-time: a GitHub personal access token with write:packages
-echo $GH_TOKEN | docker login ghcr.io -u <github-user> --password-stdin
-
-# every release: build, push, and tell Render to pull the new tag
-make release
-```
-
-`make release` reads `GH_USER` and `RENDER_DEPLOY_HOOK` from `.env`, which is gitignored;
-pass them in the environment instead if you keep them elsewhere.
-
-Create the service once as a Render **web service from an existing image** — not a
-private service, which only other Render services can reach — pointing at
-`ghcr.io/<github-user>/ixq-api` with the port set to 8000. Make the GHCR package public
-and no registry credentials are needed.
-
-`make release` exists because none of this can move to CI: `data/` is gitignored, so a
-GitHub Actions runner has no corpus to bake in. Its build flags are both load-bearing —
-Render requires `linux/amd64`, and without `--provenance=false` buildx emits a
-multi-arch manifest list it will not pull. The final `curl` is Render's deploy hook,
-taken from the service's Settings tab; an image-backed service never redeploys itself
-when a tag is pushed. Keep the hook URL in the environment, not in a file: it is a
-secret that triggers a deploy for anyone holding it.
-
-A free Render service spins down after 15 minutes idle, and every page is a Server
-Component, so a sleeping API does not degrade a page — it stalls it. An external pinger
-(cron-job.org) holds `/health` inside that window.
-
-It was a scheduled GitHub Action first, and that does not work: `schedule` is best-effort,
-and over 24 consecutive runs the requested 13-minute interval was delivered at a mean of
-22 minutes, ranging to 46. Twenty-one of those 24 gaps exceeded the spin-down threshold,
-and nine runs took 39-41s rather than 7s because the ping itself was waking a service that
-had already gone to sleep. A scheduler with 20 minutes of jitter cannot hold a 15-minute
-window; use something built for it.
-
-Uptime is the binding constraint on the free plan, not memory or image size. The
-allowance is 750 instance hours per workspace per calendar month against the 744 a
-service running continuously uses in a 31-day month — six hours of margin, and only for
-one service. Which is why the web half lives on Vercel.
-
-The same image runs unmodified on Cloud Run (`--port 8000 --allow-unauthenticated`) if a
-Google billing account is ever available; Render is the default because it needs no card.
-
-Every page is a Server Component, so the browser never calls the API and the API needs
-no CORS configuration. Before pushing a change, run the image with no volume mounted —
-that is what proves the baked databases are present:
-
-```bash
-docker run --rm -p 8099:8000 "$IMG"
-curl localhost:8099/substances   # empty array means the databases did not ship
-```
-
-## Development
-
-Everything runs in Docker; nothing is installed on the host.
-
-```bash
-docker compose watch   # start both services with live reload
-docker compose down    # stop
-```
-
-- API — http://localhost:8000 (`/health`, `/docs`)
-- Web — http://localhost:3000
-
-### Re-deriving findings without a fetch
-
-Sections are stored verbatim, so what counts as a clause and what concept it carries can
-both be recomputed from them. After a change to the clause splitter or the lexicon:
-
-```bash
-ixq reclassify              # every substance
-ixq reclassify --substance ramipril
-```
-
-`ixq run` would re-fetch the corpus to answer a question the stored bytes already answer,
-and every fetch is billable.
-
-### Upgrading an existing database
-
-The schema is create-only and `connect()` refuses a file it does not recognise, so a
-database collected under an earlier build has to be moved forward before the API will
-open it:
-
-```bash
-ixq upgrade
-```
-
-It only ever adds columns, and it leaves them NULL — a document fetched before a field
-existed has no value for it, and inventing one would state something about a page nobody
-looked at. Deleting the database instead is not a free recovery: it holds hundreds of
-billable fetches that `ixq init` does not restore.
-
-`docker compose watch` copies changed files into the running containers rather
-than bind-mounting the working tree, so build artifacts (`.next`,
-`node_modules`, `__pycache__`) stay inside the containers and never land in
-your checkout.
-
-### Adding dependencies
-
-```bash
-make add-py pkg=httpx    # Python, into ixq
-make add-py pkg=httpx member=bdheal
-make add-js pkg=zod      # Node
-docker compose build     # rebuild images with the new dependency
-```
-
-The Makefile exists only for these and `make release`: the underlying `docker
-compose run` invocations are long, and the `--user` flag they need on Linux must
-be omitted on macOS. `make lock` regenerates both lockfiles after a manual manifest edit.
-
-`uv.lock` and `web/pnpm-lock.yaml` are committed and the images install
-frozen, so builds are reproducible across machines.
+MIT
