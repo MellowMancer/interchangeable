@@ -74,16 +74,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 Home
               </Link>
               <Link
-                href="/collectors"
-                className="font-mono text-kicker text-ink-muted hover:text-ink"
-              >
-                Reliability
-              </Link>
-              <Link
                 href="/reading"
                 className="font-mono text-kicker text-ink-muted hover:text-ink"
               >
                 How to read this
+              </Link>
+              <Link
+                href="/collectors"
+                className="font-mono text-kicker text-ink-muted hover:text-ink"
+              >
+                Data source
               </Link>
               <ThemeToggle />
             </div>

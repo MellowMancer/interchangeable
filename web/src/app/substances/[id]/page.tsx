@@ -5,6 +5,7 @@ import { AppearanceRail, DosageGlyph, undrawnBecause } from "@/lib/appearance";
 import { Concepts, Diverges, Makers } from "@/lib/icons";
 import { Comparison, Maker } from "@/lib/compare";
 import { Carousel } from "@/lib/carousel";
+import { Pack } from "@/lib/pack";
 import { Back } from "@/lib/trail";
 import { notFound } from "next/navigation";
 import {
@@ -91,7 +92,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
         <ul className="animate-deal -mx-6 flex snap-x gap-4 overflow-x-auto px-6 pb-2">
           {matrix.products.map((product) => (
             <li key={product.external_id} className="w-64 shrink-0 snap-start">
-              <ProductCard product={product} />
+              <ProductCard product={product} substance={matrix.substance_name} />
             </li>
           ))}
         </ul>
@@ -258,25 +259,33 @@ const Count = ({
 );
 
 /** One label of this substance, as a card on the shelf. */
-function ProductCard({ product }: { product: ProductColumn }) {
+/**
+ * A label on the shelf, drawn as the same pack the index draws.
+ *
+ * One object for a product across the whole site: what a reader learned to read on the
+ * front door reads the same here. The bars stay unfilled — a `ProductColumn` carries no
+ * placements, and a card is not entitled to guess at marks it was not given.
+ */
+function ProductCard({ product, substance }: { product: ProductColumn; substance: string }) {
   const drawable = product.appearance && undrawnBecause(product.appearance).length === 0;
 
   return (
     <Link
       href={`/products/${product.external_id}`}
-      className="flex h-full flex-col gap-2 border border-rule p-4 transition-transform hover:-translate-y-0.5 hover:border-accent hover:bg-rule/30"
+      className="block h-full rounded-sheet transition-transform hover:-translate-y-0.5 hover:bg-rule/30"
     >
-      <span className="flex h-8 items-center">
-        {drawable && product.appearance ? (
-          <DosageGlyph appearance={product.appearance} />
-        ) : (
-          <span className="font-mono text-ink-muted">—</span>
-        )}
-      </span>
-      <span className="text-meta">{manufacturer(product)}</span>
-      <span className="font-mono text-kicker text-ink-muted">
-        {product.variant ?? product.name}
-      </span>
+      <Pack
+        product={product.name}
+        substance={substance}
+        form={product.variant}
+        holder={manufacturer(product)}
+        placements={product.placements}
+        glyph={
+          drawable && product.appearance ? (
+            <DosageGlyph appearance={product.appearance} />
+          ) : null
+        }
+      />
     </Link>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Section } from "@/lib/heading";
 import { getBenchmark, type BenchCase, type BenchRun } from "@/lib/api";
 
-export const metadata: Metadata = { title: "Reliability" };
+export const metadata: Metadata = { title: "Data source" };
 
 /**
  * What Scraper Studio is running, and how the repair loop has actually scored.
@@ -20,7 +20,7 @@ export default async function CollectorsPage() {
   return (
     <div className="space-y-12">
       <header className="space-y-4">
-        <h1 className="font-serif text-title font-normal tracking-tight">Reliability</h1>
+        <h1 className="font-serif text-title font-normal tracking-tight">Data source</h1>
         <p className="max-w-prose text-ink-muted">
           Each collector is a Bright Data Scraper Studio template. When a page&apos;s
           structure drifts, <code className="font-mono text-meta text-ink">bdheal</code>{" "}

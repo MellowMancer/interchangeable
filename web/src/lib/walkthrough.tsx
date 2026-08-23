@@ -100,9 +100,15 @@ function Tour() {
   const invited = params.get(PARAM) !== null;
 
   useEffect(() => {
+    // An invitation outranks a dismissal. `?tour=1` is someone asking for this on purpose
+    // — from the hero, or from the guide's replay link — and a reader who skipped it once
+    // and then went looking for it must not be told no by their own earlier decision.
+    if (invited) {
+      dismissed.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      return setOpen(true);
+    }
     if (dismissed.current) return setOpen(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (invited) return setOpen(true);
     // Not just "do nothing off the landing page": the overlay traps focus and locks the
     // body, so leaving it open through a client-side navigation carries both onto a page
     // that never asked for them.
@@ -472,19 +478,33 @@ function Sorted() {
  * putting it here would answer the question before it has been asked.
  */
 function Shelf() {
+  /*
+   * Read off the matrix the next beat draws, so the two agree by construction.
+   *
+   * A card on the index carries every section its label files something in; here the set
+   * is what these six concepts show, which is what a reader can check against the table
+   * two screens later. Absence is not a mark — it is the one thing a bar must never claim.
+   */
+  const worn = (column: number) => [
+    ...new Set(
+      MATRIX.map((row) => row.placements[column]).filter((placement) => placement !== "absent"),
+    ),
+  ].sort();
+
   return (
     <div className="space-y-3">
       <p className="font-mono text-kicker text-ink-muted">
         Ibuprofen · {SIBLINGS.length} of {COLLECTED_LABELS} labels
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
-        {SIBLINGS.map((sibling) => (
+        {SIBLINGS.map((sibling, column) => (
           <Pack
             key={sibling.name}
             product={sibling.short}
             substance={HERO.substance}
             form={sibling.form}
             holder={sibling.holder}
+            placements={worn(column)}
             name={makerName(sibling.maker)}
           />
         ))}
@@ -741,14 +761,14 @@ const BEATS: Beat[] = [
   {
     title: "Every product has a label",
     caption:
-      "Behind that box is a long legal document: what it is for, who must not take it, how to take it carefully, what else changes it, and what is in it. These are the parts this site collects.",
+      "Behind that box is a long legal document: what it is for, who must not take it, how to take it carefully, what else changes it, and what is in it.",
     aside: <HeroPack />,
     stage: <Document />,
   },
   {
-    title: "The label files each thing in a section",
+    title: "The label files each concept into 5 sections",
     caption:
-      "A concept is a thing a label talks about. A placement is the section it was filed in. Five sections, five marks — and you have now met all of them.",
+      "A concept is a thing a label talks about. A placement is the section it was filed in. 20-30 concepts -> 5 sections",
     aside: <Document aside />,
     stage: <Sorted />,
   },
@@ -760,30 +780,30 @@ const BEATS: Beat[] = [
     stage: <Shelf />,
   },
   {
-    title: "Compare each product",
+    title: "Are they the same?",
     caption:
-      "Each row displays the placement the products categorised the concept (e.g. fertility) into.",
+      "Despite being derived from the same substance, the labels between them often disagree. We show you these disagreements per concept.",
     aside: null,
     stage: <Grid rows={MATRIX} legend />,
   },
   {
-    title: "And this is a finding",
+    title: "What do they disagree on?",
     caption:
-      "Six labels for the same drug, and they do not agree about children. One says ibuprofen must not be given to a child under six; the other five file children under a warning instead. That disagreement is the whole point of this site.",
+      "Find out and analyse exactly where each product stands.", 
     aside: null,
     stage: <Disagreement />,
   },
   {
-    title: "And you can check it",
+    title: "See why they disagree",
     caption:
-      "That mark is not our summary. It is one sentence in the contraindications section of Milpharm's label — its last 114 characters — and every mark on this site opens onto the words that earned it.",
+      "Every verdict on this site opens onto the words that earned it. One product says ibuprofen must not be given to a child under six, while the other five products file it under a warning instead.",
     aside: null,
     stage: <Disagreement expand={EVIDENCE.placement} />,
   },
   {
-    title: "That is the whole site",
+    title: "You are ready to go!",
     caption:
-      "Pick any product and you can see, in the label's own words, where the company making it disagrees with everyone else making the same drug.",
+      "Select any product to get started. And remember to be well informed before replacing one generic for another!",
     aside: null,
     stage: <Conclusion />,
   },

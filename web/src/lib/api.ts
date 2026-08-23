@@ -77,6 +77,8 @@ export type ProductColumn = {
   source_url: string | null;
   /** Sections read for THIS label. An absence in this column means absent from these. */
   scanned: string[];
+  /** Every section this label files something in, strongest first. */
+  placements: string[];
   /** Section 3, when one has been collected. Never in `scanned` — it is not a placement. */
   appearance: Appearance | null;
 };

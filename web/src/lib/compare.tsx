@@ -452,8 +452,17 @@ function DivergenceTable({
                     {product.discontinued && (
                       <span className="block font-mono text-kicker text-accent">discontinued</span>
                     )}
+                    {/* Clamped for the same reason the presentation above it is, and more
+                        urgently: §8 lists one PL number per strength, so a page covering
+                        four of them carries all four here — two hundred characters across
+                        four lines, which widened one column until the rest left the
+                        screen. The whole value stays in the tooltip and on the label's own
+                        page; a column heading only has to identify the column. */}
                     {!compact && product.ma_number && (
-                      <span className="block font-mono text-kicker text-ink-muted">
+                      <span
+                        title={product.ma_number}
+                        className="block max-w-44 truncate font-mono text-kicker text-ink-muted"
+                      >
                         {product.ma_number}
                       </span>
                     )}
