@@ -42,11 +42,24 @@ class Clause:
             raise ValueError("a clause with no text has nothing to classify")
 
 
-HEADER = re.compile(r"\s*\d+\.\d+\s+[A-Za-z][A-Za-z, ]*")
+HEADER = re.compile(r"\s*(\d+\.\d+)\s+[A-Za-z][A-Za-z, ]*")
 """A section heading: a number, then words. Matched with `fullmatch`, deliberately.
 
 A prefix match would eat real clauses — `2.5 mg/5 ml oral solution` and `1.5 g daily in
 renal impairment` both open with `d.d` and are contraindications, not headings.
+
+**The number must be the section's own.** Shape alone does not distinguish a heading from
+a numbered list item, and a label that numbers its indications writes content that looks
+exactly like one. Lexpec's §4.1 lists `3.1 Tropical sprue` and `3.2 Coeliac disease` under
+`3. Malabsorption syndromes`; both were dropped as headings, and `3.3 Non-tropical sprue`
+survived only because its hyphen is not in the trailing class — two indications lost from
+a label, and the arbitrariness of which one lived is the tell.
+
+Scoped to the section's own code, an echoed `4.1 Therapeutic indications` inside §4.1 is
+still dropped and a numbered item is not. The residual risk is one section quoting
+another's heading, which is kept rather than dropped — the direction this file already
+argues for, since an unclassified clause is a visible gap and a dropped one is an
+invisible false absence.
 """
 
 BULLET_GLYPHS = "•▪▫●○‣⁃∙"
@@ -194,19 +207,25 @@ def clauses(section: Section) -> list[Clause]:
     found: list[Clause] = []
     cut = 0
     for boundary in SEGMENT.finditer(text):
-        _emit(text, cut, boundary.start(), found)
+        _emit(text, cut, boundary.start(), found, section.code)
         cut = boundary.end()
-    _emit(text, cut, len(text), found)
+    _emit(text, cut, len(text), found, section.code)
     return found
 
 
-def _emit(text: str, lo: int, hi: int, found: list[Clause]) -> None:
+def _echoes(body: str, code: str) -> bool:
+    """Whether the fragment is this section restating its own heading."""
+    header = HEADER.fullmatch(body)
+    return header is not None and header.group(1) == code
+
+
+def _emit(text: str, lo: int, hi: int, found: list[Clause], code: str) -> None:
     """Append the segment at `[lo, hi)` as a clause, unless it asserts nothing."""
     start, end = _trim(text, lo, hi)
     if end <= start:
         return
     body = text[start:end]
-    if not HAS_CONTENT.search(body) or HEADER.fullmatch(body) or LEAD_IN.search(body):
+    if not HAS_CONTENT.search(body) or _echoes(body, code) or LEAD_IN.search(body):
         return
     found.append(Clause(start=start, end=end, text=body))
 
