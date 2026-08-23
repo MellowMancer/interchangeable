@@ -760,9 +760,9 @@ const BEATS: Beat[] = [
     stage: <Shelf />,
   },
   {
-    title: "Put all six labels side by side",
+    title: "Compare each product",
     caption:
-      "One row per concept, one column per manufacturer, one mark for where each label filed it. A row whose marks differ is a finding.",
+      "Each row displays the placement the products categorised the concept (e.g. fertility) into.",
     aside: null,
     stage: <Grid rows={MATRIX} legend />,
   },
