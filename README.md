@@ -145,13 +145,15 @@ when a tag is pushed. Keep the hook URL in the environment, not in a file: it is
 secret that triggers a deploy for anyone holding it.
 
 A free Render service spins down after 15 minutes idle, and every page is a Server
-Component, so a sleeping API does not degrade a page — it stalls it. `.github/workflows/
-keep-warm.yml` pings `/health` every 13 minutes to stay inside that window.
+Component, so a sleeping API does not degrade a page — it stalls it. An external pinger
+(cron-job.org) holds `/health` inside that window.
 
-GitHub delays scheduled workflows under load, sometimes past the 15-minute threshold, so
-treat the workflow as best-effort: a lapsed ping costs one ~12s cold start, not an
-outage. A dedicated pinger (cron-job.org, UptimeRobot) holds the interval more reliably
-if the demo must never wait.
+It was a scheduled GitHub Action first, and that does not work: `schedule` is best-effort,
+and over 24 consecutive runs the requested 13-minute interval was delivered at a mean of
+22 minutes, ranging to 46. Twenty-one of those 24 gaps exceeded the spin-down threshold,
+and nine runs took 39-41s rather than 7s because the ping itself was waking a service that
+had already gone to sleep. A scheduler with 20 minutes of jitter cannot hold a 15-minute
+window; use something built for it.
 
 Uptime is the binding constraint on the free plan, not memory or image size. The
 allowance is 750 instance hours per workspace per calendar month against the 744 a
