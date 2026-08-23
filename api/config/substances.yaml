@@ -150,3 +150,23 @@ substances:
     name: Oxycodone
   - id: betahistine
     name: Betahistine
+  - id: paracetamol
+    name: Paracetamol
+  - id: aspirin
+    name: Aspirin
+  - id: codeine
+    name: Codeine
+  - id: diclofenac
+    name: Diclofenac
+  - id: loratadine
+    name: Loratadine
+  - id: chlorphenamine
+    name: Chlorphenamine
+  - id: loperamide
+    name: Loperamide
+  - id: hydrocortisone
+    name: Hydrocortisone
+  - id: warfarin
+    name: Warfarin
+  - id: folic-acid
+    name: Folic acid
