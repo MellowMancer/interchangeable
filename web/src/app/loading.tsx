@@ -4,9 +4,9 @@ import { Bar, Loading } from "@/lib/skeleton";
  * The landing page, before the roster arrives.
  *
  * Shaped against `page.tsx` and `roster.tsx` rather than drawn generically: the hero is a
- * two-column grid whose right half only exists from `lg`, and the roster is a two-column
- * bordered list, not a card grid. A placeholder that reflows into a different layout is
- * worse than no placeholder, because the page moves under the reader twice.
+ * two-column grid whose right half only exists from `lg`, and the roster is a grid of
+ * packs that widens with the viewport. A placeholder that reflows into a different layout
+ * is worse than no placeholder, because the page moves under the reader twice.
  */
 export default function RootLoading() {
   return (
@@ -32,34 +32,22 @@ export default function RootLoading() {
       </header>
 
       <div className="space-y-3">
-        <Bar className="h-3 w-44" />
+        <Bar className="h-3 w-48" />
         <div className="flex gap-3">
           <Bar className="h-14 w-full" />
           <Bar className="h-14 w-28 shrink-0" />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <Bar className="h-6 w-44" />
-      </div>
-
       <section className="space-y-6">
         <Bar className="h-5 w-48" />
-        <ul className="grid border-t border-rule md:grid-cols-2">
-          {Array.from({ length: 6 }, (_, i) => (
-            <li
-              key={i}
-              className="space-y-4 border-b border-rule p-6 md:odd:border-r md:odd:last:border-r-0"
-            >
-              <Bar className="h-5 w-40" />
-              <div className="flex gap-4">
-                <Bar className="h-3 w-20" />
-                <Bar className="h-3 w-24" />
-              </div>
-              <div className="space-y-1.5">
-                <Bar className="h-3" />
-                <Bar className="h-3 w-5/6" />
-              </div>
+        {/* One block per pack rather than the rules inside it: a pack is a bordered card
+            of a settled height, and drawing its six blister cells in the pulse would be
+            a picture of a box rather than a placeholder for one. */}
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, i) => (
+            <li key={i}>
+              <Bar className="h-48" />
             </li>
           ))}
         </ul>

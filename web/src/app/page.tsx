@@ -1,14 +1,22 @@
 import Link from "next/link";
-import { getMatrix, getSubstances, manufacturer, type Matrix, type ProductColumn } from "@/lib/api";
+import {
+  getMatrix,
+  getProducts,
+  getSubstances,
+  manufacturer,
+  type Matrix,
+  type ProductColumn,
+} from "@/lib/api";
 import { DosageGlyph, undrawnBecause } from "@/lib/appearance";
 import { featuredSubstance } from "@/lib/finding";
 import { Roster } from "@/lib/roster";
 
 /**
- * The roster, and what a comparison of each substance would show.
+ * Every collected label, as the box it is printed on.
  *
- * A card carries its strongest disagreements rather than only a count, so the choice of
- * what to open is made on the finding rather than on the name.
+ * The roster lists products rather than substances because that is what a reader is
+ * holding: a box with a brand and a manufacturer on it, not an active ingredient. Each
+ * one opens onto its own label, and the comparison is a step further in.
  *
  * The list itself is handed to `Roster`, which filters it as the reader types. That is
  * the one place in the application that runs in the browser; everything here, including
@@ -18,9 +26,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const { q } = await searchParams;
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
 
-  const substances = await getSubstances();
-  // One extra read, for the hero: the roster carries names but not what a tablet looks
-  // like, and the scene is two boxes rather than two strings.
+  // The roster and the hero ask different questions of the corpus, so they are two reads
+  // rather than one — issued together, because neither depends on the other.
+  const [products, substances] = await Promise.all([getProducts(), getSubstances()]);
+  // The hero needs what a tablet looks like, which neither list carries.
   //
   // The substance whose labels disagree most, so the pair on show is a real pair — and
   // never at the cost of the page: the roster is the reason to be here, so a failing
@@ -49,18 +58,22 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           The question mark is deliberate. This asks whether these products really are
           interchangeable.
         </p>
+        {/* The walkthrough rather than the guide: it runs itself once on a first
+            arrival, and this is how anyone gets back to it afterwards. `?tour=1` is
+            what lets a Server Component open a client overlay — this application has
+            no provider to reach for. */}
         <Link
-          href="/reading"
+          href="/?tour=1"
           className="inline-flex items-baseline gap-2 border-b border-accent pb-1 text-meta text-accent hover:border-ink hover:text-ink"
         >
-          New here? Learn how to read this first
+          New here? Start with the walkthrough
           <span aria-hidden>→</span>
         </Link>
         </div>
         <SameDrug matrix={staged} />
       </header>
 
-      <Roster substances={substances} query={query} />
+      <Roster products={products} query={query} />
     </div>
   );
 }

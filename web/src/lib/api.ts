@@ -127,6 +127,26 @@ export type ValueSection = {
   total: number;
 };
 
+/**
+ * A row of the product index: what a box says, and which comparison it opens onto.
+ *
+ * Not a `ProductColumn`. The index carries every collected label at once, so it holds only
+ * the strings a card prints — nothing that scales with the sections or rows of a
+ * comparison.
+ */
+export type ProductSummary = {
+  external_id: string;
+  name: string;
+  /** Strength and form, read off the name. `null` when the name does not carry both. */
+  variant: string | null;
+  ma_holder: string | null;
+  substance_id: string;
+  substance_name: string;
+  /** The distinct sections this label files anything in, strongest first. */
+  placements: string[];
+  appearance: Appearance | null;
+};
+
 export type SubstanceSummary = {
   id: string;
   name: string;
@@ -227,6 +247,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const getSubstances = () => get<SubstanceSummary[]>("/substances");
+export const getProducts = () => get<ProductSummary[]>("/products");
 export const getCollectors = () => get<CollectorHealth[]>("/collectors");
 export const getBenchmark = () => get<BenchRun[]>("/benchmark");
 
@@ -271,7 +292,7 @@ export async function getMatrix(id: string): Promise<Matrix | null> {
  * Never falls back to the product name: that is a different kind of thing, and dropping
  * one into a column of company names is indistinguishable from a real holder.
  */
-export const manufacturer = (product: ProductColumn) =>
+export const manufacturer = (product: Pick<ProductColumn, "external_id" | "ma_holder">) =>
   product.ma_holder ?? product.external_id;
 
 /**
