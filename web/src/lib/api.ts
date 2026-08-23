@@ -30,6 +30,21 @@ export type Row = { concept: string; diverges: boolean; cells: Cell[] };
  * `length_mm` and `width_mm` are `null` on a label stating no dimensions — unknown, and
  * never a size borrowed from a product that does state one.
  */
+/**
+ * What it takes to draw a dose, which is less than a label states about one.
+ *
+ * `Appearance` satisfies this structurally, so the product page keeps passing its whole
+ * parsed description while the index sends only these three fields. That difference is
+ * 119 KB of §3 prose across 744 cards — a quarter of the payload, for text no card shows.
+ */
+export type Drawable = {
+  shape: string | null;
+  colours: string[];
+  unparsed: string[];
+  /** The words the drawing was generated from, where the caller has them. */
+  source_text?: string;
+};
+
 export type Appearance = {
   source_text: string;
   shape: string | null;
@@ -144,7 +159,8 @@ export type ProductSummary = {
   substance_name: string;
   /** The distinct sections this label files anything in, strongest first. */
   placements: string[];
-  appearance: Appearance | null;
+  /** Only what the card draws — the §3 prose it came from stays on the product's page. */
+  appearance: Drawable | null;
 };
 
 export type SubstanceSummary = {

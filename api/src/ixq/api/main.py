@@ -127,6 +127,23 @@ class Row(BaseModel):
     cells: list[Cell]
 
 
+class GlyphView(BaseModel):
+    """What it takes to draw a dose, which is less than a label states about one.
+
+    The index draws 744 of these at once. `AppearanceView` carries the §3 prose the drawing
+    was derived from, which is right on a product's own page — it is quoted there, beside
+    the drawing, as the thing a reader checks it against. On a card it is 119 KB of text
+    nothing renders, a quarter of the response.
+
+    So the narrow shape is not a summary of the wide one: it is the subset a card actually
+    consumes, and the prose stays where it is read.
+    """
+
+    shape: str | None = None
+    colours: list[str] = []
+    unparsed: list[str] = []
+
+
 class AppearanceView(BaseModel):
     """What one manufacturer says its product looks like, and what parsed out of it.
 
@@ -775,6 +792,18 @@ def _value_sections(
     return sections
 
 
+def _glyph(section_text: str | None) -> GlyphView | None:
+    """The drawable subset of a §3 description, for a screen that draws hundreds at once."""
+    described = _appearance(section_text)
+    if described is None:
+        return None
+    return GlyphView(
+        shape=described.shape,
+        colours=described.colours,
+        unparsed=described.unparsed,
+    )
+
+
 def _appearance(section_text: str | None) -> AppearanceView | None:
     """§3 parsed for display, or None when no §3 is stored for this label.
 
@@ -827,7 +856,7 @@ class ProductSummary(BaseModel):
     never `ABSENT`: a card carries no concept, so it has nothing to be absent *about*, and
     an unfilled mark here would be a claim the index is not entitled to make.
     """
-    appearance: AppearanceView | None = None
+    appearance: GlyphView | None = None
 
 
 @app.get("/products", response_model=list[ProductSummary])
@@ -850,7 +879,7 @@ def products(repo: Repository = Depends(repository)) -> list[ProductSummary]:
             substance_id=product.substance_id,
             substance_name=named.get(product.substance_id, product.substance_id),
             placements=[Placement(code) for code in placed.get(product.external_id, [])],
-            appearance=_appearance(described.get(product.external_id)),
+            appearance=_glyph(described.get(product.external_id)),
         )
         for product in repo.products_with_labels()
     ]

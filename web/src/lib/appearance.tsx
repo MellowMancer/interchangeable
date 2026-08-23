@@ -18,7 +18,7 @@
  */
 
 import Link from "next/link";
-import { manufacturer, type Appearance, type ProductColumn } from "./api";
+import { type Drawable, manufacturer, type ProductColumn } from "./api";
 
 /**
  * Colour word to fill. The product's colour vocabulary, and the only place it lives.
@@ -97,7 +97,7 @@ function fillFor(word: string): string | null {
 }
 
 /** Every colour as a fill, or `null` if any one of them is unknown here. */
-function fillsFor(appearance: Appearance): string[] | null {
+function fillsFor(appearance: Drawable): string[] | null {
   const found = appearance.colours.map(fillFor);
   return found.length > 0 && found.every((fill) => fill !== null) ? (found as string[]) : null;
 }
@@ -109,7 +109,7 @@ function fillsFor(appearance: Appearance): string[] | null {
  * above does not carry is exactly as undrawable as a colour the parser never found, and
  * both must reach the reader rather than one silently becoming a default fill.
  */
-export function undrawnBecause(appearance: Appearance): string[] {
+export function undrawnBecause(appearance: Drawable): string[] {
   const reasons = new Set(appearance.unparsed);
   if (!SHAPES[appearance.shape ?? ""]) reasons.add("shape");
   if (!fillsFor(appearance)) reasons.add("colour");
@@ -126,7 +126,7 @@ export function undrawnBecause(appearance: Appearance): string[] {
  * Left-aligned in its column rather than centred, so a drawing sits directly above the
  * text it was generated from instead of floating away from it.
  */
-export function DosageGlyph({ appearance }: { appearance: Appearance }) {
+export function DosageGlyph({ appearance }: { appearance: Drawable }) {
   const fills = fillsFor(appearance);
   const draw = SHAPES[appearance.shape ?? ""];
   if (!fills || !draw) return null;
@@ -136,7 +136,11 @@ export function DosageGlyph({ appearance }: { appearance: Appearance }) {
       viewBox="0 0 120 56"
       preserveAspectRatio="xMinYMid meet"
       role="img"
-      aria-label={`Schematic drawing generated from this label's description: ${appearance.source_text}`}
+      // The label's own words where they were sent, and the drawn facts where they were
+      // not. Never a bare "drawing": what it was derived from is the point of it.
+      aria-label={`Schematic drawing generated from this label's description: ${
+        appearance.source_text ?? [...appearance.colours, appearance.shape].join(" ")
+      }`}
       className="h-14 w-full stroke-ink-muted"
       strokeWidth={1.5}
     >
