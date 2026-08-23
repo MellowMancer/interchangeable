@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from ixq.domain import Section
+from ixq.domain import Occurrence, Product, Section
 from ixq.pipeline.ports import Repository
 from conftest import SECTION_43, SOURCE_ID, SUBSTANCE_ID, divergent_corpus
 
@@ -58,6 +58,86 @@ def test_the_roster_reports_how_much_has_been_collected(
             "labels": ["Ex 1", "Alpha Ltd", "Ex 2", "Beta Ltd"],
         }
     ]
+
+
+def test_the_product_index_carries_only_products_with_a_label(
+    client: TestClient, repository: Repository
+) -> None:
+    """A product with no stored label has no page to open, so the index omits it."""
+    divergent_corpus(repository)
+    with repository.transaction():
+        repository.save_product(
+            Product(
+                source_id=SOURCE_ID,
+                external_id="3",
+                substance_id=SUBSTANCE_ID,
+                name="Ex 3 10mg Tablets",
+            )
+        )
+
+    body = client.get("/products").json()
+
+    assert body == [
+        {
+            "external_id": "1",
+            "name": "Ex 1",
+            "variant": None,
+            "ma_holder": "Alpha Ltd",
+            "substance_id": SUBSTANCE_ID,
+            "substance_name": "Ex",
+            "placements": ["4.3"],
+            "appearance": None,
+        },
+        {
+            "external_id": "2",
+            "name": "Ex 2",
+            "variant": None,
+            "ma_holder": "Beta Ltd",
+            "substance_id": SUBSTANCE_ID,
+            "substance_name": "Ex",
+            "placements": ["4.3"],
+            "appearance": None,
+        },
+    ]
+
+
+def test_the_index_reports_each_placement_once_and_never_the_unclassified(
+    client: TestClient, repository: Repository
+) -> None:
+    """A card draws which registers a label speaks in, not how loudly.
+
+    Distinct and in precedence order: a label that contraindicates six things would
+    otherwise fill every bar with one colour and report nothing. `unclassified` is a real
+    value for a clause and never a placement, so it must not reach a bar — drawing it would
+    put a recall gap on the card as though it were a finding.
+    """
+    divergent_corpus(repository)
+    sha = "1".rjust(64, "0")
+    with repository.transaction():
+        # An occurrence is keyed to a section that exists; §6.1 is not in the fixture.
+        repository.save_section(sha, Section(code="6.1", heading="E", text="Lactose"))
+        # The unclassified clause sits in a section no real concept occupies. Filed
+        # beside one, the assertion holds whether or not the query excludes it, and the
+        # test passes over the very line it exists to protect.
+        for concept, code in (
+            ("hepatic", "4.3"),
+            ("cardiac", "4.4"),
+            ("unclassified", "6.1"),
+        ):
+            repository.save_occurrence(
+                Occurrence(
+                    document_sha256=sha,
+                    section_code=code,
+                    concept=concept,
+                    quote="q",
+                    char_start=0,
+                    char_end=1,
+                )
+            )
+
+    indexed = {row["external_id"]: row for row in client.get("/products").json()}
+
+    assert indexed["1"]["placements"] == ["4.3", "4.4"]
 
 
 def test_a_substance_with_nothing_collected_is_not_an_error(client: TestClient) -> None:

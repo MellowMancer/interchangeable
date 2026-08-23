@@ -796,10 +796,64 @@ def _appearance(section_text: str | None) -> AppearanceView | None:
     )
 
 
+def _substance_names() -> dict[str, str]:
+    """The configured roster's display names, by id."""
+    return {s.id: s.name for s in load_substances(config_dir() / "substances.yaml")}
+
+
 def _substance_name(substance_id: str) -> str:
     """The display name from the configured roster, or the id when it names no such one."""
-    names = {s.id: s.name for s in load_substances(config_dir() / "substances.yaml")}
-    return names.get(substance_id, substance_id)
+    return _substance_names().get(substance_id, substance_id)
+
+
+class ProductSummary(BaseModel):
+    """A row of the product index: what a box says, and which comparison it belongs to.
+
+    Deliberately not a `ProductColumn`. This screen covers every collected label at once,
+    so it carries only the four strings a card prints and the substance it opens onto —
+    nothing that scales with the sections or the rows of a comparison.
+    """
+
+    external_id: str
+    name: str
+    variant: str | None = None
+    ma_holder: str | None = None
+    substance_id: str
+    substance_name: str
+    placements: list[Placement] = []
+    """The distinct sections this label files anything in, strongest first.
+
+    A card draws them as a row of marks. Distinct rather than the most binding few, and
+    never `ABSENT`: a card carries no concept, so it has nothing to be absent *about*, and
+    an unfilled mark here would be a claim the index is not entitled to make.
+    """
+    appearance: AppearanceView | None = None
+
+
+@app.get("/products", response_model=list[ProductSummary])
+def products(repo: Repository = Depends(repository)) -> list[ProductSummary]:
+    """Every product a label has been collected for.
+
+    Counted in storage rather than by comparing each substance in turn: this is the same
+    read-the-whole-corpus-per-navigation trap `counts_by_substance` exists to keep the
+    roster out of.
+    """
+    named = _substance_names()
+    placed = repo.placements_by_product()
+    described = repo.appearances_by_product()
+    return [
+        ProductSummary(
+            external_id=product.external_id,
+            name=product.name,
+            variant=variant(product.name),
+            ma_holder=product.ma_holder,
+            substance_id=product.substance_id,
+            substance_name=named.get(product.substance_id, product.substance_id),
+            placements=[Placement(code) for code in placed.get(product.external_id, [])],
+            appearance=_appearance(described.get(product.external_id)),
+        )
+        for product in repo.products_with_labels()
+    ]
 
 
 @app.get("/products/{product_external_id}", response_model=ProductDetail)

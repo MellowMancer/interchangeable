@@ -151,6 +151,26 @@ class Repository(Protocol):
         """
         ...
 
+    def products_with_labels(self) -> list[Product]:
+        """Every product a label has been stored for, ordered by name.
+
+        The product index covers the whole corpus at once, so it is answered in storage
+        for the same reason `counts_by_substance` is: building a comparison per substance
+        to list names would read every section on every navigation.
+
+        A product with no current document is absent rather than listed: its own page has
+        no label to show, so the index would be offering a dead end.
+        """
+        ...
+
+    def placements_by_product(self) -> dict[str, list[str]]:
+        """The distinct placements on each current label, in precedence order."""
+        ...
+
+    def appearances_by_product(self) -> dict[str, str]:
+        """Every current label's §3 text, keyed by product."""
+        ...
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """Per substance, the three numbers the roster shows. Counted in storage.
 

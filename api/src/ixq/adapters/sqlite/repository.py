@@ -225,6 +225,76 @@ class SqliteRepository:
                     names.append(value)
         return {substance: tuple(names) for substance, names in found.items()}
 
+    def products_with_labels(self) -> list[Product]:
+        """Every product whose current label is stored, in one query."""
+        rows = self._conn.execute(
+            """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
+            SELECT DISTINCT p.*
+            FROM current c
+            JOIN products p
+              ON p.substance_id = c.substance_id
+             AND p.external_id = c.product_external_id
+            ORDER BY p.name
+            """
+        ).fetchall()
+        return [_to_product(row) for row in rows]
+
+    def placements_by_product(self) -> dict[str, list[str]]:
+        """Which sections each label files anything in, in precedence order.
+
+        Every section a concept was found in, not each concept's strongest one. Resolving
+        per concept first and de-duplicating after is the same shape as
+        `counts_by_substance` and wrong here: a section disappears from the card whenever
+        every concept in it also appears in a stronger one. Measured on the corpus, that
+        silently dropped a section from 63% of labels — including the walkthrough's own
+        hero, whose label files things in all five and drew three.
+
+        The comparison resolves; a card reports. They are different questions, and only the
+        comparison is entitled to say which filing wins.
+
+        `unclassified` is excluded. It is a real, reportable value for a clause and never a
+        place a label files anything, so a bar drawn from it would put a recall gap on the
+        card as though it were a finding.
+        """
+        rows = self._conn.execute(
+            """
+            WITH current AS MATERIALIZED ("""
+            + _CURRENT_DOCUMENTS
+            + """)
+            SELECT DISTINCT c.product_external_id AS product, o.section_code AS code
+            FROM occurrences o
+            JOIN current c ON c.sha256 = o.document_sha256
+            WHERE o.concept <> 'unclassified'
+            ORDER BY product, code
+            """
+        ).fetchall()
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            found.setdefault(row["product"], []).append(row["code"])
+        return found
+
+    def appearances_by_product(self) -> dict[str, str]:
+        """Every current label's §3 text, keyed by product rather than by document.
+
+        The per-substance form is keyed by sha because a comparison holds several revisions
+        in flight; the index holds one card per product and never sees a superseded one.
+        """
+        rows = self._conn.execute(
+            """
+            WITH current AS ("""
+            + _CURRENT_DOCUMENTS
+            + """)
+            SELECT c.product_external_id AS product, s.text AS text
+            FROM current c
+            JOIN sections s ON s.document_sha256 = c.sha256 AND s.code = ?
+            """,
+            (appearance.SECTION_CODE,),
+        ).fetchall()
+        return {row["product"]: row["text"] for row in rows}
+
     def counts_by_substance(self) -> dict[str, SubstanceCounts]:
         """The roster's three numbers per substance, counted in SQL.
 
