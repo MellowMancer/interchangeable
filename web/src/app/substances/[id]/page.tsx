@@ -5,6 +5,7 @@ import { AppearanceRail, DosageGlyph, undrawnBecause } from "@/lib/appearance";
 import { Concepts, Diverges, Makers } from "@/lib/icons";
 import { Comparison, Maker } from "@/lib/compare";
 import { Carousel } from "@/lib/carousel";
+import { Back } from "@/lib/trail";
 import { notFound } from "next/navigation";
 import {
   getMatrix,
@@ -48,12 +49,7 @@ export default async function SubstancePage({ params }: PageProps<"/substances/[
   return (
     <div className="space-y-12">
       <header className="space-y-4">
-        <Link
-          href="/"
-          className="inline-block font-mono text-kicker text-ink-muted hover:text-ink"
-        >
-          ← All substances
-        </Link>
+        <Back href={`/substances/${matrix.substance_id}`} label={matrix.substance_name} />
         <h1 className="font-serif text-title font-normal tracking-tight">
           {matrix.substance_name}
         </h1>

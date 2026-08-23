@@ -8,10 +8,12 @@ import {
   manufacturer,
   type ProductColumn,
   type ProductConcept,
+  type ProductDetail,
   type ValueStatement,
 } from "@/lib/api";
 import { DosageGlyph, undrawnBecause } from "@/lib/appearance";
 import { Concepts, Makers } from "@/lib/icons";
+import { Back } from "@/lib/trail";
 import { PlacementBadge } from "@/lib/placement";
 
 /**
@@ -42,14 +44,28 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
 
   return (
     <article className="space-y-12">
-      <Link
-        href={`/substances/${detail.substance_id}`}
-        className="font-mono text-kicker text-ink-muted hover:text-ink"
-      >
-        ← Compare all {detail.substance_name}
-      </Link>
+      <Back
+        href={`/products/${product.external_id}`}
+        label={product.name}
+      />
 
       <Identity detail={detail} />
+
+      {/* The page's one filled control, and the widest thing on it. Everything above
+          describes this box; this is the question the site exists to answer about it, and
+          it was previously a line of grey text at the very top.
+
+          Silent when nothing else of this substance has been collected: the words would
+          promise a shelf that a comparison of one column cannot show. */}
+      {detail.siblings.length > 0 && (
+        <Link
+          href={`/substances/${detail.substance_id}`}
+          className="flex w-full items-center justify-between gap-4 rounded-sheet border border-accent-muted bg-accent-muted px-6 py-5 font-serif text-quote text-paper hover:border-accent hover:bg-accent"
+        >
+          Compare with other similar products
+          <span aria-hidden>→</span>
+        </Link>
+      )}
 
       <section className="space-y-4">
         <Section>
@@ -111,7 +127,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[id]"
           <Section>
             <span className="flex items-center gap-2">
               <Makers />
-              Other {detail.substance_name} labels ({detail.siblings.length})
+              Other <SubstanceLink detail={detail} /> labels ({detail.siblings.length})
             </span>
           </Section>
           <p className="max-w-prose text-meta text-ink-muted">
@@ -139,21 +155,28 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
   const drawable = product.appearance && undrawnBecause(product.appearance).length === 0;
 
   return (
-    <header className="grid gap-8 border border-rule p-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:p-8">
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <p className="font-mono text-kicker text-ink-muted">
-            {detail.substance_name}
-          </p>
-          <h1 className="line-clamp-3 font-serif text-title font-normal tracking-tight">
-            {product.name}
-          </h1>
-          <p className="font-mono text-meta text-ink-muted">
-            {manufacturer(product)}
-            {product.variant && ` · ${product.variant}`}
-          </p>
-        </div>
+    <header className="space-y-8 border border-rule p-6 lg:p-8">
+      {/* The name spans the card rather than sharing the narrow column with the facts.
+          Product names run to 96 characters — "Okedi 75mg powder and solvent for
+          prolonged-release suspension for injection pre-filled syringes" — and at 22rem
+          that clamped to three lines and cut one mid-word. Truncating it is the one thing
+          this page must not do: the name is the label's own words and the whole point of
+          the route is that a product can be cited. */}
+      <div className="space-y-1">
+        <p className="font-mono text-kicker text-ink-muted">
+          <SubstanceLink detail={detail} />
+        </p>
+        <h1 className="font-serif text-title font-normal tracking-tight text-balance">
+          {product.name}
+        </h1>
+        <p className="font-mono text-meta text-ink-muted">
+          {manufacturer(product)}
+          {product.variant && ` · ${product.variant}`}
+        </p>
+      </div>
 
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr]">
+      <div className="space-y-4">
         {drawable && product.appearance && (
           <div className="space-y-2">
             <DosageGlyph appearance={product.appearance} />
@@ -214,9 +237,26 @@ function Identity({ detail }: { detail: Awaited<ReturnType<typeof getProduct>> }
           </p>
         )}
       </div>
+      </div>
     </header>
   );
 }
+
+/**
+ * The substance, wherever this page names it — always a way into the comparison.
+ *
+ * Every mention is the same link, because a reader who has understood that the substance
+ * is the thing many manufacturers share should be able to act on it from the word itself,
+ * not only from the button.
+ */
+const SubstanceLink = ({ detail }: { detail: ProductDetail }) => (
+  <Link
+    href={`/substances/${detail.substance_id}`}
+    className="underline underline-offset-4 hover:text-accent"
+  >
+    {detail.substance_name}
+  </Link>
+);
 
 const Fact = ({ term, value }: { term: string; value: string }) => (
   <>
