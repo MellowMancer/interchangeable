@@ -28,6 +28,8 @@ Clean Architecture. Before creating a file, identify its layer: Entities → Use
 
 Project-specific: FastAPI is the seam between pipeline and UI — the frontend never opens SQLite. Tier cues, lexicon, and agency config are data (`config/*.yaml`), not code.
 
+Motion never carries meaning — `globals.css` neutralises it under `prefers-reduced-motion`. The first-run walkthrough (`lib/walkthrough.tsx`) is the one sanctioned exception and re-declares its durations inside `@layer base` to escape that reset; it is not a bug to fix.
+
 `docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface. Every warning in it was paid for in billable calls; do not rediscover them.
 
 `docs/EMC_FIELDS.md` is the authority on what an EMC product page exposes — check it before assuming a field must be derived or is unavailable.

@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { PLACEMENT_LEGEND } from "@/lib/placement";
 import { Primer } from "@/lib/primer";
 import { ScrollMemory } from "@/lib/scroll";
+import { Walkthrough } from "@/lib/walkthrough";
 import { currentTheme, ThemeToggle } from "@/lib/theme";
 import "./globals.css";
 
@@ -124,6 +125,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
         <ScrollMemory />
         <Primer />
+        <Walkthrough />
       </body>
     </html>
   );

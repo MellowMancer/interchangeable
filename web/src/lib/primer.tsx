@@ -20,7 +20,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /** Remembered across visits, not just this one: being told twice is being nagged. */
-const DISMISSED = "primer-dismissed";
+export const PRIMER_DISMISSED = "primer-dismissed";
 
 export function Primer() {
   const path = usePathname();
@@ -29,7 +29,7 @@ export function Primer() {
   useEffect(() => {
     if (path === "/" || path === "/reading") return;
     try {
-      if (window.localStorage.getItem(DISMISSED)) return;
+      if (window.localStorage.getItem(PRIMER_DISMISSED)) return;
     } catch {
       // Storage unavailable: offering the guide is still the right default.
     }
@@ -42,7 +42,7 @@ export function Primer() {
   const dismiss = () => {
     setShow(false);
     try {
-      window.localStorage.setItem(DISMISSED, "1");
+      window.localStorage.setItem(PRIMER_DISMISSED, "1");
     } catch {
       // Not being able to remember is not a reason to keep showing it this session.
     }

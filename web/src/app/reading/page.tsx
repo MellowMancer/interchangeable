@@ -55,6 +55,15 @@ export default function ReadingPage() {
             Every comparison is one <Term>substance</Term>. Where the columns of a row
             disagree, that row is a finding.
           </p>
+          {/* The same vocabulary shown rather than defined, for anyone who skipped it on
+              the way in or arrived here first. */}
+          <Link
+            href="/?tour=1"
+            className="inline-flex items-baseline gap-2 border-b border-accent pb-1 text-meta text-accent hover:border-ink hover:text-ink"
+          >
+            Replay the walkthrough
+            <span aria-hidden>→</span>
+          </Link>
         </div>
         <Scaffold />
       </header>

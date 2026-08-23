@@ -18,6 +18,13 @@
   --rule: light-dark(#e2ddd6, #2e2a26);
   --accent: light-dark(#8c1d18, #e0685f);
 
+  /* The accent at fill size. A whole button of `--accent` outshouts the page it sits on,
+     and the obvious fix — mixing toward `--paper` — is only obvious in light: in dark it
+     pulls the fill down towards the near-black the label on it is set in, and the contrast
+     goes with it. Desaturating towards `--ink-muted` mutes it in both directions instead,
+     darkening the brick and lifting the salmon, so the text on top keeps its footing. */
+  --accent-muted: color-mix(in srgb, var(--accent) 78%, var(--ink-muted));
+
   /* One pair per Placement member. `-on` is the text colour that sits on the fill. */
   --p-43: light-dark(#8c1d18, #d4554e);
   --p-43-on: light-dark(#fbfaf8, #14110f);
@@ -100,6 +107,7 @@
   --color-ink-muted: var(--ink-muted);
   --color-rule: var(--rule);
   --color-accent: var(--accent);
+  --color-accent-muted: var(--accent-muted);
 
   --color-p43: var(--p-43);
   --color-p43-on: var(--p-43-on);
@@ -192,7 +200,9 @@
     transition-duration: 0s;
   }
 
-  /* Motion is a courtesy, never load-bearing: nothing here conveys meaning by moving. */
+  /* Motion is a courtesy, never load-bearing: nothing here conveys meaning by moving —
+     the first-run walkthrough at the end of this file is the one documented exception,
+     and it re-declares its own durations to escape this reset. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -214,7 +224,8 @@
  *
  * Pure CSS on purpose. Doing this with a motion library would turn these Server
  * Components into client ones and ship a bundle to run entrance animations. The
- * `prefers-reduced-motion` block above neutralises all of it.
+ * `prefers-reduced-motion` block above neutralises all of it, except where the
+ * walkthrough at the end of this file deliberately opts back in.
  */
 /* A shelf a reader drags or steps through; the bar underneath it is noise. */
 .no-scrollbar {
@@ -449,4 +460,182 @@ main > * {
     background-repeat: no-repeat;
     animation: sweep 640ms cubic-bezier(0.2, 0.7, 0.3, 1) 160ms backwards;
   }
+}
+
+/*
+ * The walkthrough, and the one place motion is allowed to mean something.
+ *
+ * Everything above obeys the rule that nothing here conveys meaning by moving. The
+ * first-run walkthrough deliberately does not: text lifting off a drawn box *is* the
+ * explanation of what is printed on a box, and a reader who sees only the end state has
+ * been shown a list, not taught where the list came from.
+ *
+ * The exception is bought, not assumed. Nothing in it advances on its own, so no reader is
+ * carried past something unread; every beat states its lesson in words that stand without
+ * the movement; and it is offered once, on the front door, with a skip in the first frame.
+ *
+ * `.tour *` (0,1,0) outranks the `*` (0,0,0) of the reduced-motion reset above, so the
+ * durations below are restated there rather than fighting `!important` at equal weight.
+ */
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes tour-lift {
+  from {
+    opacity: 0;
+    transform: translateX(-1.25rem);
+  }
+}
+
+@keyframes tour-scroll {
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@layer components {
+  .tour-in {
+    animation: tour-in 420ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+  }
+
+  /*
+   * Longhand, not the shorthand: this rides on `.animate-deal`, which supplies the
+   * per-child delays, and an `animation:` shorthand here would reset them.
+   */
+  .tour-lift {
+    animation-name: tour-lift;
+    animation-duration: 700ms;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+    animation-fill-mode: backwards;
+  }
+
+  .tour-scroll {
+    animation: tour-scroll 34s linear infinite;
+  }
+
+  /* A document continues past its frame; a hard clip mid-sentence reads as a bug. */
+  .tour-window {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 2.25rem,
+      #000 calc(100% - 2.25rem),
+      transparent 100%
+    );
+  }
+}
+
+/*
+ * Inside `base`, because that is where the reset it has to outrank lives.
+ *
+ * Cascade layers invert for `!important`: an important declaration in an earlier layer
+ * beats a later one, and an *unlayered* important declaration is the weakest of all. So
+ * this block cannot sit outside a layer — it would lose to the `base` reset no matter how
+ * specific it was. Same layer, and specificity decides: `.tour .tour-in` (0,2,0) over
+ * `*` (0,0,0).
+ */
+@layer base {
+  @media (prefers-reduced-motion: reduce) {
+    .tour .tour-in {
+      animation-duration: 420ms !important;
+    }
+
+    /* Each at the duration it actually has. One blanket figure made a badge inside the
+       walkthrough faster with reduced motion on than off, and the quote bar slower. */
+    .tour .animate-land {
+      animation-duration: 320ms !important;
+    }
+
+    .tour .animate-grow-x {
+      animation-duration: 520ms !important;
+    }
+
+    .tour .tour-lift {
+      animation-duration: 700ms !important;
+    }
+
+    .tour .tour-scroll {
+      animation-duration: 34s !important;
+    }
+  }
+}
+
+/*
+ * Moving what two beats have in common.
+ *
+ * The pack, the label and each answer are the same objects from one beat to the next, and
+ * a walkthrough that dissolves them and redraws them elsewhere is asserting a continuity it
+ * never shows. A hand-written slide cannot fix that — it only knows where an element ends
+ * up, never where it began — so the positions come from the browser, which measured both.
+ *
+ * Named one at a time rather than through `::view-transition-group(*)`: the universal form
+ * is not carried everywhere yet, and there are four of them.
+ *
+ * The unnamed remainder still crossfades through the root, which is the part that has no
+ * counterpart to travel to. That is not the whole-screen fade this replaced — it runs under
+ * elements that are visibly moving, which is what makes it read as one scene rearranging.
+ */
+::view-transition-group(tour-pack),
+::view-transition-group(tour-label),
+::view-transition-group(tour-grid),
+::view-transition-group(tour-answer-43),
+::view-transition-group(tour-answer-44),
+::view-transition-group(tour-answer-46),
+::view-transition-group(tour-maker-flamingo),
+::view-transition-group(tour-maker-milpharm),
+::view-transition-group(tour-maker-reckitt),
+::view-transition-group(tour-maker-wockhardt),
+::view-transition-group(tour-maker-haleon),
+::view-transition-group(tour-maker-mcneil) {
+  animation-duration: 440ms;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+}
+
+/*
+ * The label and the grid change shape as much as they change place, and a snapshot of the
+ * old shape stretched over the new one is legible as doubled text for as long as it is on
+ * screen. Retiring the outgoing copy early leaves the box travelling and resizing while
+ * only one set of words is being read.
+ */
+::view-transition-old(tour-label),
+::view-transition-old(tour-grid) {
+  animation-duration: 180ms;
+}
+
+::view-transition-new(tour-label),
+::view-transition-new(tour-grid) {
+  animation-duration: 300ms;
+}
+
+/*
+ * A pack becoming its column loses almost all of its content on the way, and a whole box
+ * of small print held at full strength over a column heading is unreadable in both
+ * directions at once. The outgoing pack goes early; the heading it becomes arrives late.
+ */
+::view-transition-old(tour-maker-flamingo),
+::view-transition-old(tour-maker-milpharm),
+::view-transition-old(tour-maker-reckitt),
+::view-transition-old(tour-maker-wockhardt),
+::view-transition-old(tour-maker-haleon),
+::view-transition-old(tour-maker-mcneil) {
+  animation-duration: 160ms;
+}
+
+::view-transition-new(tour-maker-flamingo),
+::view-transition-new(tour-maker-milpharm),
+::view-transition-new(tour-maker-reckitt),
+::view-transition-new(tour-maker-wockhardt),
+::view-transition-new(tour-maker-haleon),
+::view-transition-new(tour-maker-mcneil) {
+  animation-duration: 320ms;
+  animation-delay: 120ms;
 }
