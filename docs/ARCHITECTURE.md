@@ -532,6 +532,61 @@ Real, recorded, none blocking. Say these out loud rather than letting a reader d
   `retry_requested` and `reason` still speak. Consistent with "no baseline means no detector
   ran", but it deserves a regression test next time `detect.py` is touched.
 
+## 17. The source surface, and what it does not have
+
+`bdheal` is source-agnostic; `ixq` is not. These are properties of medicines.org.uk that
+shaped the schema and the UI, verified against served HTML rather than assumed. They are
+recorded here because each one has already been rediscovered at least once.
+
+- **No product photograph of any UK generic exists, anywhere.** EMC has no image concept at
+  all — its sitemap carries only `/smpc` and `/pil` URLs, PIL PDFs contain no embedded
+  images, MHRA's schema has no image field, and the manufacturers have chosen not to publish
+  any. Branded medicines get photography; POM generics get a row in a table. This is not a
+  gap more effort can close. The substitute is §3 *Pharmaceutical form* — the manufacturer's
+  own regulated description — parsed into `AppearanceView` and rendered as a **drawing of
+  our own**, which is why every glyph must read as a schematic and never as a photograph.
+
+- **Two revision dates per page, and they disagree.** `Last updated on emc:` and §10 *Date
+  of revision of the text* differ by up to years. Both are stored — `listing_updated` and
+  `revised` — because they answer different questions, and a reader shown only one cannot
+  tell which staleness they are looking at. Keep publishing the publisher's own string:
+  parsing month-precision text into a date invents a day nobody published.
+
+- **Two company values per page.** The header account name (`Aurobindo Pharma - Milpharm
+  Ltd.`) is not the legal MA holder in §7 (`Milpharm Limited`). `ma_holder` and `holder_id`
+  hold the header one; `ma_holder` is free text, so two spellings of one company become two
+  columns unless `holder_id` is used to group them.
+
+- **No structured strength or pharmaceutical form field.** `variant` is regex-extracted from
+  the product name and is `null` whenever the name does not carry both — 102 of 744 stored
+  labels. A card that assumes it renders a blank line.
+
+- **Marketing status is binary.** A `discontinued` badge is present or absent; there is no
+  suspended or withdrawn state anywhere on the site.
+
+**Licensing — escalate before this is more than a demo.** Datapharm's EMC terms prohibit
+reproducing its content for commercial benefit, building databases from it, and
+systematically tracking changes to third-party information. **That applies to the corpus
+already stored, not only to imagery.** Datapharm offers a licensing route. Nothing needs to
+change for a hackathon submission, but it should be a conscious decision rather than an
+oversight.
+
+## 18. The honesty layer is load-bearing
+
+Four independent places carry the claim that absence is scoped, not asserted. They look
+redundant and are not — each covers a route the others do not reach. **Do not simplify them
+into one.**
+
+- `SectionCoverage` draws uncollected sections dashed, so the scope of an absence is visible
+  beside it.
+- Every absent cell says, in words, that it is not the same as the label being silent.
+- `RecallGap` publishes two counts rather than a flattering percentage.
+- The reliability page distinguishes a *declared* gap — a mutation no detector can see, so
+  silence is the expected result — from a missed detection.
+
+The rule underneath all four: **placement, never omission that was not checked.** A screen
+that cannot say which sections it read is not entitled to report an absence.
+
 ## Working constraint
 
 **No git commits without the user's explicit permission.** No agent working this repository

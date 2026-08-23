@@ -49,6 +49,22 @@ The other two pre-flight items are now enforced rather than remembered: the sing
 clause is a constant with a length guard in `fixtures/benchmark.py`, and the
 `mean_attempts_to_heal` caveat is printed beside the number by the report itself.
 
+**`make release` bakes `data/` into the image.** A release taken mid-run therefore ships a
+half-measured benchmark, which is worse than an old one: the page reports what it has as
+though it were the whole result.
+
+## An upstream failure ends the run, by design
+
+`bdheal.errors.StudioError: scraper run exited 1: fetch failed` is Bright Data failing a
+scrape, not a defect here. The runner catches exactly one exception —
+`VerificationIncompleteError` — and everything else stops the run, because everything else
+is a defect. Seen on 2026-08-23 at case four of ten.
+
+Re-run with the same `--run-id` to resume: finished cases are skipped, and the collector
+memo means the ten collectors are not rebuilt. A memo without a `base_url` **is** discarded
+and everything is rebuilt — about twenty minutes and ten builds of credit — so check it
+carries one before assuming a resume is cheap.
+
 ## Where the details live
 
 This file is the runbook and nothing more. Everything below has exactly one home, and it is

@@ -87,8 +87,19 @@ be read as a stale label rather than a real disagreement.
 
 ## Status
 
-Working end to end for the ramipril corpus: collection, section splitting, concept
+Working end to end across the collected corpus: collection, section splitting, concept
 classification, comparison, an HTTP API, an MCP server and the UI.
+
+As of 2026-08-23 that corpus is **80 substances and 744 products whose current label is
+stored**, carrying **1,007 concepts whose manufacturers do not file them the same way**.
+Not one of the 80 is free of them — every substance collected so far has at least one
+thing its manufacturers disagree about, which is the finding the project exists to test
+and is now measured rather than asserted.
+
+The front door is the product index: every collected label as a drawn pack, searchable by
+product, substance or manufacturer. A first-run walkthrough teaches the four words the
+comparison is written in — substance, product, manufacturer, placement — before a reader
+meets a grid of them.
 
 The self-healing loop has been driven through a full cycle against a controlled fixture
 site. On a real layout mutation it detected the break, named the signal, repaired the

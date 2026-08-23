@@ -12,7 +12,8 @@ all happen inside the same terminal session as the code that calls them.
 - The implementation of `bdheal` across its twelve features: detectors, failure
   classification, the heal gate, verification, persistence, the CLI adapter, and the
   benchmark harness — built feature by feature, each one gated by an independent test pass.
-- The test suite (370 offline tests) and the architecture tests that enforce the layer map.
+- The test suite — 689 offline tests as of 2026-08-23 (265 `ixq`, 393 `bdheal`, 31
+  fixture goldens) — and the architecture tests that enforce the layer map.
 - `docs/BRIGHT_DATA.md` A Stripped down version of the bdata documentation provided by `bdata --help`
 - The nine mutation generators, the fixture renderer, and this repository's documentation.
 

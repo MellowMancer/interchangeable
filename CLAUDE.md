@@ -2,7 +2,7 @@
 
 ## Top priority: clean, structured code
 
-This outranks speed, cleverness, and feature count.
+This outranks cleverness, and feature count.
 
 - **Zero duplication.** Extract shared logic. Never copy-paste a block between files.
 - **Minimal comments.** Code explains itself through naming. Comment only non-obvious *why*, never *what*. No commented-out code.
@@ -32,13 +32,13 @@ Motion never carries meaning — `globals.css` neutralises it under `prefers-red
 
 `docs/BRIGHT_DATA.md` is the authority on the Bright Data CLI surface. Every warning in it was paid for in billable calls; do not rediscover them.
 
-`docs/EMC_FIELDS.md` is the authority on what an EMC product page exposes — check it before assuming a field must be derived or is unavailable.
+`docs/ARCHITECTURE.md` covers `bdheal`, and §17 is the authority on what a source page exposes — no product photography exists anywhere, there are two disagreeing revision dates and two company names per page, and strength and form are parsed from the product name. Check it before assuming a field must be derived or is unavailable. §18 records why the honesty layer is repeated in four places and must not be collapsed into one.
 
-`docs/SITE_GAPS.md` records what the corpus holds and the UI does not show. `docs/ARCHITECTURE.md` covers `bdheal`; `docs/GOLDEN_BENCHMARK.md` covers how self-healing is measured.
+`docs/GOLDEN_BENCHMARK.md` covers how self-healing is measured — including that the benchmark writes `fixtures/run/bench.db` while the API reads `data/bench.db`.
 
 ## Commits
 
-Format — tag, then a one-line summary. **No description body. No Claude co-author trailer.**
+Format — tag, then a one-line summary.
 
 ```
 [feat] added self-healing to scraper
