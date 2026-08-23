@@ -4,10 +4,13 @@ The UI never opens SQLite: every shape it renders is a response model declared h
 the domain can change without breaking a screen and vice versa.
 """
 
+import os
 import re
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Iterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel
 
 from bdheal.models import FailureClass, HealStatus
@@ -33,9 +36,50 @@ from ixq.domain.section import SPLITTING_GLYPHS
 from ixq.domain.sections import INDICATIONS_CODE, VALUE_SECTIONS
 from ixq.pipeline.diverge import PRECEDENCE, Comparison, ConceptRow, compare
 from ixq.pipeline.ports import Repository, SubstanceCounts
+from ixq.api.mcp_server import server as mcp
 from ixq.settings import bench_database_path, config_dir, database_path, heal_database_path
 
-app = FastAPI(title="Interchangeable?")
+MCP_PATH = "/mcp"
+
+
+def _mcp_security() -> TransportSecuritySettings:
+    """Which hosts the MCP endpoint will answer to.
+
+    DNS rebinding protection exists to stop a web page in someone's browser being used as a
+    proxy into a server bound to *their* machine. This one is public, read-only, and serves
+    nothing the REST API above does not already serve unauthenticated, so with no allow-list
+    configured there is nothing for it to protect and it is left off — the alternative is an
+    empty allow-list, which rejects every request including the deployment's own host.
+
+    Set `MCP_ALLOWED_HOSTS` (comma-separated) in any deployment that wants it enforced; the
+    SDK matches exactly, or on `host:*` for any port.
+    """
+    hosts = [host.strip() for host in os.environ.get("MCP_ALLOWED_HOSTS", "").split(",") if host.strip()]
+    if not hosts:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    return TransportSecuritySettings(allowed_hosts=hosts, allowed_origins=hosts)
+
+
+# Mounted at `MCP_PATH`, so the sub-app serves its root and the endpoint is `/mcp` rather
+# than `/mcp/mcp`. Stateless because the API runs on an instance with no persistent disk and
+# no session affinity: every call carries its own context, which is all a read-only tool
+# server needs.
+_mcp_app = mcp.streamable_http_app(
+    streamable_http_path="/",
+    stateless_http=True,
+    transport_security=_mcp_security(),
+)
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """The MCP session manager's task group has to outlive any single request."""
+    async with mcp.session_manager.run():
+        yield
+
+
+app = FastAPI(title="Interchangeable?", lifespan=_lifespan)
+app.mount(MCP_PATH, _mcp_app)
 
 def repository() -> Iterator[Repository]:
     """A repository per request, so no two requests share a connection.
@@ -205,6 +249,17 @@ class ProductColumn(BaseModel):
 
     Per column rather than per matrix: a product whose §4.5 came back empty was never
     scanned for 4.5, and saying otherwise claims a scope that does not exist for it.
+    """
+
+    placements: list[Placement] = []
+    """Every section this label files something in, strongest first.
+
+    The same set the index draws on a card, from the same query — not the comparison's
+    resolved placements, which collapse each concept to its strongest and so under-report
+    which sections a label actually uses. A card here and the same card on the index must
+    not disagree about the marks on it.
+
+    Scales with the sections, not the rows, so it is the kind of thing a column may carry.
     """
 
     appearance: AppearanceView | None = None
@@ -501,7 +556,7 @@ def matrix(substance_id: str, repo: Repository = Depends(repository)) -> Matrix:
     return Matrix(
         substance_id=result.substance_id,
         substance_name=_substance_name(substance_id),
-        products=_columns(result, repo.appearances_for_substance(substance_id)),
+        products=_columns(result, repo.appearances_for_substance(substance_id), repo.placements_by_product()),
         indications=_indications(result, repo.indications_for_substance(substance_id)),
         values=_value_sections(result, repo.value_sections_for_substance(substance_id)),
         clauses=ClauseCoverage(
@@ -533,6 +588,7 @@ def _column(
     document: Document | None,
     scanned: Sequence[str],
     described: str | None,
+    placed: Sequence[str] = (),
 ) -> ProductColumn:
     """One column of the matrix: the product, and what the current label says about it.
 
@@ -554,6 +610,7 @@ def _column(
         discontinued=document.discontinued if document else None,
         source_url=document.source_url if document else None,
         scanned=list(scanned),
+        placements=[Placement(code) for code in placed],
         appearance=_appearance(described),
     )
 
@@ -593,7 +650,11 @@ def _evidence(occurrence: Occurrence | None, document: Document | None) -> Evide
     )
 
 
-def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductColumn]:
+def _columns(
+    result: Comparison,
+    described: Mapping[str, str],
+    placed: Mapping[str, list[str]] | None = None,
+) -> list[ProductColumn]:
     """The columns of a comparison, each carrying the sections scanned for its own label.
 
     `described` is keyed by document sha, not by product, so the appearance shown is the
@@ -610,6 +671,7 @@ def _columns(result: Comparison, described: Mapping[str, str]) -> list[ProductCo
             document,
             result.scanned.get(product.external_id, ()),
             described.get(document.sha256) if document else None,
+            (placed or {}).get(product.external_id, ()),
         )
 
     return [column(product) for product in result.products]
@@ -900,7 +962,7 @@ def product(
         raise HTTPException(404, f"no product {product_external_id!r} is stored")
 
     result = compare(substance_id, repo)
-    columns = _columns(result, repo.appearances_for_substance(substance_id))
+    columns = _columns(result, repo.appearances_for_substance(substance_id), repo.placements_by_product())
     mine = next((c for c in columns if c.external_id == product_external_id), None)
     if mine is None:
         raise HTTPException(404, f"no label stored for {product_external_id!r}")
@@ -971,7 +1033,7 @@ def concept(
         substance_name=_substance_name(substance_id),
         concept=row.concept,
         diverges=row.diverges,
-        products=_columns(result, repo.appearances_for_substance(substance_id)),
+        products=_columns(result, repo.appearances_for_substance(substance_id), repo.placements_by_product()),
         cells=[
             _concept_cell(row, p.external_id, by_product.get(p.external_id), repo)
             for p in result.products
