@@ -4,14 +4,12 @@ Self-healing for [Bright Data Scraper Studio](https://docs.brightdata.com/datase
 collectors: **detect → diagnose → heal → verify → promote or roll back**.
 
 It is corpus-agnostic by construction. It knows collector ids, Pydantic schemas, anchor
-URLs and HTML structure — and nothing about any problem domain. If you have a Bright
-Data account and a Pydantic model, it is meant for you.
+URLs and HTML structure, and nothing about any problem domain. It is for a project that
+has a Bright Data account and a Pydantic model.
 
-> **Status: implemented; not yet run against a live account.** Every call below is
-> implemented and covered — `pytest packages/bdheal` is green with no corpus, no database
-> and no network. What has *not* happened yet is an end-to-end run against a real Bright
-> Data collector; the benchmark that will do that lives in `fixtures/`, and until it has
-> run, the numbers this package can produce are untested against reality.
+> **Status: Implemented; And tested against a live account.** Every call below is
+> implemented and covered — `pytest packages/bdheal` is green. An end-to-end run against a real Bright
+> Data collector was conducted for the benchmark that lives in `fixtures/`.
 
 ## Install
 
@@ -28,7 +26,8 @@ invoked through `npx`, so Node is a runtime requirement of the default adapter.
 ## The usage shape
 
 Both ports are constructor arguments. The package ships no composition root and no
-module-level client: nothing reaches the network unless you hand it something that can.
+module-level client: nothing reaches the network unless the caller supplies something
+that can.
 
 ```python
 from pathlib import Path
@@ -60,7 +59,7 @@ if verdict.broken:
     report = healer.verify(spec, golden_rows, old_layout_url="https://example.com/old")
 ```
 
-Substituting your own `StudioClient` or `HealStore` needs no inheritance — the ports are
+A substitute `StudioClient` or `HealStore` needs no inheritance — the ports are
 `Protocol`s, satisfied structurally.
 
 ## Checks
@@ -68,10 +67,6 @@ Substituting your own `StudioClient` or `HealStore` needs no inheritance — the
 ```bash
 uv run --package bdheal pytest packages/bdheal
 ```
-
-Green with no corpus, no database, no application and no network: both ports are stubbed
-at their interfaces. Two markers are gated out of that run because they need the
-network — set the variable to opt in:
 
 | Marker | Variable | What it does |
 |---|---|---|

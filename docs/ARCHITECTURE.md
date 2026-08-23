@@ -1,18 +1,19 @@
 # ARCHITECTURE — `bdheal`
 
-The contract the package is built against, and the only document that constrains it. Where
-this document and a module's own instinct disagree, this document wins.
+This is the contract for the package, and the only document that constrains it. If this
+document and the design of a module disagree, obey this document.
 
-It carries the invariants, resolved decisions and known gaps in full, so nothing here
-depends on reading anything else. The one exception is the `bdata` CLI surface itself:
-flags and subcommands are whatever the vendor ships, verified against `bdata --help`, and
-this document never overrides them.
+This document contains the invariants, the resolved decisions and the known gaps in full.
+Therefore no other document is necessary. There is one exception: the `bdata` CLI
+surface. The flags and the subcommands are those that the vendor supplies, verified against
+`bdata --help`. This document never supersedes them.
 
 ---
 
 ## 1. Invariants
 
-Gates, not aspirations. Checked on every change, not only the one that introduces them.
+These are gates and not objectives. Check them at each change, and not only at the change
+that adds them.
 
 | | Invariant |
 |---|---|
@@ -29,13 +30,13 @@ Gates, not aspirations. Checked on every change, not only the one that introduce
 ixq (the app)  ──depends on──▶  bdheal  ──▶  bdata CLI  ──▶  Bright Data
 ```
 
-Never the reverse (G2). `bdheal` is a **sibling** of `api/`, not a child: a package buried
-inside the application it serves is not independently publishable, whatever its manifest
-says.
+The reverse direction is prohibited (G2). `bdheal` is a **sibling** of `api/` and not a
+child. A package inside the application that it serves cannot be published independently,
+whatever its manifest says.
 
 `bdheal` knows collector ids, Pydantic schemas, anchor URLs and HTML structure. It never
-knows sources, records, documents or lexicons. **A term from any problem domain appearing
-under `packages/bdheal/` is a defect.**
+knows sources, records, documents or lexicons. **A term from a problem domain in
+`packages/bdheal/` is a defect.**
 
 ## 3. Workspace wiring
 
@@ -49,13 +50,13 @@ interchangeable/
 └─ api/                    # declares bdheal via [tool.uv.sources] workspace = true
 ```
 
-The api image needs the workspace lockfile *and* `packages/bdheal`, so its build context is
-the repo root.
+The api image needs the workspace lockfile *and* `packages/bdheal`. Therefore its build
+context is the root of the repository.
 
 ## 4. Layer map
 
-Every module belongs to exactly one layer. `tests/test_architecture.py` enforces this
-table; adding a module without updating both fails the suite.
+Each module is in one layer only. `tests/test_architecture.py` enforces this table. A new
+module that is not in the table makes the suite fail.
 
 | Layer | Module | Role |
 |---|---|---|
@@ -78,37 +79,40 @@ table; adding a module without updating both fails the suite.
 | | `process.py` | `SubprocessRunner` — the only place a process starts |
 | | `__init__.py` | Export surface |
 
-Two carve-outs:
+There are two exceptions to the table:
 
-- **Pure-computation libraries may appear in Entities.** `pydantic`, `selectolax`, `lxml`
-  and `hashlib` compute; they do not perform I/O. Anything that opens a socket, file,
-  database or process may not appear in Entities or Use Cases — that is the line the
-  Dependency Rule actually protects.
-- **No composition root ships.** There is no `default_healer()` and no module-level client.
-  The caller wires `Healer(studio, store, clock)`. A library that can reach the network
-  without being handed the means to is not testable in isolation.
+- **A pure-computation library can be in Entities.** `pydantic`, `selectolax`, `lxml` and
+  `hashlib` compute. They do no I/O. A component that opens a socket, a file, a database or
+  a process must not be in Entities or in Use Cases. That is the line that the Dependency
+  Rule protects.
+- **The package supplies no composition root.** There is no `default_healer()` and no
+  client at module level. The caller makes `Healer(studio, store, clock)`. A library that
+  can connect to the network without the caller supplying the means cannot be tested in
+  isolation.
 
 ## 5. Dependency rules
 
-1. **Inward only.** Import from your own layer or any layer inside it. Enforced by
-   `test_dependencies_point_inward`.
-2. **The shared spine is importable from anywhere** — `models`, `vocabulary`, `errors`,
-   `skeleton`, `ports`. Composition through shared layers is the sanctioned form.
-3. **`bench/` never names its parent's implementation.** It depends on `ports.HealLoop`,
-   which `Healer` satisfies structurally, so the benchmark composes with the loop without
-   knowing `healer.py` exists.
-4. **Absolute imports only.** No relative imports.
-5. **Ports are `Protocol`, not `ABC`.** An adapter satisfies a port by having the methods,
-   so the app may substitute its own `HealStore` without inheriting anything of ours.
-6. **One port per boundary**, reason recorded in its docstring. Do not split `HealStore`
-   into three because it stores three things: one backing store, one reason to change.
-7. Nothing imports a `_`-prefixed name from another module. Deleting one module must break
-   only its call sites and its own test file.
+1. **Import inward only.** Import from the module's own layer, or from a layer inside it.
+   `test_dependencies_point_inward` enforces this.
+2. **Each layer can import the shared spine** — `models`, `vocabulary`, `errors`,
+   `skeleton`, `ports`. Composition through a shared layer is the permitted form.
+3. **`bench/` never names the implementation of its parent.** It depends on
+   `ports.HealLoop`. `Healer` satisfies `HealLoop` structurally. Therefore the benchmark
+   composes with the loop and does not know that `healer.py` exists.
+4. **Use absolute imports only.** Do not use a relative import.
+5. **A port is a `Protocol` and not an `ABC`.** An adapter satisfies a port when it has the
+   methods. Therefore the app can substitute its own `HealStore` and inherit nothing from
+   this package.
+6. **Use one port for each boundary.** Record the reason in the docstring of the port. Do
+   not divide `HealStore` into three ports because it stores three things: it is one
+   backing store and has one reason to change.
+7. No module imports a name with a `_` prefix from a different module. A deleted module
+   must break its call sites and its own test file only.
 
 ## 6. The ports (`ports.py`)
 
-Signatures are frozen here. A change happens here first, updating every stub in
-`tests/conftest.py` in the same pass.
+These signatures are frozen. To change one, change it here first, and correct each stub in
+`tests/conftest.py` in the same operation.
 
 ```python
 class StudioClient(Protocol):
@@ -142,24 +146,27 @@ class HealLoop(Protocol):        # what Healer is, from the benchmark's point of
     def verify(...) -> VerifyReport: ...
 ```
 
-Decisions, not commentary:
+These are decisions and not commentary:
 
-- **`fetch_html` exists because the skeleton signal needs page HTML and the package owns no
-  HTTP client** (G4). Served by `bdata scrape`, keeping `bdata` the single outward call.
-  `detect()` takes `page_html` as a parameter, so it stays port-free apart from `HealStore`.
-- **`CommandRunner` is where argv meets the OS.** Always `list[str]`, no shell (G3).
-- **`Clock` is one port with two readings** — `now()` timestamps, `monotonic()` measures.
-  One port, so a test cannot freeze one and not the other.
-- **Benchmark resume state rides on `HealStore`** rather than a third port. `bench_cases`
-  exists because `completed_case_ids` returns ids only: a resumed run could skip finished
-  cases but not read them back, leaving pre-crash rows write-only.
+- **`fetch_html` exists because the skeleton signal needs the HTML of a page, and the
+  package owns no HTTP client** (G4). `bdata scrape` supplies the HTML. Therefore `bdata`
+  stays the one outward call. `detect()` takes `page_html` as a parameter. Therefore
+  `detect()` uses no port other than `HealStore`.
+- **`CommandRunner` is where argv goes to the OS.** Always use `list[str]`. Do not use a
+  shell (G3).
+- **`Clock` is one port with two readings.** `now()` makes a timestamp and `monotonic()`
+  measures. It is one port. Therefore a test cannot freeze one reading and not the other.
+- **The benchmark resume state uses `HealStore`** and not a third port. `bench_cases`
+  exists because `completed_case_ids` returns ids only. Without `bench_cases`, a resumed
+  run could omit the completed cases but could not read them, and the rows from before a
+  crash would be write-only.
 
 ## 7. Data model
 
-**A type that crosses a boundary is a Pydantic model in `models.py`. A type that never
-leaves the module computing it is a `@dataclass(frozen=True, slots=True)` there.** Pydantic
-at the boundary because the caller's `row_schema` failing validation *is* a detect signal
-and must produce structured per-field errors.
+**A type that crosses a boundary is a Pydantic model in `models.py`. A type that stays in
+the module that computes it is a `@dataclass(frozen=True, slots=True)` in that module.**
+Use Pydantic at the boundary, because a `row_schema` from the caller that fails validation
+*is* a detect signal, and it must give structured errors for each field.
 
 | Model | Carries | Notes |
 |---|---|---|
@@ -173,112 +180,123 @@ and must produce structured per-field errors.
 | `Baseline` | `collector_id`, `captured_at`, `row_count`, `null_rates`, `skeleton_hash` | Crosses `HealStore`, so Pydantic |
 | `BenchCase` | run/case ids, `mutation`, `expected_signals`, `caught_by`, `fired_kinds`, outcome fields | Crosses `HealStore`. `fired_kinds` is what makes an unexpected signal visible rather than a pass |
 
-- `RunResult.rows` is `list[dict[str, Any]]` — validated row *data*, not `row_schema`
-  instances, so `RunResult` round-trips through `model_dump()`. A caller wanting instances
-  re-validates in one line and buys serialisability.
-- **`rows` and `errors` do not partition.** A row the schema rejects is kept in `rows` with
-  the offending fields nulled *and* named in `errors`. Dropping it would hide the shape of
-  the break from `null_rate`, which is the signal built to see exactly that — a field that
-  stopped arriving. Anything treating the two lists as disjoint double-counts.
-- `__all__` is exactly ten names. `Baseline` and `BenchCase` are exported because they
-  cross `HealStore` and rule 5 invites the app to supply its own implementation; a port
-  whose vocabulary is only reachable via `bdheal.models` is a half-public contract. Enums
-  stay out — they are `StrEnum`, so `event.status == "done"` works unimported.
-- Every boundary model sets `extra="forbid"` via a shared `_Boundary` base: a mistyped field
-  silently becoming an ignored extra is exactly the bug the schema signal exists to catch.
-  Models are **not** frozen — `model_copy(update=...)` is the store's update idiom.
-- Closed vocabularies live in `vocabulary.py`, including benchmark vocabulary, because
-  `BenchCase` crosses persistence and its values must be nameable from the innermost layer.
+- `RunResult.rows` is `list[dict[str, Any]]`. It contains validated row *data* and not
+  instances of `row_schema`. Therefore `RunResult` round-trips through `model_dump()`. A
+  caller that needs instances validates again in one line, and gets serialisability.
+- **`rows` and `errors` are not two parts of one set.** If the schema rejects a row, the
+  system keeps the row in `rows` with the incorrect fields set to null, *and* names the row
+  in `errors`. If the system removed the row, it would hide the shape of the break from
+  `null_rate`. `null_rate` is the signal that exists to see that shape: a field that stopped
+  arriving. Code that treats the two lists as disjoint counts a row two times.
+- `__all__` contains exactly ten names. `Baseline` and `BenchCase` are exported because
+  they cross `HealStore`, and rule 5 permits the app to supply its own implementation. A
+  port whose vocabulary is reachable only through `bdheal.models` is a contract that is
+  half public. The enums are not exported. They are `StrEnum`, therefore
+  `event.status == "done"` operates with no import.
+- Each boundary model sets `extra="forbid"` through a shared `_Boundary` base. A field with
+  an incorrect name that becomes an ignored extra is the defect that the schema signal
+  exists to find. The models are **not** frozen. `model_copy(update=...)` is how the store
+  updates a model.
+- The closed vocabularies are in `vocabulary.py`. This includes the benchmark vocabulary,
+  because `BenchCase` crosses persistence, and the innermost layer must be able to name its
+  values.
 
 ## 8. Detect semantics
 
-**The governing principle: extraction problems justify a heal; target-side problems justify
-a retry; neither justifies silence.**
+**The governing principle: an extraction problem justifies a heal. A target-side problem
+justifies a retry. Neither justifies silence.**
 
-The discriminator is **set membership, not the presence of a code**: an error is target-side
-when its `error_code` is in `UNTRUSTWORTHY_SAMPLE_CODES`, and an extraction fault otherwise.
-The collector-fault codes carry an `error_code` too, so "has a code ⇒ target-side" is false
-and reintroduces exactly the false negative recorded below. A row that is not an object at
-all fires the schema signal: a collector that returned objects and now returns strings is
-broken.
+The discriminator is **membership of a set, and not the presence of a code**. An error is
+target-side when its `error_code` is in `UNTRUSTWORTHY_SAMPLE_CODES`. Each other error is an
+extraction fault. A collector-fault code also has an `error_code`. Therefore "a code means
+target-side" is false, and it causes the false negative that is recorded below. A row that
+is not an object fires the schema signal: a collector that returned objects and now returns
+strings is broken.
 
-**Incomplete samples.** `error_code` is data, never an exception. **Any** row carrying a
-target-side or ambiguous code — `rate_limit`, `global_rate_limit`, `bucket_rate_limit`,
-`blocked`, `captcha_timeout`, `timeout`, `dead_page`, `crawl_error`, `ajax_request_error`,
-`unspecified` — makes the sample incomplete, so `row_count` and `null_rate` record
-`SignalOutcome.INCONCLUSIVE` and `retry_requested` is set. Codes the vendor attributes to
-the scraper (`parse_error`, `bad_input`, `wait_element_timeout`) are extraction evidence and
+**Incomplete samples.** `error_code` is data. It is never an exception. **Any** row with a
+target-side code or an ambiguous code makes the sample incomplete. Those codes are
+`rate_limit`, `global_rate_limit`, `bucket_rate_limit`, `blocked`, `captcha_timeout`,
+`timeout`, `dead_page`, `crawl_error`, `ajax_request_error` and `unspecified`. Therefore
+`row_count` and `null_rate` record `SignalOutcome.INCONCLUSIVE`, and the system sets
+`retry_requested`. The vendor attributes three codes to the scraper: `parse_error`,
+`bad_input` and `wait_element_timeout`. Those are evidence of an extraction fault, and they
 do fire the schema signal.
 
-`vocabulary.py` is the only place these names are correct. A hand-written copy of this list
-already got four of five names wrong once, which is why the sets live there and not here —
-treat the names above as a reading aid, never as the source.
+`vocabulary.py` is the only location where these names are correct. A manual copy of this
+list gave four of five names incorrectly one time. This is why the sets are in
+`vocabulary.py` and not here. Use the names above to read this section. Do not use them as
+the source.
 
-Such a run never heals on volume grounds, may still report a schema break, and always asks
-for a retry.
+Such a run never heals for a volume reason. It can still report a schema break. It always
+asks for a retry.
 
-> The narrow `rate_limit`-only reading was a **live false negative**: five of ten rows
-> returning `blocked` produced `broken=False`, `signals={}` and no retry — total silence on
-> a half-broken run. Do not reintroduce it.
+> The narrow reading, which used `rate_limit` only, was a **live false negative**. Five of
+> ten rows returned `blocked`, and the result was `broken=False`, `signals={}` and no
+> retry. That is complete silence on a run that was half broken. Do not use that reading
+> again.
 
-**Ambiguous codes are reported, not judged.** A single run cannot tell a dead page from a
-collector resolving relative links against the site root — a real payload produced 980
-`dead_page` rows from exactly that bug. So `detect` stays stateless: ambiguous codes land in
-`DetectVerdict.ambiguous_codes` and request a retry. **The escalation belongs to the
-facade**: retry once, and if the *same* ambiguous codes return they are no longer plausibly
-transient and become extraction evidence. One wasted retry is the cheap direction to be
-wrong in.
+**The system reports an ambiguous code. It does not judge it.** One run cannot tell a dead
+page from a collector that resolves a relative link against the root of the site. A true
+payload gave 980 `dead_page` rows from that second condition. Therefore `detect` is
+stateless: an ambiguous code goes into `DetectVerdict.ambiguous_codes` and asks for a
+retry. **The facade does the escalation.** It retries one time. If the *same* ambiguous
+codes return, they are no longer probably transient, and they become evidence of an
+extraction fault. One unnecessary retry is the inexpensive direction for an error.
 
 **Thresholds and precedence.**
 
 - `NULL_RATE_SPIKE = 0.5` — absolute rise above baseline.
-- `ROW_COUNT_DROP = 0.4` — `row_count` fires on a 40% shortfall against the baseline, not
-  only on collapse to zero. A partial drop is the common shape of a break.
-- Signal precedence, pinned by test: **`skeleton > schema > row_count > null_rate`**. A
-  moved tag-and-class tree is *why* the others fired; naming a symptom would send the heal
-  hunting for a field on a page whose rows it can no longer find.
-- **First run with no baseline returns `broken=False`.** Nothing to compare against is not
-  evidence of breakage.
-- **`diagnose` never consults `incomplete`.** `FIRED` is the only input to classification:
-  `detect` already suppresses the volume detectors whenever any row is target-side, so a
-  signal surviving to `FIRED` inside an incomplete sample is extraction evidence by
-  construction. Suppressing on `incomplete` alone would delete a real schema break whenever
-  one sibling row was blocked.
+- `ROW_COUNT_DROP = 0.4` — `row_count` fires on a 40% shortfall against the baseline, and
+  not on a decrease to zero only. A partial decrease is the usual shape of a break.
+- Signal precedence, pinned by a test: **`skeleton > schema > row_count > null_rate`**. A
+  tag-and-class tree that moved is *why* the other signals fired. A named symptom makes
+  the heal look for a field on a page whose rows it can no longer find.
+- **The first run has no baseline and returns `broken=False`.** No data to compare against
+  is not evidence of a break.
+- **`diagnose` never reads `incomplete`.** `FIRED` is the only input to the
+  classification. `detect` already suppresses the volume detectors when any row is
+  target-side. Therefore a signal that reaches `FIRED` in an incomplete sample is evidence
+  of an extraction fault, by design. If the system suppressed on `incomplete` alone, it
+  would delete a true schema break when one adjacent row was blocked.
 
 ## 9. The heal → verify → promote contract
 
-Obligations the facade and the benchmark must honour. Each was found by verification, not
-designed up front.
+These are the obligations of the facade and the benchmark. Verification found each one.
+The design did not anticipate them.
 
-**A gate cycle is not one row.** A gated heal emits **two** events (`awaiting_approval`,
-then the terminal outcome); auto-approve and a failed call emit one. Anything counting rows
-per cycle must select the **terminal-most** row, never treat row count as cycle count.
+**A gate cycle is not one row.** A gated heal writes **two** events: `awaiting_approval`,
+and then the terminal outcome. An auto-approve and a failed call write one event. Code that
+counts the rows for each cycle must select the **terminal-most** row. It must not use the
+row count as the cycle count.
 
 **Where a failed gate call raises, and where it does not.** The use cases `heal.heal` and
-`heal.approve` write the row and re-raise `StudioError`. The **facade does not**:
-`Healer.heal` catches it and returns the recorded event with `status=failed`, which is what
-the benchmark branches on (`if not loop.heal(...).promoted`) and what the healer tests pin.
+`heal.approve` write the row and raise `StudioError` again. The **facade does not**.
+`Healer.heal` catches the exception and returns the recorded event with `status=failed`.
+The benchmark branches on this (`if not loop.heal(...).promoted`), and the healer tests pin
+it.
 
-Both halves matter. A caller of the facade who writes `try/except StudioError` around it has
-written a branch that never fires and will not inspect the event it did get back; a caller
-of the use case who inspects `event.status` instead of catching never receives one.
+The two halves are both important. If a caller of the facade writes `try/except StudioError`
+around it, that branch never runs, and the caller does not examine the event that it
+received. If a caller of the use case examines `event.status` and does not catch the
+exception, it never receives an event.
 
-**A gate that opens must be answered, even on the way out.** Bright Data completes the whole
-repair and then waits at `user_approval`. If anything raises between opening the heal and
-settling it, `_record` rejects the gate through `release_gate()` before the exception
-propagates — the original error still surfaces, and a cleanup that fails rides along as a
-note rather than replacing it. Verified the expensive way: a parse error skipped `approve`,
-the collector sat at the gate for five hours, and every later heal returned
-`Status: 409 — Another refactor job is still in progress`. Two collectors were stranded and
-had to be freed by hand.
+**A gate that opens must be answered, including on the exit path.** Bright Data completes
+the full repair and then waits at `user_approval`. If any component raises between the
+opening of the heal and its settlement, `_record` rejects the gate with `release_gate()`
+before the exception propagates. The original error still reaches the caller, and a cleanup
+that fails travels with it as a note. It does not replace the original error. The project
+verified this at cost: a parse error omitted `approve`, the collector waited at the gate for
+five hours, and each later heal returned
+`Status: 409 — Another refactor job is still in progress`. Two collectors were stranded, and
+a person had to release them.
 
 **A refusal because the collector is occupied is not a failed repair.** `GateBusyError` and
-`HealStatus.GATE_BUSY` keep the two apart: one is retryable and means nothing was attempted,
-the other is a verdict on a repair that was. `Healer._gate` clears a stale gate and
-re-proposes exactly once (`GATE_RECOVERY_ATTEMPTS`), then stops rather than cycling against
-a billable endpoint.
+`HealStatus.GATE_BUSY` keep the two conditions apart. The first is retryable and means that
+the system attempted nothing. The second is a verdict on a repair that the system did
+attempt. `Healer._gate` clears a stale gate and proposes again exactly one time
+(`GATE_RECOVERY_ATTEMPTS`). It then stops, and does not cycle against a billable endpoint.
 
-**Three branches, and they are not interchangeable:**
+**There are three branches, and they are not equivalent:**
 
 | Condition | Outcome |
 |---|---|
@@ -286,41 +304,43 @@ a billable endpoint.
 | `except VerificationIncompleteError` | **retry** — never refuse |
 | `VerifyReport` is `False` | refuse |
 
-Refusing on `VerificationIncompleteError` would discard a heal that was never actually
-tested, and feed the benchmark a fabricated non-regression failure.
+If the system refused on `VerificationIncompleteError`, it would discard a heal that it
+never tested, and it would give the benchmark an invented non-regression failure.
 
-**⚠️ "Refused" is a verdict, not an undo.** `heal` runs with `--auto-save`, so the new
-template is live the moment it is written; `approve` refuses anything no longer waiting at
-the gate, so once verification has a verdict there is nothing pending to reject; and the API
-exposes no way to restore a previous template. A refused heal therefore leaves the collector
-**modified**, with only the heal event recording that the change was not kept. Anything
-driving many collectors must treat a refused heal as permanent — which is why benchmark
-cases cannot share one collector.
+**⚠️ "Refused" is a verdict and not an undo.** `heal` runs with `--auto-save`. Therefore the
+new template is live when the system writes it. `approve` refuses anything that is no longer
+at the gate. Therefore when the verification has a verdict, there is nothing to reject. The
+API supplies no method to restore a previous template. Therefore a refused heal leaves the
+collector **modified**, and only the heal event records that the system did not keep the
+change. Code that drives many collectors must treat a refused heal as permanent. This is
+why two benchmark cases cannot share one collector.
 
-**Two promotion floors**, both of which must appear in any published methodology or the
+**There are two promotion floors.** A published methodology must contain both, or the
 numbers are not reproducible:
 
-- `NON_REGRESSION_FLOOR = 1.0` — the old layout must still yield *every* golden field. A
-  lower floor lets a heal drop one field in ten and still publish as non-regressive.
-- `field_accuracy > 0` — a no-op heal extracting nothing regresses nothing, and would
-  otherwise score perfectly on the old layout and promote.
+- `NON_REGRESSION_FLOOR = 1.0` — the old layout must still give *each* golden field. With a
+  lower floor, a heal can lose one field in ten and still publish as non-regressive.
+- `field_accuracy > 0` — a heal that does nothing extracts nothing and regresses nothing.
+  Without this floor it would score perfectly on the old layout and promote.
 
 ## 10. Persisted schema (`src/bdheal/schema.sql`)
 
-Three tables — `bdheal_baselines`, `bdheal_heal_events`, `bdheal_bench_cases` — shipped
-inside the package and applied by `store.connect()`, loaded through `importlib.resources`
-so a wheel behaves like a checkout.
+There are three tables: `bdheal_baselines`, `bdheal_heal_events` and `bdheal_bench_cases`.
+The package contains them, and `store.connect()` applies them. The package loads the schema
+through `importlib.resources`. Therefore a wheel operates in the same way as a checkout.
 
-- **Every table is prefixed `bdheal_`.** The app already owns a `heal_events` table of a
-  different shape; the prefix lets both share one SQLite file without either owning the
-  other's DDL.
-- **No foreign keys to application tables.** `bdheal` does not own collectors; it is told
-  about them. A `REFERENCES collectors(id)` would make the package unusable standalone.
-- All SQL binds its parameters. Collector ids are caller-supplied and treated as hostile.
+- **Each table name has the prefix `bdheal_`.** The app already owns a `heal_events` table
+  with a different shape. The prefix lets the two share one SQLite file, and neither owns
+  the DDL of the other.
+- **There is no foreign key to an application table.** `bdheal` does not own the collectors.
+  The caller tells it about them. A `REFERENCES collectors(id)` would make the package
+  unusable on its own.
+- Each SQL statement binds its parameters. A collector id comes from the caller, and the
+  package treats it as hostile.
 
 ## 11. Reuse registry
 
-Extend these. Do not clone a near-copy beside them.
+Extend these components. Do not make a near-copy adjacent to one.
 
 | Component | Where | Use it for |
 |---|---|---|
@@ -338,43 +358,45 @@ Extend these. Do not clone a near-copy beside them.
 | `SystemClock` / `SubprocessRunner` | `clock.py` / `process.py` | The only `datetime.now` / `subprocess.run` |
 | `Mutation`, `MUTATIONS` | `bench/mutate.py` | The generator registry |
 | `Metrics`, `CoverageRow` | `bench/metrics.py` | Benchmark aggregation |
-| Stubs and fixtures | `tests/conftest.py` | Every test. Programme the stub you were given |
+| Stubs and fixtures | `tests/conftest.py` | Every test. Programme the supplied stub |
 
 ## 12. Conventions
 
-Project-wide coding rules are not repeated here. Package-specific:
+This document does not repeat the coding rules for the project. These rules apply to this
+package:
 
-- **Files are named by role, not type.** No `utils.py`, `helpers.py` or `base.py`.
-- **Module docstrings state *why* the module exists.** Comments explain non-obvious *why*
-  and nothing else.
-- **Errors are explicit and typed.** No bare `except`, no silent swallow. A `bdata` failure
-  raises a `StudioError` subclass whose message says what to do about it — including naming
-  the orphaned collector a failed `create` leaves behind.
+- **Give a file the name of its role, and not of its type.** Do not make `utils.py`,
+  `helpers.py` or `base.py`.
+- **A module docstring gives the reason that the module exists.** A comment explains a
+  *reason* that is not obvious, and nothing else.
+- **Each error is explicit and typed.** Do not use a bare `except`. Do not discard an
+  exception. A failure of `bdata` raises a subclass of `StudioError`. Its message says what
+  to do, and it names the orphan collector that a failed `create` leaves.
 - **The package never configures logging.** Configuration belongs to the application.
 
 ## 13. Test strategy
 
-**Framework:** `pytest` + `pytest-cov`. Nothing else — no mock library, no HTTP recorder. A
-test needing a fake programmes a stub from `conftest.py`.
+**Framework:** `pytest` and `pytest-cov`. There is no other framework, no mock library and
+no HTTP recorder. A test that needs a fake programmes a stub from `conftest.py`.
 
-**Layout:** `packages/bdheal/tests/`, flat, one file per module under test. Test functions
-are `test_<what_is_true>` and read as a sentence.
+**Layout:** `packages/bdheal/tests/`, flat, one file for each module under test. A test
+function is `test_<what_is_true>` and reads as a sentence.
 
-**The suite, one command from the repo root:**
+**Run the suite with one command from the root of the repository:**
 
 ```bash
 uv run --package bdheal pytest packages/bdheal
 ```
 
-It must exit 0 with no corpus, no database, no app and no network (G1). This is the
-architecture's proof, not a convenience.
+It must exit 0 with no corpus, no database, no app and no network (G1). This is the proof
+of the architecture. It is not a convenience.
 
-**Unit** is a pure function against literal inputs, asserted against exact goldens including
-a hash pinned to a literal. **Integration** is two or more units across a stubbed port. The
-one adapter touching a real resource is `SqliteHealStore`, tested against `tmp_path` and
-never outside it.
+A **unit** test runs a pure function against literal inputs, and asserts against exact
+goldens. This includes a hash that is pinned to a literal. An **integration** test runs two
+or more units across a stubbed port. `SqliteHealStore` is the one adapter that uses a true
+resource. Test it against `tmp_path` and never outside `tmp_path`.
 
-Every fixture is typed as the **port**, not the adapter, so a test cannot bind to an
+Type each fixture as the **port** and not as the adapter. A test then cannot bind to an
 implementation detail:
 
 | Stub | Stands in for | Behaviour |
@@ -386,44 +408,49 @@ implementation detail:
 | `ForbiddenRunner` | `CommandRunner` | Raises on any call — proves a path never leaves the process |
 | `SampleRow` | the caller's `row_schema` | Deliberately generic; a test needing domain vocabulary has already failed |
 
-**Gated tests** are marked and skipped unless their environment variable is set:
-`@pytest.mark.live` (`BDHEAL_LIVE=1`) for the real CLI, `@pytest.mark.publish`
-(`BDHEAL_PUBLISH_CHECK=1`) for the clean-room build and install that stands in for the
-lockfile the package deliberately does not carry. One `pytest_runtest_setup` hook reads the
-`NETWORK_GATES` map, so a third gate is a row rather than a branch; markers are declared
-under `--strict-markers`, so a typo fails rather than silently running.
+**A gated test has a marker, and the suite omits it unless its environment variable is
+set.** `@pytest.mark.live` (`BDHEAL_LIVE=1`) uses the true CLI. `@pytest.mark.publish`
+(`BDHEAL_PUBLISH_CHECK=1`) does the clean-room build and install. That check replaces the
+lockfile that the package intentionally does not carry. One `pytest_runtest_setup` hook
+reads the `NETWORK_GATES` map. Therefore a third gate is a row and not a branch. The
+markers are declared under `--strict-markers`. Therefore a marker with an incorrect name
+fails, and does not run without a message.
 
-**`tests/test_architecture.py` is a standing test owned by nobody's feature.** It enforces
-the layer map, the inward rule, the dependency limit (G2 + G4) and the absence of any
-`shell` argument (G3). If it fails, the fix is the code or this document — not the test.
+**`tests/test_architecture.py` is a standing test, and no feature owns it.** It enforces the
+layer map, the inward rule, the dependency limit (G2 and G4), and the absence of a `shell`
+argument (G3). If it fails, correct the code or this document. Do not correct the test.
 
-### The argv flag guard — and what it cannot catch
+### The argv flag guard — and what it cannot find
 
-`tests/test_studio.py` records the valid flag set per subcommand (`ALLOWED_FLAGS`) and the
-mutually-exclusive pairs, asserting the adapter never emits a flag a subcommand lacks nor an
-exclusive pair together. It exists because the injected `CommandRunner` makes the suite
-blind to whether the real CLI would accept what we send: three argv defects passed a green
-91-test suite before it was added.
+`tests/test_studio.py` records the valid flag set for each subcommand (`ALLOWED_FLAGS`) and
+the pairs of flags that do not combine. It asserts that the adapter never emits a flag
+that a subcommand does not have, and never emits an exclusive pair together. It exists
+because the injected `CommandRunner` prevents the suite from knowing if the true CLI would
+accept the argv that the adapter sends. Three argv defects passed a green suite of 91 tests
+before the project added this guard.
 
-**Scope limit, verified by mutation test:** it catches *wrong* and *conflicting* flags. It
-**cannot catch a missing required flag** — deleting `--format html` from `fetch_html` leaves
-it green, because absence is not a violation. **Every required flag needs its own point
-assertion.** This matters most where the CLI has a silent default that is wrong for us.
+**A limit of its scope, verified by a mutation test:** it finds a flag that is *incorrect*
+and a pair that *conflicts*. It **cannot find a required flag that is absent**. A delete of
+`--format html` from `fetch_html` keeps the suite green, because an absence is not a
+violation. **Each required flag needs its own point assertion.** This is most important
+where the CLI has a default that is silent and incorrect for this package.
 
-Two such flags exist, and the second was found in production on 2026-08-20, having shipped
-undetected behind a green suite:
+Two such flags exist. The project found the second one in production on 2026-08-20, after
+it shipped undetected behind a green suite:
 
-- `bdata scrape` defaults to `--format markdown`, which parses to a meaningless skeleton
-  hash with no error anywhere.
-- **`scraper heal` does not persist without `--auto-save`.** It previews the fix, accepts
-  an approval and reports `done` while the collector keeps running its old template. Every
-  heal appeared to succeed and changed nothing — the exact outcome this package exists to
-  prevent. The guard listed the flag as permitted and never asserted it was sent.
+- `bdata scrape` uses `--format markdown` by default. Markdown parses to a skeleton hash
+  with no meaning, and no component reports an error.
+- **`scraper heal` does not persist without `--auto-save`.** It previews the fix, accepts an
+  approval, and reports `done`, and the collector continues to run its old template. Each
+  heal appeared to succeed and changed nothing. That is the exact condition that this
+  package exists to prevent. The guard listed the flag as permitted, and never asserted that
+  the adapter sent it.
 
 ## 14. Benchmark
 
-`MUTATIONS` carries these declarations; the runner reports what actually caught each class
-and publishes disagreements as coverage gaps. **A gap is a finding, not a failure.**
+`MUTATIONS` contains these declarations. The runner reports which detector caught each
+class, and publishes each disagreement as a coverage gap. **A gap is a finding and not a
+failure.**
 
 | Mutation class | Declared detectors | Moves the skeleton hash? |
 |---|---|---|
@@ -434,55 +461,59 @@ and publishes disagreements as coverage gaps. **A gap is a finding, not a failur
 | `url_pattern` | `{schema, null_rate}` | no |
 | `link_label` | `{}` — expected to evade all four detectors | no |
 
-The three non-structural classes leaving the hash untouched is `skeleton.py` behaving
-correctly: its contract is text-insensitivity. The declaration is a **set**, so a class
-nothing catches is the empty set — an honest published gap — and `coverage` is membership
-rather than decoding names by hand.
+The three non-structural classes do not move the hash. This shows that `skeleton.py`
+operates correctly, because its contract is that it ignores text. Each declaration is a
+**set**. Therefore a class that no detector catches is the empty set, which is an honest
+published gap, and `coverage` is a membership test. It does not decode names manually.
 
-**⚠️ Collectors must be scoped to a single page.** A naive `create` against a listing URL
-produces a site crawler, not a page extractor: one probe walked an entire catalogue for
-1.05K page fulfillments and 999 failed crawls to yield a single record. Every `create`
-description states *this page only, follow no links, no pagination*, and fixtures are
-self-contained pages with nowhere to crawl to.
+**⚠️ A collector must have a scope of one page.** A simple `create` against a listing URL
+makes a site crawler and not a page extractor. One probe walked a complete catalogue for
+1.05K page fulfillments and 999 failed crawls, and returned one record. The description of
+each `create` states *this page only, follow no links, no pagination*. Each fixture is a
+self-contained page with no location to crawl to.
 
-**⚠️ Two parsers are in play.** `skeleton.py` hashes with `selectolax`; `bench/mutate.py`
-generates with `lxml`. All nine classes agree today, verified independently — but a
-divergence in malformed-HTML tolerance would corrupt the coverage matrix. If a case ever
-reports an unexpected detector, check parser disagreement before suspecting the detector.
+**⚠️ There are two parsers.** `skeleton.py` hashes with `selectolax`. `bench/mutate.py`
+generates with `lxml`. Today the two parsers agree on all nine classes, and the project
+verified this independently. But a difference in how they tolerate malformed HTML would
+make the coverage matrix incorrect. If a case reports an unexpected detector, look for a
+difference between the parsers before the detector comes under suspicion.
 
-**⚠️ `column_reorder` must reorder siblings differing in tag or class.** Swapping two
-byte-identical siblings cannot move a structural hash, because the structure genuinely did
-not change — a uniform-cell fixture would fail the criterion for a correct implementation.
+**⚠️ `column_reorder` must reorder siblings that differ in tag or in class.** An exchange
+of two siblings that are identical byte for byte cannot move a structural hash,
+because the structure did not change. A fixture with uniform cells would then fail the
+criterion for a correct implementation.
 
-**One golden set cannot score two layouts.** `verify` scores both the healed and old-layout
-passes against one golden set — right for the six structural classes, wrong for
-`date_format`, `url_pattern` and `link_label`, whose mutations change the page text.
-**Resolved: exclude those three from the non-regression rate and disclose it** in a note
-travelling on every `Metrics` value, because a limit disclosed only in documentation is not
-disclosed to whoever reads the number. Incomplete verifications are excluded too, not
-counted as failures.
+**One golden set cannot score two layouts.** `verify` scores the healed pass and the
+old-layout pass against one golden set. This is correct for the six structural classes. It
+is incorrect for `date_format`, `url_pattern` and `link_label`, because their mutations
+change the text of the page. **Resolved: omit those three from the non-regression rate and
+disclose this** in a note that travels on each `Metrics` value. A limit that appears in
+documentation only is not disclosed to the person who reads the number. The system also
+omits an incomplete verification. It does not count one as a failure.
 
-**`caught_by` is one signal; `fired_kinds` is all of them.** `caught_by` is chosen by
-`SIGNAL_PRECEDENCE` and answers "which detector gets the credit". `as_declared` compares
+**`caught_by` is one signal. `fired_kinds` is each signal.** `SIGNAL_PRECEDENCE` selects
+`caught_by`, which answers "which detector gets the credit". `as_declared` compares
 `fired_kinds` against the declaration, because a class that also trips an undeclared
-detector is a disagreement worth publishing. The first live run made the point: `row_count`
-fired on `class_rename`, `table_to_div`, `url_pattern` and `date_format`, none of which
-declare it, and while only the credited kind was kept every one of them reported "as
-declared".
+detector is a disagreement that must be published. The first live run showed this.
+`row_count` fired on `class_rename`, `table_to_div`, `url_pattern` and `date_format`. None
+of the four declares `row_count`. The system kept the credited kind only, and each of the
+four reported "as declared".
 
-**What the runner must honour:**
+**What the runner must do:**
 
-- Build each case's spec with `anchor_urls=[fixture_url]`. A `RunResult` does not carry its
-  source URLs, so the ambiguous-code retry re-runs `spec.anchor_urls` — if those differ from
-  the fixture, the retry silently checks a *different page*.
-- `caught_by` is `None` for an escalated case: the loop's retry caught it, not a detector,
-  and fabricating a signal would tell the matrix otherwise. Do not read it as a gap unqualified.
-- Attempts-to-heal counts loop passes, not heal calls. `VerifyReport.attempts` counts
-  verification passes inside one `verify()` call.
+- Build the spec of each case with `anchor_urls=[fixture_url]`. A `RunResult` does not carry
+  its source URLs. Therefore the retry for an ambiguous code runs `spec.anchor_urls` again.
+  If those URLs are not the fixture, the retry examines a *different page*, and no component
+  reports this.
+- `caught_by` is `None` for an escalated case. The retry of the loop caught the case, and a
+  detector did not. To invent a signal would tell the matrix something else. Do not read
+  this as a gap without the qualification.
+- Attempts-to-heal counts the passes of the loop. It does not count the heal calls.
+  `VerifyReport.attempts` counts the verification passes in one `verify()` call.
 
 ## 15. Resolved decisions
 
-Recorded so nobody re-derives them.
+These are recorded so that no person derives them again.
 
 1. **Workspace root.** Root `pyproject.toml` with members `api` and `packages/bdheal`, one
    lockfile at `/uv.lock`, api image built from the repo root.
@@ -492,103 +523,106 @@ Recorded so nobody re-derives them.
 3. **Partial throttle suppresses volume signals only** — widened later to every target-side
    code (§8).
 4. **Hosted and unattended pieces are out of scope** for this build.
-5. **`bdheal` carries no lockfile.** A library pinning its own transitive tree is hostile to
-   the applications embedding it; installability is proved instead by the gated
-   clean-room build-and-install check.
+5. **`bdheal` carries no lockfile.** A library that pins its own transitive tree is hostile
+   to the applications that embed it. The gated clean-room build-and-install check proves
+   installability instead.
 6. **Where the skeleton signal's HTML comes from.** `StudioClient.fetch_html` via
    `bdata scrape`; `detect(..., page_html=None)` skips the skeleton signal.
 7. **`Healer` lives in `healer.py`**, Use Cases.
-8. **`ports.py` exists at all.** Putting each port beside its adapter yields a file that
-   cannot be assigned to one layer. Ports live in `ports.py` (Use Cases), adapters in
-   `studio.py` / `store.py` (Interface Adapters).
-9. **`bench/runner.py` receives a `HealLoop`**, not a `StudioClient` + `HealStore` pair —
-   satisfying "runs green with no network" without `bench/` importing its parent.
-   A signature-comparison test guards `Healer` and `HealLoop` against drift.
+8. **`ports.py` exists at all.** If each port were adjacent to its adapter, the file could
+   not belong to one layer. A port is in `ports.py` (Use Cases). An adapter is in
+   `studio.py` or `store.py` (Interface Adapters).
+9. **`bench/runner.py` receives a `HealLoop`**, and not a `StudioClient` with a `HealStore`.
+   This satisfies "runs green with no network", and `bench/` does not import its parent. A
+   signature-comparison test guards `Healer` and `HealLoop` against a difference.
 10. **Licence: MIT.** `LICENSE` at the repo root and a bundled copy in the package; the
     wheel carries `License-Expression: MIT`.
 
 ## 16. Known gaps
 
-Real, recorded, none blocking. Say these out loud rather than letting a reader discover them.
+These are true, recorded, and none of them blocks release. State them. Do not let a reader
+find them.
 
-- **The redaction net in `studio.py` catches only what it can name.** Unlabelled tokens slip
-  through if they are base64 containing `+` or `/`, are a single character class, or fall
-  under `MIN_OPAQUE_CHARS`. This is residue behind four label-based patterns, and both named
-  threat channels — `npx` echoing argv, `bdata` relaying auth errors — are covered by a
-  labelled one. The 24-character floor trades against redacting collector ids.
-- **`preview_result` is the one subprocess-authored field persisted unredacted.** It holds
-  sample rows rather than auth material, so likelihood is low — but revisit it if the loop
-  ever previews a page behind authentication.
-- **`mean_attempts_to_heal` publishes `1.0` by construction** — one loop pass per case, one
-  heal per pass. Real and tested, but carries no information until the runner has a retry
-  budget. Say so when publishing it.
-- **`null_rate` has never fired.** Confirmed against a live collector across all nine
-  classes: `url_pattern` declares it, but a bad field used to reject the whole row, leaving
-  `rows` empty and every null rate at 0.0, which cannot spike. Partial rows (§7) make it
-  reachable; whether it now fires is untested until the next live run.
-- **A refused heal cannot be reversed on Bright Data** (§9). The record says the heal was
-  not kept; the collector stays healed either way.
-- **A target-side code with no baseline yields `signals == []`** while `incomplete`,
-  `retry_requested` and `reason` still speak. Consistent with "no baseline means no detector
-  ran", but it deserves a regression test next time `detect.py` is touched.
+- **The redaction net in `studio.py` catches only what it can name.** An unlabelled token
+  passes through if it is base64 that contains `+` or `/`, if it is one character class, or
+  if it is shorter than `MIN_OPAQUE_CHARS`. This is the residue behind four label-based
+  patterns. A labelled pattern covers the two named threat channels: `npx` that echoes argv,
+  and `bdata` that relays an auth error. The floor of 24 characters is a compromise against
+  the redaction of a collector id.
+- **`preview_result` is the one field from a subprocess that the system persists without
+  redaction.** It holds sample rows and not auth material. Therefore the risk is low. But
+  examine this again if the loop ever previews a page behind authentication.
+- **`mean_attempts_to_heal` gives `1.0` by design** — one loop pass for each case, one heal
+  for each pass. It is true and tested, but it carries no information until the runner has a
+  retry budget. Say this at publication.
+- **`null_rate` has never fired.** The project confirmed this against a live collector
+  across all nine classes. `url_pattern` declares `null_rate`, but an incorrect field used
+  to reject the complete row. `rows` was then empty and each null rate was 0.0, which cannot
+  spike. Partial rows (§7) make the signal reachable. Whether it now fires is untested until
+  the next live run.
+- **A refused heal on Bright Data cannot be reversed** (§9). The record says that the system
+  did not keep the heal. The collector stays healed in both conditions.
+- **A target-side code with no baseline gives `signals == []`**, and `incomplete`,
+  `retry_requested` and `reason` still carry information. This agrees with "no baseline
+  means that no detector ran". But it needs a regression test at the next change to
+  `detect.py`.
 
 ## 17. The source surface, and what it does not have
 
-`bdheal` is source-agnostic; `ixq` is not. These are properties of medicines.org.uk that
-shaped the schema and the UI, verified against served HTML rather than assumed. They are
-recorded here because each one has already been rediscovered at least once.
+`bdheal` does not depend on a source. `ixq` does. These are properties of
+medicines.org.uk that shaped the schema and the UI. The project verified each one against
+the served HTML. It did not assume them. They are here because a person has already found
+each one a second time.
 
-- **No product photograph of any UK generic exists, anywhere.** EMC has no image concept at
-  all — its sitemap carries only `/smpc` and `/pil` URLs, PIL PDFs contain no embedded
-  images, MHRA's schema has no image field, and the manufacturers have chosen not to publish
-  any. Branded medicines get photography; POM generics get a row in a table. This is not a
-  gap more effort can close. The substitute is §3 *Pharmaceutical form* — the manufacturer's
-  own regulated description — parsed into `AppearanceView` and rendered as a **drawing of
-  our own**, which is why every glyph must read as a schematic and never as a photograph.
+- **No product photograph of any UK generic exists, anywhere.** EMC has no concept of an
+  image. Its sitemap contains `/smpc` and `/pil` URLs only. A PIL PDF contains no embedded
+  image. The MHRA schema has no image field. The manufacturers have decided not to publish
+  a photograph. A branded medicine gets photography. A POM generic gets a row in a table.
+  More effort cannot close this gap. The substitute is §3 *Pharmaceutical form*, which is
+  the manufacturer's own regulated description. The system parses it into `AppearanceView`
+  and shows it as a **drawing that the project makes**. This is why each glyph must read as a
+  schematic and never as a photograph.
 
-- **Two revision dates per page, and they disagree.** `Last updated on emc:` and §10 *Date
-  of revision of the text* differ by up to years. Both are stored — `listing_updated` and
-  `revised` — because they answer different questions, and a reader shown only one cannot
-  tell which staleness they are looking at. Keep publishing the publisher's own string:
-  parsing month-precision text into a date invents a day nobody published.
+- **There are two revision dates on each page, and they disagree.** `Last updated on emc:`
+  and §10 *Date of revision of the text* differ by as much as years. The system stores both,
+  as `listing_updated` and `revised`, because they answer different questions. A reader who
+  sees one date only cannot tell which staleness they are looking at. Continue to publish
+  the publisher's own string. A parse of text with a precision of one month into a date
+  invents a day that no person published.
 
-- **Two company values per page.** The header account name (`Aurobindo Pharma - Milpharm
-  Ltd.`) is not the legal MA holder in §7 (`Milpharm Limited`). `ma_holder` and `holder_id`
-  hold the header one; `ma_holder` is free text, so two spellings of one company become two
-  columns unless `holder_id` is used to group them.
+- **There are two company values on each page.** The account name in the header
+  (`Aurobindo Pharma - Milpharm Ltd.`) is not the legal MA holder in §7
+  (`Milpharm Limited`). `ma_holder` and `holder_id` hold the header value. `ma_holder` is
+  free text. Therefore two spellings of one company become two columns without a group on
+  `holder_id`.
 
-- **No structured strength or pharmaceutical form field.** `variant` is regex-extracted from
-  the product name and is `null` whenever the name does not carry both — 102 of 744 stored
-  labels. A card that assumes it renders a blank line.
+- **There is no structured field for the strength or the pharmaceutical form.** A regular
+  expression extracts `variant` from the product name. `variant` is `null` when the name
+  does not carry both values — 102 of 744 stored labels. A card that assumes a value shows a
+  blank line.
 
-- **Marketing status is binary.** A `discontinued` badge is present or absent; there is no
-  suspended or withdrawn state anywhere on the site.
+- **The marketing status is binary.** A `discontinued` badge is present or absent. The site
+  has no suspended state and no withdrawn state.
 
-**Licensing — escalate before this is more than a demo.** Datapharm's EMC terms prohibit
-reproducing its content for commercial benefit, building databases from it, and
-systematically tracking changes to third-party information. **That applies to the corpus
-already stored, not only to imagery.** Datapharm offers a licensing route. Nothing needs to
-change for a hackathon submission, but it should be a conscious decision rather than an
-oversight.
+## 18. The honesty layer is necessary
 
-## 18. The honesty layer is load-bearing
+Four independent components carry the statement that an absence has a scope, and that the
+system does not assert it. They appear redundant and they are not. Each one covers a route
+that the others do not reach. **Do not combine them into one.**
 
-Four independent places carry the claim that absence is scoped, not asserted. They look
-redundant and are not — each covers a route the others do not reach. **Do not simplify them
-into one.**
+- `SectionCoverage` draws an uncollected section with a dashed border. Therefore the scope
+  of an absence is visible adjacent to it.
+- Each absent cell says, in words, that it is not the same as a label that is silent.
+- `RecallGap` publishes two counts. It does not publish a percentage that flatters.
+- The reliability page separates a *declared* gap from a missed detection. A declared gap is
+  a mutation that no detector can see, therefore silence is the expected result.
 
-- `SectionCoverage` draws uncollected sections dashed, so the scope of an absence is visible
-  beside it.
-- Every absent cell says, in words, that it is not the same as the label being silent.
-- `RecallGap` publishes two counts rather than a flattering percentage.
-- The reliability page distinguishes a *declared* gap — a mutation no detector can see, so
-  silence is the expected result — from a missed detection.
-
-The rule underneath all four: **placement, never omission that was not checked.** A screen
-that cannot say which sections it read is not entitled to report an absence.
+One rule is below all four: **report the placement, and never an omission that the system
+did not examine.** A screen that cannot say which sections it read must not report an
+absence.
 
 ## Working constraint
 
-**No git commits without the user's explicit permission.** No agent working this repository
-runs `git commit`, `git add`, or any other git write command. Work stays in the working tree
-for the user to review.
+**Make no git commit without the explicit permission of the user.** An agent that works in
+this repository does not run `git commit`, `git add`, or any other git write command. Work
+stays in the working tree for the user to review.

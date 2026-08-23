@@ -1,13 +1,14 @@
 # bdheal benchmark fixtures
 
-The pages the self-healing benchmark runs against. Real sites do not redesign themselves on
-cue, so the benchmark hosts a site it fully controls and breaks that instead.
+These are the pages that the self-healing benchmark runs against. A true site does not
+change its design on demand. Therefore the benchmark supplies a site that it
+controls fully, and breaks that site.
 
 ## The data is synthetic — read this first
 
-Every record in `data.json` is invented. The reference codes, component names and dates
-describe nothing that exists, and every generated page carries a visible banner saying so.
-Do not repurpose these pages to represent anything real.
+Each record in `data.json` is invented. The reference codes, the component names and the
+dates describe nothing that exists. Each generated page shows a banner that says this. Do
+not use these pages to represent anything true.
 
 ## How it works
 
@@ -19,32 +20,35 @@ data.json  ──►  render.py  ──►  site/base.html           the base ("
                      └────────►  site/manifest.json      pages, expected signals, goldens
 ```
 
-`index.html` is the only page here meant to be clicked, and it is what GitHub Pages serves
-at the site root — a visitor gets an index that says what this site is, rather than the
-benchmark's base layout with no context. It links to every fixture and no fixture links
-back, so a collector anchored on a fixture can never reach it and the single-page rule
-below is untouched. It is not a benchmark page and is absent from the manifest.
+`index.html` is the only page here for a person to click. GitHub Pages supplies it at the
+root of the site. A visitor then gets an index that tells them what the site is. They do
+not get the base layout of the benchmark with no context. `index.html` links to each
+fixture, and no fixture links back to it. Therefore a collector that is anchored on a
+fixture cannot reach the index, and the single-page rule below stays correct. `index.html`
+is not a benchmark page and is not in the manifest.
 
-The base layout is `base.html`. Every consumer reads that name from
-`manifest["base_page"]`, so renaming it touched no downstream code — and `render.py` does
-not prune, so a renamed page lingers in `site/` until it is deleted by hand.
+The base layout is `base.html`. Each consumer reads that name from
+`manifest["base_page"]`. Therefore a new name for the file changed no downstream code.
+`render.py` does not remove files. Therefore a page with an old name stays in `site/`
+until a manual delete removes it.
 
-One dataset is the single source of truth. The base page is rendered from it; each mutated
-page is that same base page put through one of `bdheal`'s own generators in
-`bench/mutate.py`. **The golden records are derived from the dataset, never transcribed** —
-so a page and the records it is scored against cannot drift apart.
+One dataset is the single source of truth. `render.py` makes the base page from the
+dataset. Each mutated page is that same base page after one of the generators in
+`bdheal`'s own `bench/mutate.py`. **`render.py` derives the golden records from the
+dataset. It does not transcribe them.** Therefore a page and the records that score it
+cannot become different.
 
-`site/` is generated but committed on purpose: a `git diff` of it between two renders is the
-reviewable record of exactly what a mutation changed.
+`site/` is generated, but the repository contains it intentionally. A `git diff` of `site/`
+between two renders is the record of what a mutation changed, and a person can review it.
 
 ```bash
 uv run --package bdheal python fixtures/render.py   # regenerate
 fixtures/deploy.sh                                  # render + publish to gh-pages
 ```
 
-## What each mutation is expected to do
+## What each mutation must do
 
-Verified against the rendered site rather than asserted:
+The project verified this table against the rendered site. It did not assert the table.
 
 | Mutation | Skeleton hash | Extracted values | Expected to be caught by |
 |---|---|---|---|
@@ -58,38 +62,43 @@ Verified against the rendered site rather than asserted:
 | `date_format` | unchanged | `updated` changes | `schema`, `null_rate` |
 | `link_label` | unchanged | `name` changes | **nothing — a declared gap** |
 
-`pagination` is the only class that drops data rather than moving it: the listing is split and the rows beyond the first page genuinely stop arriving, so its golden is the first half of the dataset. It is also the only class that exercises the volume detector — nothing else in the set changes the row count.
+`pagination` is the only class that removes data. The other classes move data. `pagination`
+divides the listing, and the rows after the first page stop arriving. Therefore its golden
+is the first half of the dataset. It is also the only class that tests the volume detector,
+because no other class in the set changes the row count.
 
-`link_label` is the honest one. The page's structure is untouched and the extracted name
-silently becomes `Details` for every row. No detector in `bdheal` sees it, the benchmark
-reports it as a coverage gap rather than quietly omitting it, and that is the finding.
+`link_label` is the honest class. The structure of the page does not change, and the
+extracted name becomes `Details` for each row. No detector in `bdheal` sees this. The
+benchmark reports it as a coverage gap. It does not omit it. That report is the finding.
 
 ## Collectors MUST be single-page
 
-A `scraper create` pointed at a listing URL builds a **site crawler**, not a page
-extractor. A probe collector built this way walked 1.05K pages and failed 999 of them to
-return one record.
+A `scraper create` that points at a listing URL builds a **site crawler**. It does not
+build a page extractor. A probe collector that was built in this way walked 1.05K pages,
+failed 999 of them, and returned one record.
 
-Every benchmark collector's description must say, explicitly: **extract from this page
-only, follow no links, no pagination.** Check the page count of the first collector against
-the Bright Data dashboard before running the remaining cases.
+The description of each benchmark collector must say this: **extract from this page only,
+follow no links, no pagination.** Compare the page count of the first collector with the
+Bright Data dashboard before the other cases run.
 
-The `href` values on these pages are **extracted as data and never meant to be
-followed**. They deliberately resolve to nothing, and the pages carry
-`<meta name="robots" content="nofollow">`, so a collector that ignores its single-page
-instruction fails loudly here rather than quietly crawling. That is a tripwire, not a
-guarantee — the description is what actually scopes the collector.
+The system extracts the `href` values on these pages as data. **A collector must not
+follow them.** They resolve to nothing, and each page contains
+`<meta name="robots" content="nofollow">`. Therefore a collector that does not obey its
+single-page instruction fails here, and the failure is visible. This is a tripwire and not
+a guarantee. The description is what limits the collector.
 
-`base_path` in `data.json` is what keeps the tripwire inside this site. A root-relative
-`/register/rf-001` resolves against the *account* root on a project Pages site, so it fails
-on a site these fixtures do not own; `/interchangeable/register/rf-001` fails within the
-published one. Change `base_path` when publishing anywhere else — it is applied once, before
-anything is rendered or scored, so the pages and the goldens cannot disagree about it.
+`base_path` in `data.json` keeps the tripwire in this site. On a project Pages site, a
+root-relative path such as `/register/rf-001` resolves against the *account* root.
+Therefore it fails on a site that these fixtures do not own.
+`/interchangeable/register/rf-001` fails in the published site. Change `base_path` for
+publication to a different location. `render.py` applies `base_path` one time, before it
+renders or scores anything. Therefore the pages and the goldens cannot disagree about it.
 
-**One page escapes that containment, and it is the honest exception:** `url_pattern` exists
-to move links onto another prefix, and `MOVED_PATH_PREFIX` goes on the front, so its links
-read `/v2/interchangeable/…` and land outside the site again. A mutation whose whole subject
-is links moving somewhere else cannot also keep them where they were.
+**One page is outside that containment, and it is the honest exception.** `url_pattern`
+exists to move links to a different prefix. `MOVED_PATH_PREFIX` goes at the front.
+Therefore its links are `/v2/interchangeable/…` and are outside the site again. A mutation
+whose subject is links that move to a different location cannot also keep those links in
+their original location.
 
 ## Checks
 
@@ -97,35 +106,39 @@ is links moving somewhere else cannot also keep them where they were.
 uv run --package bdheal pytest fixtures/tests            # goldens, offline
 ```
 
-Three things, none of which `render.py` can establish about itself: that re-rendering
-reproduces the committed `site/` byte-for-byte, that **parsing each page back yields the
-golden it is scored against**, and that the manifest's declared signals still match
-`MUTATIONS`. The second is the one that matters — `render.py` derives goldens from
-`data.json`, which proves they agree with the *dataset*, not with the *pages*.
+These tests show three things, and `render.py` cannot show any of them about itself. First,
+that a second render makes the committed `site/` byte for byte. Second, that **a parse of
+each page gives the golden that scores it**. Third, that the signals in the manifest still
+agree with `MUTATIONS`. The second test is the important one. `render.py` derives the
+goldens from `data.json`, which shows that they agree with the *dataset*. It does not show
+that they agree with the *pages*.
 
-The extractor there makes exactly one assumption about how a page is read: **an element
-boundary counts as whitespace.** `field_split_merge` rewrites a name as two adjacent spans
-with no separator, so concatenating their text gives `CobaltSpindle Bracket` — what a
-browser renders, and not what the golden says. Joining on the boundary is what "one column
-becomes two" means.
+The extractor in the tests makes one assumption about how to read a page: **an element
+boundary is whitespace.** `field_split_merge` writes a name as two adjacent spans with no
+separator. A join of their text gives `CobaltSpindle Bracket`. A browser shows that,
+but the golden does not contain it. To join on the boundary is the meaning of "one column
+becomes two".
 
-After publishing, point the same suite at the deployed site:
+After publication, point the same suite at the deployed site:
 
 ```bash
 BDHEAL_PAGES_URL=https://<owner>.github.io/<repo> \
   uv run --package bdheal pytest fixtures/tests -m pages
 ```
 
-Byte-for-byte against the local files, because a 200 from every URL says the site is up,
-not that the CDN has caught up with the deploy.
+The suite compares byte for byte against the local files. A 200 status from each URL shows
+that the site operates. It does not show that the CDN has the new deploy.
 
 ## Publishing
 
-`deploy.sh` pushes `site/` straight to the `gh-pages` branch instead of using a Pages
-Actions workflow, because Actions publishing needs the `workflow` OAuth scope that
-`gh auth login` does not grant by default. A direct branch push needs only `repo`.
+`deploy.sh` pushes `site/` directly to the `gh-pages` branch. It does not use a Pages
+Actions workflow, because publication with Actions needs the `workflow` OAuth scope.
+`gh auth login` does not grant that scope by default. A direct branch push needs the `repo`
+scope only.
 
-Pages serves through a CDN: **wait 30–60 seconds** after publishing before pointing a
-collector at the site, or it reads the previous markup and the measurement is worthless.
+Pages supplies the site through a CDN. **Wait 30 to 60 seconds** after publication, before
+a collector points at the site. Without that delay, the collector reads the previous
+markup and the measurement has no value.
 
-Enable Pages once, per repository: Settings → Pages → deploy from branch → `gh-pages` / root.
+Enable Pages one time for each repository: Settings → Pages → deploy from branch →
+`gh-pages` / root.

@@ -1,11 +1,12 @@
 # Bright Data Scraper Studio — operational reference
 
 Source: `https://docs.brightdata.com/datasets/scraper-studio/coding-agent-prompts`
-Full docs index: `https://docs.brightdata.com/llms.txt` — fetch this to discover other pages.
+Full docs index: `https://docs.brightdata.com/llms.txt` — get this file to find other
+pages.
 
 ## Invocation
 
-Every command runs through `npx`. Nothing is installed globally.
+Run each command through `npx`. Install nothing globally.
 
 ```bash
 npx -p @brightdata/cli bdata login
@@ -16,8 +17,9 @@ The binary is **`bdata`**, from the `@brightdata/cli` package.
 
 ## Verified CLI surface
 
-Confirmed against `bdata --help` on **v0.3.5** (2026-08-18). This supersedes the
-earlier prose-only reading of the docs page — every subcommand below is real.
+The project confirmed this against `bdata --help` on **v0.3.5** (2026-08-18). This
+supersedes the earlier reading of the documentation page, which used the prose only. Each
+subcommand below is real.
 
 ```
 bdata scraper create  <url> <description>   # -> {collector_id, name, status, ...}
@@ -26,32 +28,33 @@ bdata scraper heal    <collector_id> <prompt>
 bdata scraper approve <collector_id>
 ```
 
-### `--name` is worth passing on every `create`
+### Supply `--name` with each `create`
 
-The default is `cli-scraper-<timestamp>`, which makes every collector an account has ever
-built indistinguishable in the UI. There is **no programmatic delete**, so a collector that
-outlives its run can only be removed by a human picking it out of a list. Name them.
+The default name is `cli-scraper-<timestamp>`. With this default one collector is not
+distinguishable from another in the UI. There is **no programmatic delete**. Therefore a person
+must find a collector in a list and remove it manually. Give each collector a name.
 
-### ⚠️ `create` descriptions are capped at 500 characters
+### ⚠️ A `create` description has a limit of 500 characters
 
-`--help` states it on the argument; nothing else does. Over the cap the template is
-created and *then* the AI trigger returns `Invalid description` (400) — so an oversized
-description costs an orphaned collector rather than a clean rejection. **Measure before
-sending:**
+`--help` gives this limit on the argument. No other source gives it. If the description is
+longer than the limit, the system makes the template, and *then* the AI trigger returns
+`Invalid description` (400). Therefore a description that is too long costs an orphan
+collector. It does not give a clean rejection. **Measure the description before it goes
+out:**
 
 ```bash
 LEN=$(printf '%s' "$DESC" | wc -c); [ "$LEN" -lt 500 ] || echo "too long: $LEN"
 ```
 
-Verified the expensive way on 2026-08-20: a 587-character description stranded
-`c_mt16flbr27bq7fbsjp`.
+The project verified this at cost on 2026-08-20. A description of 587 characters left
+`c_mt16flbr27bq7fbsjp` orphaned.
 
-**Any AI-trigger failure orphans a collector**, not only the blocked-host case documented
-below. The template is created first and generation is triggered second, so every 400 at
-that second step leaves a `status: ai_trigger_failed` collector behind, with no
-programmatic delete.
+**Each AI-trigger failure orphans a collector.** This is not limited to the blocked-host
+condition below. The system makes the template first and starts the generation second.
+Therefore each 400 at the second step leaves a collector with `status: ai_trigger_failed`,
+and there is no programmatic delete.
 
-Flags that the source page did not show, but which exist:
+These flags exist, but the source page did not show them:
 
 | Flag | Where | Note |
 |---|---|---|
@@ -65,87 +68,94 @@ Flags that the source page did not show, but which exist:
 | `--input-file <path>` | run | one URL per line, or a JSON array of strings / `{"url": ...}` objects |
 | `--sync`, `--sync-timeout` | run | synchronous `/dca/crawl`, single-URL only, server caps at 25–50 s |
 
-Other top-level commands present: `scrape` (Web Unlocker), `search`, `pipelines`,
+These other top-level commands exist: `scrape` (Web Unlocker), `search`, `pipelines`,
 `status`, `zones`, `budget`, `browser`, `discover`, `skill`, `config`, `init`.
 
 ## The loop
 
-Build minimal first, then heal to extend — a small known-good baseline makes the heal's `preview_result` verifiable against something.
+Build a minimal collector first. Then heal it to extend it. A small known-good baseline
+gives something to verify the `preview_result` of the heal against.
 
 1. **login** — authenticate.
-2. **create** — scraper for a target URL + field list. Returns a Collector ID (`c_mpohus372o5tmid1jk` shape). Save it; every later step reuses it.
-3. **run** — execute against a URL. Returns a JSON array of rows.
-4. **heal** — repair or extend in place, anchored on a URL. The Collector ID does not change.
+2. **create** — make a scraper for a target URL and a field list. This returns a Collector
+   ID with the shape `c_mpohus372o5tmid1jk`. Save the ID. Each later step uses it.
+3. **run** — run the collector against a URL. This returns a JSON array of rows.
+4. **heal** — repair or extend the collector in place, anchored on a URL. The Collector ID
+   does not change.
 5. **approve** — anchored on the same URL.
-6. **run again** — confirm the new fields come back.
+6. **run again** — confirm that the new fields come back.
 
-### ⚠️ A heal is not persisted unless you pass `--auto-save`
+### ⚠️ The system does not persist a heal without `--auto-save`
 
-Root cause found 2026-08-20 on `c_mt16h8d01sakfyvaem`, after the documented flow silently
-failed twice.
+The project found this cause on 2026-08-20 on `c_mt16h8d01sakfyvaem`, after the documented
+flow failed two times with no message.
 
-**What does not work.** `heal <id> "<prompt>"` then `approve <id> --url <anchor>`. The
-heal runs all nine steps, returns `awaiting_approval` with a `preview_result` containing
-the new field populated with real content, and `approve` returns `status: done`. Every
-later run — including against the anchor URL itself — returns the *original* field set.
-Nothing reports an error at any point.
+**What does not operate.** `heal <id> "<prompt>"` and then `approve <id> --url <anchor>`.
+The heal runs all nine steps. It returns `awaiting_approval` with a `preview_result` that
+contains the new field with true content. `approve` then returns `status: done`. But each
+later run returns the *original* field set, including a run against the anchor URL. No
+component reports an error.
 
-**What works.** `heal <id> "<prompt>" --auto-save`. The step list then contains one extra
-entry absent from the first attempt:
+**What operates.** `heal <id> "<prompt>" --auto-save`. The step list then contains one more
+entry, which the first attempt did not have:
 
 ```
 Step: save_new_template — polling (attempt 1/1500)
 ```
 
-Verified: a subsequent run returned the new field at 2,217 characters with every existing
-field unchanged.
+Verified: a later run returned the new field with 2,217 characters, and each existing field
+did not change.
 
-So `preview_result` is a proposal, `approve` acknowledges it, and **`--auto-save` is what
-writes the template back**. The `heal → awaiting_approval → approve → done` sequence in
-the docs is not sufficient on its own, and a pipeline following it exactly keeps running
-the old template while reporting success.
+Therefore `preview_result` is a proposal, `approve` acknowledges the proposal, and
+**`--auto-save` writes the template back**. The sequence
+`heal → awaiting_approval → approve → done` in the documentation is not sufficient. A
+pipeline that follows the documentation exactly continues to run the old template, and it
+reports success.
 
-**Always assert the field on a real run afterwards** — never trust a status. This is what
-`Healer.heal()` exists to do; driving the CLI by hand skips that verification.
+**Always assert the field on a true run afterwards.** Never trust a status. This is the
+function of `Healer.heal()`. Manual use of the CLI omits that verification.
 
 ### ⚠️ `preview_result` is an object **or an array**
 
-Verified 2026-08-21. A preview carrying several rows comes back as a JSON array:
+Verified 2026-08-21. A preview that contains more than one row comes back as a JSON array:
 
 ```json
 [{"components": [{"ref": "RF-001", "name": "…", "category": "…", "updated": "…", "href": "…"}, …]}]
 ```
 
-A single-row preview comes back as an object, which is why a one-row collector never trips
-this. Typing the field as an object alone rejects the array, and the *entire completed
-repair* is discarded as an unusable envelope.
+A preview with one row comes back as an object. Therefore a collector with one row never
+finds this condition. A field that is typed as an object only makes the parse reject the array,
+and the system discards the *complete repair* as an envelope that it cannot use.
 
-### ⚠️ An unanswered gate blocks the collector — `Status: 409`
+### ⚠️ A gate with no answer blocks the collector — `Status: 409`
 
-Verified the expensive way, same day. Bright Data finishes the whole repair and then waits
-at `user_approval`. If the caller never answers, the job stays open indefinitely — five
-hours in the observed case — and every later heal on that collector fails:
+The project verified this at cost on the same day. Bright Data completes the full repair
+and then waits at `user_approval`. If the caller never answers, the job stays open with no
+limit — five hours in the observed case. Each later heal on that collector then fails:
 
 ```
 Failed to start self-healing for collector c_…: Error: Another refactor job is still in progress
   Status: 409
 ```
 
-It is not a slow job; nobody picked up. Clear it with `bdata scraper approve <id> --reject`,
-which returns `{"status":"rejected","completed_steps":[…,"user_approval"]}` and frees the
-collector immediately. **Any code path that opens a heal must answer the gate on its way
-out, including on failure.**
+The job is not slow. No person answered it. To clear it, use
+`bdata scraper approve <id> --reject`. This returns
+`{"status":"rejected","completed_steps":[…,"user_approval"]}` and releases the collector
+immediately. **Each code path that opens a heal must answer the gate before it exits. This
+includes a path that exits on a failure.**
 
-### ⚠️ `--auto-save` on `heal` alone is NOT enough — `approve` needs its own
+### ⚠️ `--auto-save` on `heal` is NOT sufficient — `approve` needs its own
 
-**Corrected 2026-08-21, on `c_mt16h8d01sakfyvaem`, after this file's previous advice cost
-a completed repair.**
+**Corrected 2026-08-21 on `c_mt16h8d01sakfyvaem`, after the previous advice in this file
+caused the loss of a completed repair.**
 
-This section used to say `--auto-save` on `heal` was sufficient and `approve` did not need
-its own. That is wrong, and following it loses the template silently.
+This section previously said that `--auto-save` on `heal` was sufficient, and that
+`approve` did not need the flag. That is incorrect, and it loses the template with no
+message.
 
-`heal <id> "<prompt>" --auto-save` on a collector that has **no drift to repair** — i.e. a
-deliberate schema extension rather than a fix — runs to `user_approval` and stops:
+Use `heal <id> "<prompt>" --auto-save` on a collector that has **no drift to repair** — for
+example, an intentional schema extension and not a fix. The heal then runs to
+`user_approval` and stops:
 
 ```
 "status": "awaiting_approval",
@@ -153,29 +163,29 @@ deliberate schema extension rather than a fix — runs to `user_approval` and st
                     "step_preview_runner", "request_fulfillment_validator", "step_advance"]
 ```
 
-**`save_new_template` is absent.** `preview_result` shows every requested field correctly
-populated, which is what makes this so convincing and so wrong: the proposal is perfect
-and nothing was written. A later run returns the original field set.
+**`save_new_template` is absent.** `preview_result` shows each requested field with correct
+content. This makes the result convincing and incorrect: the proposal is complete, but the
+system wrote nothing. A later run returns the original field set.
 
-`approve <id> --auto-save` is what completes it:
+`approve <id> --auto-save` completes the operation:
 
 ```
 "status": "done",
 "completed_steps": [..., "step_advance", "user_approval", "save_new_template"]
 ```
 
-**The working sequence is `heal --auto-save` then `approve --auto-save`.** Look for
-`save_new_template` in `completed_steps`; its absence is the failure, whatever `status`
-says.
+**The sequence that operates is `heal --auto-save` and then `approve --auto-save`.** Look
+for `save_new_template` in `completed_steps`. If it is absent, the operation failed,
+whatever the `status` says.
 
-The earlier note was verified against a *mutated page*, where the loop presumably
-auto-approves its own repair. A schema extension has no mutation to detect, parks at the
-gate, and the flag never gets to act. Both observations can be true; the old wording
-generalised from one.
+The project verified the earlier note against a *mutated page*. On a mutated page the loop
+approves its own repair. A schema extension has no mutation to detect. Therefore it stops
+at the gate, and the flag cannot act. The two observations can both be correct. The old
+text generalised from one observation.
 
-**And the rule this file already records still governs: assert the fields on a real run.**
-That is what caught it — eight fields were live at 09:26 and gone by 10:37 because the gate
-was never answered.
+**The rule that this file already gives still applies: assert the fields on a true run.**
+That rule found this defect. Eight fields were live at 09:26 and absent at 10:37, because
+no person answered the gate.
 
 ## Heal state machine
 
@@ -185,15 +195,19 @@ heal ──> status: awaiting_approval ──> approve ──> status: done
               └─ preview_result: sample row under the proposed fix
 ```
 
-`--auto-approve` skips the gate and polls straight to `done`. Use only where the heal is trusted without review.
+`--auto-approve` omits the gate and polls to `done`. Use it only for a heal that needs no
+review.
 
-`preview_result` is a free pre-promotion check: it shows the proposed extraction against a live anchor URL *before* the collector changes. Verify against it rather than promoting and re-running.
+`preview_result` is a check before promotion, and it is free. It shows the proposed
+extraction against a live anchor URL *before* the collector changes. Verify against the
+preview. Do not promote the change and then run the collector again.
 
-Heal covers both repair (layout broke) and extension (add fields to an existing schema) — same mechanism, same in-place semantics.
+Heal does the repair (the layout broke) and the extension (add fields to an existing
+schema). The mechanism is the same and the in-place semantics are the same.
 
 ## Prompt template
 
-One template, parameterised. Replace `<TARGET_URL>` and `<FIELDS>`.
+There is one template with parameters. Replace `<TARGET_URL>` and `<FIELDS>`.
 
 ```text
 Build, run, heal and verify a Bright Data scraper end to end. Run every Bright Data CLI
@@ -211,8 +225,9 @@ in order and stop if a step fails:
 
 ## `bdata scrape` is a different command with a different flag set
 
-Top-level `scrape` (Web Unlocker) is **not** one of the four `scraper` subcommands and
-shares none of their flags. Its complete option set, verified v0.3.5:
+The top-level `scrape` command (Web Unlocker) is **not** one of the four `scraper`
+subcommands. It has none of their flags. This is its complete option set, verified on
+v0.3.5:
 
 ```
 -f, --format <format>  markdown | html | screenshot | json   (DEFAULT: markdown)
@@ -224,15 +239,15 @@ shares none of their flags. Its complete option set, verified v0.3.5:
 --json --pretty --timing
 ```
 
-⚠️ **The default format is `markdown`, not HTML.** Any caller wanting markup — e.g. to
-compute a structural skeleton hash — must pass `--format html` explicitly. Omitting it
-returns markdown, which parses into a near-empty tag tree: no error, just a meaningless
-fingerprint.
+⚠️ **The default format is `markdown` and not HTML.** A caller that needs markup — for
+example, to compute a structural skeleton hash — must supply `--format html`. Without the
+flag, the command returns markdown. Markdown parses into a tag tree that is almost
+empty. There is no error, but the fingerprint has no meaning.
 
-## Escalation is internal — one invocation, not two (verified 2026-08-19)
+## Escalation is internal — one invocation and not two (verified 2026-08-19)
 
-A `scraper run` that exceeds the realtime page limit **escalates and finishes the job by
-itself**, in the same invocation:
+A `scraper run` that goes above the realtime page limit **escalates and completes the job
+without help**, in the same invocation:
 
 ```
 stderr: Triggering scrape... / Polling (attempt 1/600)
@@ -242,40 +257,42 @@ stderr: Triggering scrape... / Polling (attempt 1/600)
 stdout: the JSON rows, alone
 ```
 
-Three consequences, all load-bearing for any wrapper:
+This has three consequences. Each one is necessary for a wrapper:
 
-1. **Never watch for `switching to batch mode` and re-run.** The announced job is already
-   running and already paid for; a second run submits a duplicate. Two minutes-long,
-   rate-limited jobs for one answer.
-2. **`--sync` does not prevent escalation** — the capture above was produced *with* the
-   flag set. It only restricts you to a single URL (it is rejected alongside `--urls`).
-   There is therefore one run shape, at the batch deadline, because any call may escalate.
-3. **Streams are separated**: progress and diagnostics on **stderr**, the JSON payload on
-   **stdout** alone. So `json.loads(stdout)` is safe, and the escalation marker is a
-   stderr string, not something that pollutes the payload.
+1. **Never watch for `switching to batch mode` and start the run again.** The announced job
+   already runs, and the account already paid for it. A second run submits a duplicate.
+   Two jobs that take minutes and have a rate limit then give one answer.
+2. **`--sync` does not prevent the escalation.** The project captured the output above
+   *with* the flag set. The flag permits a single URL only, and the CLI rejects it with
+   `--urls`. Therefore there is one run shape, at the batch deadline, because each call can
+   escalate.
+3. **The streams are separate.** The progress and the diagnostics go to **stderr**. The
+   JSON payload goes to **stdout** only. Therefore `json.loads(stdout)` is safe, and the
+   escalation marker is a string on stderr. It does not corrupt the payload.
 
-Batch polling is slow and real: an observed run was still at `attempt 82/3600` after ~14
-minutes. Budget the process deadline accordingly, and give it grace beyond the CLI's own
-`--timeout` so `bdata` can report a timeout as JSON rather than being killed mid-sentence.
+The batch poll is slow and real. In one observed run the poll was still at
+`attempt 82/3600` after approximately 14 minutes. Set the process deadline for this. Give
+the process more time than the `--timeout` value of the CLI. `bdata` can then report a
+timeout as JSON, and the system does not stop it during its output.
 
-## Mutually exclusive flags on `scraper run`
+## Flags on `scraper run` that do not combine
 
-`--sync` cannot be combined with `--urls` or `--input-file` — the `/dca/crawl` endpoint
-takes a single URL. Verified verbatim:
+`--sync` does not combine with `--urls` or with `--input-file`. The `/dca/crawl` endpoint
+accepts one URL. Verified verbatim:
 
 ```
 ✗ --sync cannot be combined with --urls / --input-file. The /dca/crawl endpoint accepts
   only a single URL. Drop --sync to use the batch endpoint (/dca/trigger).
 ```
 
-So the sync path is reachable only for a single URL; multi-URL runs must go straight to
+Therefore the sync path serves a single URL only. A run with more than one URL must use
 batch.
 
-## Government-domain policy — blocks the plan's corpus
+## Government-domain policy — this blocks the corpus in the plan
 
-Verified 2026-08-18 against all four agencies. Bright Data classifies municipal sites
-as Government and refuses them at the network layer, independent of robots.txt (which
-permits `/AgendaCenter` on every one of them).
+Verified 2026-08-18 against all four agencies. Bright Data classifies a municipal site as
+Government and refuses it at the network layer. This is independent of `robots.txt`, which
+permits `/AgendaCenter` on each of the four sites.
 
 | Host | Response |
 |---|---|
@@ -284,25 +301,31 @@ permits `/AgendaCenter` on every one of them).
 | `www.bainbridgewa.gov` | `Forbidden: government site, requires special permissions` → KYC |
 | `www.lakehavenwsd.gov` | same — KYC path offered |
 
-`scraper create` against a blocked host fails at the AI-generation trigger with
-`Domain not allowed` (400) and **leaves a half-built collector behind**; Bright Data
-exposes no programmatic delete, so it must be removed in the web UI.
+A `scraper create` against a blocked host fails at the AI-generation trigger with
+`Domain not allowed` (400). It **leaves a partially built collector**. Bright Data has no
+programmatic delete. Therefore the collector must be removed in the web UI.
 
-Sanctioned path is KYC at `https://brightdata.com/cp/kyc`. Do not route around the
-classifier — no archive mirrors, no proxy indirection. This is a Bright Data–sponsored
-hackathon and the policy is theirs to enforce.
+The permitted path is KYC at `https://brightdata.com/cp/kyc`. Do not go around the
+classifier. Do not use an archive mirror. Do not use a proxy. Bright Data sponsors this
+hackathon, and the policy is theirs to enforce.
 
 ## Operational timings
 
-- `scraper create` on a permitted host completes the full nine-step AI build in ~2 min.
-- `scraper run` polls up to **3600 attempts** in batch mode; a single run can take many
-  minutes. Any subprocess wrapper needs a timeout well above the 600s default.
-- Target sites can rate-limit the crawler: a run returns
-  `{"error": "...too many requests", "error_code": "rate_limit"}` per input row rather
-  than failing the job. Treat `error_code` as a first-class outcome in the Pydantic model.
+- On a permitted host, `scraper create` completes the full nine-step AI build in
+  approximately 2 minutes.
+- In batch mode, `scraper run` polls a maximum of **3600 attempts**. One run can take many
+  minutes. A subprocess wrapper needs a timeout that is much longer than the default of
+  600 s.
+- A target site can rate-limit the crawler. The run then returns
+  `{"error": "...too many requests", "error_code": "rate_limit"}` for each input row. The
+  job does not fail. Make `error_code` a first-class outcome in the Pydantic model.
 
 ## Notes for this project
 
-- Collector IDs belong in `api/config/collectors.yaml` beside their anchor, never in code.
-- A heal is anchored on a URL, so the plan's non-regression check maps cleanly: heal anchored on the new layout, then `run` against the **old** layout URL and diff against golden.
-- Scraper Studio executes in Bright Data's cloud and cannot reach `localhost` — benchmark fixtures must be publicly hosted.
+- Put each Collector ID in `api/config/collectors.yaml`, adjacent to its anchor. Do not put
+  an ID in the code.
+- A heal is anchored on a URL. Therefore the non-regression check in the plan maps
+  directly: anchor the heal on the new layout, then `run` against the URL of the **old**
+  layout and compare the result with the golden.
+- Scraper Studio runs in the Bright Data cloud and cannot connect to `localhost`. Therefore
+  the benchmark fixtures must be public.
