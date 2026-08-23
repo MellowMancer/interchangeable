@@ -81,7 +81,25 @@ function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
   const ever = (mutation: string, held: (c: (typeof attempts)[number]) => boolean) =>
     attempts.some((benchCase) => benchCase.mutation === mutation && held(benchCase));
 
-  const detected = mutations.filter((m) => ever(m, (c) => c.caught_by !== null)).length;
+  /*
+   * A mutation nobody expected to see is not a mutation that was missed.
+   *
+   * `link_label` changes a value the collector never reads, so no detector can see it and
+   * the fixture declares it a gap — expecting no signal is the measurement. Counting its
+   * silence as a failed detection put it beside `class_rename`, which *should* have raised
+   * one and did not, and reported the instrument as worse than it is while hiding the one
+   * result that actually needs work.
+   *
+   * So the verdict is agreement with the expectation, in both directions, and the mutation
+   * that disagrees is named rather than folded into a total.
+   */
+  const watched = mutations.filter((m) => expects(attempts, m));
+  const caught = watched.filter((m) => ever(m, (c) => c.caught_by !== null));
+  const declaredGaps = mutations.filter((m) => !expects(attempts, m));
+  const quiet = declaredGaps.filter((m) => !ever(m, (c) => c.caught_by !== null));
+  const outstanding = watched.filter((m) => !ever(m, (c) => c.caught_by !== null));
+
+  const asExpected = caught.length + quiet.length;
   const repaired = mutations.filter((m) => ever(m, (c) => c.healed)).length;
   const verified = mutations.filter((m) => ever(m, (c) => c.non_regression_passed === true)).length;
 
@@ -89,13 +107,36 @@ function BenchmarkSummary({ runs }: { runs: BenchRun[] }) {
     <p className="max-w-prose border-l-2 border-rule pl-4 text-meta text-ink-muted">
       <span className="text-ink">
         {mutations.length} {mutations.length === 1 ? "mutation" : "mutations"} over{" "}
-        {attempts.length} {attempts.length === 1 ? "attempt" : "attempts"}: {detected}{" "}
-        detected, {repaired} repaired, {verified} verified against the old layout.
+        {attempts.length} {attempts.length === 1 ? "attempt" : "attempts"}: {asExpected}{" "}
+        behaved as expected.
       </span>{" "}
-      Every type of mutation/test is given below. A signal chip is filled when
-      that detector fired, outlined when it was expected and stayed silent. <em>Non-regression</em> means the repair still works
-      against the layout it was built for, so it was not overfitted to the break.
+      {caught.length} of the {watched.length} that should raise a signal did
+      {quiet.length > 0 && (
+        <>
+          , and {quiet.length} that should raise none stayed silent
+        </>
+      )}
+      . {repaired} repaired, {verified} verified against the old layout.
+      {outstanding.length > 0 && (
+        <>
+          {" "}
+          <span className="text-ink">
+            Open: {outstanding.join(", ")} — expected to raise a signal and did not.
+          </span>
+        </>
+      )}{" "}
+      Every mutation is listed below. A signal chip is filled when that detector fired,
+      outlined when it was expected and stayed silent. <em>Non-regression</em> means the
+      repair still works against the layout it was built for, so it was not overfitted to
+      the break.
     </p>
+  );
+}
+
+/** Whether any attempt at this mutation declared a detector that ought to see it. */
+function expects(attempts: BenchCase[], mutation: string): boolean {
+  return attempts.some(
+    (benchCase) => benchCase.mutation === mutation && benchCase.expected_signals.length > 0,
   );
 }
 
@@ -227,6 +268,10 @@ function Signals({ expected, fired }: { expected: string[]; fired: string[] }) {
  * verdicts mean is stated once above the table, not repeated on every row.
  */
 function Outcome({ benchCase }: { benchCase: BenchCase }) {
+  // Silence where silence was the expectation is the declared result, not a miss.
+  if (!benchCase.caught_by && benchCase.expected_signals.length === 0) {
+    return <span className="text-ink-muted">declared gap · no signal expected</span>;
+  }
   if (!benchCase.caught_by) return <span className="text-ink-muted">not detected</span>;
   if (!benchCase.healed) return <span className="text-ink-muted">detected, not repaired</span>;
 
